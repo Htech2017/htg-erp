@@ -1,0 +1,275 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800 uppercase tracking-tight">Hệ thống Nhân sự & Phân quyền</h1>
+                <p class="text-sm text-gray-500 italic">Quản lý định danh và tài khoản truy cập hệ thống</p>
+            </div>
+            <button onclick="openUserModal()" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all active:scale-95 text-sm">
+                <i class="fas fa-user-plus mr-2"></i>THÊM THÀNH VIÊN
+            </button>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase border-b">
+                    <tr>
+                        <th class="p-5">Mã NV</th>
+                        <th class="p-5">Họ và Tên / Username</th>
+                        <th class="p-5">Liên hệ (SĐT/Email)</th>
+                        <th class="p-5">Các Vai Trò</th>
+                        <th class="p-5 text-center">Trạng thái</th>
+                        <th class="p-5 text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="user-tbody" class="text-sm divide-y divide-gray-50"></tbody>
+            </table>
+        </div>
+
+        <div id="modalUser" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl">
+                <div class="p-5 bg-indigo-900 text-white font-bold flex justify-between items-center text-sm uppercase">
+                    <span id="modalTitle">Thêm tài khoản</span>
+                    <button onclick="closeUserModal()" class="opacity-50 hover:opacity-100 transition"><i class="fas fa-times-circle text-xl"></i></button>
+                </div>
+                
+                <form class="p-8 space-y-4" id="formUser" onsubmit="handleSaveUser(event)">
+                    <input type="hidden" id="user_id">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mã NV (Tự động)</label>
+                            <input type="text" id="u_code" class="w-full border-2 border-slate-100 rounded-xl p-3 font-black text-indigo-600 bg-gray-50" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Họ và Tên</label>
+                            <input type="text" id="u_name" class="w-full border-2 border-slate-100 rounded-xl p-3 font-bold outline-none focus:border-indigo-500" required>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
+                        <div class="col-span-1">
+                            <label class="block text-[10px] font-black text-indigo-600 uppercase mb-1 tracking-widest">Tên đăng nhập</label>
+                            <input type="text" id="u_username" class="w-full border-2 border-white rounded-xl p-3 font-black text-slate-700 outline-none focus:border-indigo-500 shadow-sm" placeholder="Ví dụ: nva_htech" required>
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-[10px] font-black text-indigo-600 uppercase mb-1 tracking-widest">Mật khẩu</label>
+                            <input type="password" id="u_password" class="w-full border-2 border-white rounded-xl p-3 font-bold outline-none focus:border-indigo-500 shadow-sm" placeholder="••••••••">
+                            <p id="pw_note" class="text-[9px] text-indigo-400 mt-1 italic hidden">* Để trống nếu không muốn đổi mật khẩu</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Số điện thoại</label>
+                            <input type="text" id="u_phone" class="w-full border-2 border-slate-100 rounded-xl p-3 font-bold outline-none focus:border-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email</label>
+                            <input type="email" id="u_email" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500" required>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <label class="block text-[10px] font-black text-indigo-600 uppercase mb-3 leading-none tracking-widest">Phân quyền vai trò hệ thống</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-300 transition">
+                                <input type="checkbox" name="roles" value="Admin" class="rounded text-indigo-600">
+                                <span class="text-xs font-bold text-slate-700">🛡️ Admin</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-300 transition">
+                                <input type="checkbox" name="roles" value="Sale" class="rounded text-indigo-600">
+                                <span class="text-xs font-bold text-slate-700">💼 Sale (Kinh doanh)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-300 transition">
+                                <input type="checkbox" name="roles" value="Trưởng BP Thiết kế" class="rounded text-indigo-600">
+                                <span class="text-xs font-bold text-slate-700">⚡ Trưởng BP Thiết kế</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-300 transition">
+                                <input type="checkbox" name="roles" value="Nhân viên Thiết kế" class="rounded text-indigo-600">
+                                <span class="text-xs font-bold text-slate-700">🛠️ Nhân viên Thiết kế</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border hover:border-indigo-300 transition">
+                                <input type="checkbox" name="roles" value="Project Manager" class="rounded text-indigo-600">
+                                <span class="text-xs font-bold text-slate-700">📂 Project Manager</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-4 border-t">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="u_status" checked class="w-4 h-4 text-indigo-600 rounded">
+                            <label for="u_status" class="text-[10px] font-black text-gray-500 uppercase">Kích hoạt tài khoản</label>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="button" onclick="closeUserModal()" class="px-6 py-2 text-slate-400 font-bold uppercase text-[10px]">Hủy</button>
+                            <button type="submit" class="bg-indigo-600 text-white px-10 py-3 rounded-2xl font-black shadow-lg uppercase text-[10px] hover:bg-indigo-700 transition-all">Lưu nhân sự</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+let currentUsers = [];
+
+// --- 1. RENDER DANH SÁCH ---
+async function renderUsers() {
+    try {
+        const response = await fetch('/api/users');
+        currentUsers = await response.json();
+        
+        const tbody = document.getElementById('user-tbody');
+        tbody.innerHTML = '';
+
+        currentUsers.forEach(u => {
+            const roleBadges = u.roles.map(r => `<span class="px-2 py-0.5 rounded-md text-[9px] font-black border ${getRoleStyle(r)}">${r}</span>`).join(' ');
+            
+            tbody.innerHTML += `
+                <tr class="group hover:bg-slate-50 transition-colors">
+                    <td class="p-5 font-black text-indigo-600 text-xs">${u.code}</td>
+                    <td class="p-5">
+                        <p class="font-bold text-slate-800">${u.name}</p>
+                        <p class="text-[11px] text-indigo-400 font-black tracking-widest">@${u.username || 'chua_co'}</p>
+                    </td>
+                    <td class="p-5">
+                        <p class="text-[11px] text-slate-600 font-bold"><i class="fas fa-phone mr-1 opacity-50"></i>${u.phone}</p>
+                        <p class="text-[11px] text-gray-400 italic">${u.email}</p>
+                    </td>
+                    <td class="p-5"><div class="flex flex-wrap gap-1">${roleBadges}</div></td>
+                    <td class="p-5 text-center">
+                        <span class="w-2.5 h-2.5 rounded-full inline-block ${u.status ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-400'}"></span>
+                    </td>
+                    <td class="p-5 text-center">
+                        <div class="flex items-center justify-center gap-3">
+                            <button onclick="editUser(${u.id})" class="text-blue-500 hover:scale-110 transition"><i class="fas fa-edit text-base"></i></button>
+                            <button onclick="deleteUser(${u.id})" class="text-red-400 hover:text-red-600 hover:scale-110 transition"><i class="fas fa-trash-alt text-base"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+    } catch (e) { console.error("Lỗi tải danh sách:", e); }
+}
+
+// --- 2. LƯU THÔNG TIN ---
+async function handleSaveUser(e) {
+    e.preventDefault();
+    const selectedRoles = Array.from(document.querySelectorAll('input[name="roles"]:checked')).map(cb => cb.value);
+    if(selectedRoles.length === 0) return Swal.fire('Chú ý', 'Vui lòng chọn ít nhất một vai trò!', 'warning');
+
+    const userId = document.getElementById('user_id').value;
+    const password = document.getElementById('u_password').value;
+
+    // Bắt buộc nhập pass khi tạo mới
+    if (!userId && !password) {
+        return Swal.fire('Lỗi', 'Vui lòng nhập mật khẩu cho tài khoản mới!', 'error');
+    }
+
+    const data = {
+        id: userId,
+        code: document.getElementById('u_code').value,
+        name: document.getElementById('u_name').value,
+        username: document.getElementById('u_username').value,
+        password: password,
+        phone: document.getElementById('u_phone').value,
+        email: document.getElementById('u_email').value,
+        roles: selectedRoles,
+        status: document.getElementById('u_status').checked
+    };
+
+    const response = await fetch('/api/users/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if(result.success) {
+        Swal.fire('Thành công', 'Đã lưu thông tin nhân sự!', 'success');
+        closeUserModal();
+        renderUsers();
+    }
+}
+
+// --- 3. CÁC HÀM PHỤ TRỢ ---
+function openUserModal() {
+    document.getElementById('formUser').reset();
+    document.getElementById('user_id').value = '';
+    document.getElementById('modalTitle').innerText = "Thêm tài khoản mới";
+    document.getElementById('pw_note').classList.add('hidden');
+    document.getElementById('u_password').required = true;
+    
+    const year = new Date().getFullYear().toString().slice(-2);
+    const nextNum = (currentUsers.length + 1).toString().padStart(3, '0');
+    document.getElementById('u_code').value = `NV-${year}${nextNum}`;
+    
+    document.getElementById('modalUser').classList.remove('hidden');
+}
+
+function editUser(id) {
+    const u = currentUsers.find(x => x.id === id);
+    if(!u) return;
+
+    document.getElementById('modalTitle').innerText = "Sửa tài khoản: " + u.code;
+    document.getElementById('user_id').value = u.id;
+    document.getElementById('u_code').value = u.code;
+    document.getElementById('u_name').value = u.name;
+    document.getElementById('u_username').value = u.username || '';
+    document.getElementById('u_password').value = '';
+    document.getElementById('u_password').required = false; 
+    document.getElementById('pw_note').classList.remove('hidden');
+    
+    document.getElementById('u_phone').value = u.phone;
+    document.getElementById('u_email').value = u.email;
+    document.getElementById('u_status').checked = u.status;
+    
+    document.querySelectorAll('input[name="roles"]').forEach(cb => {
+        cb.checked = u.roles.includes(cb.value);
+    });
+
+    document.getElementById('modalUser').classList.remove('hidden');
+}
+
+function getRoleStyle(role) {
+    const styles = {
+        'Admin': 'bg-slate-900 text-white border-slate-900',
+        'Sale': 'bg-blue-50 text-blue-700 border-blue-200',
+        'Project Manager': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'Trưởng BP Thiết kế': 'bg-orange-50 text-orange-700 border-orange-200',
+        'Nhân viên Thiết kế': 'bg-purple-50 text-purple-700 border-purple-200'
+    };
+    return styles[role] || 'bg-gray-50 text-gray-600 border-gray-200';
+}
+
+async function deleteUser(id) {
+    const result = await Swal.fire({
+        title: 'Xác nhận xóa?',
+        text: "Bạn không thể hoàn tác hành động này!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#4f46e5',
+        cancelButtonColor: '#ef4444',
+        confirmButtonText: 'Đồng ý xóa'
+    });
+
+    if (result.isConfirmed) {
+        const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+        if((await response.json()).success) {
+            Swal.fire('Đã xóa', 'Tài khoản đã được gỡ khỏi hệ thống.', 'success');
+            renderUsers();
+        }
+    }
+}
+
+function closeUserModal() { document.getElementById('modalUser').classList.add('hidden'); }
+
+window.onload = renderUsers;
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,93 @@
+<aside class="w-64 bg-[#0f172a] text-white flex-shrink-0 flex flex-col h-screen sticky top-0 border-r border-slate-800">
+    <div class="p-5 text-xl font-bold bg-[#020617] text-center border-b border-slate-800 tracking-tight">
+        MANAGEMENT
+    </div>
+
+    <nav class="flex-1 mt-5 px-2 space-y-1 overflow-y-auto custom-scrollbar">
+        <a href="/" data-role="Admin, Sale, Trưởng BP Thiết kế, Nhân viên Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-home w-6"></i> Dashboard
+        </a>
+        <a href="/khach-hang" data-role="Admin, Sale" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-user-friends w-6"></i> Quản lý khách hàng
+        </a>
+        <a href="/don-hang" data-role="Admin, Sale, Trưởng BP Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-file-invoice-dollar w-6"></i> Quản lý đơn hàng
+        </a>
+        <a href="/reports" data-role="Admin, Sale" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-chart-line w-6 text-emerald-400"></i> Báo cáo kinh doanh
+        </a>
+
+        <div class="my-4 border-t border-slate-800/50"></div>
+
+        <a href="/thiet-ke" data-role="Admin, Trưởng BP Thiết kế, Nhân viên Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-palette w-6"></i> Quản lý thiết kế
+        </a>
+        <a href="/quan-ly-quy" data-role="Admin, Trưởng BP Thiết kế, Nhân viên Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-wallet w-6"></i> Quản lý quỹ
+        </a>
+        <a href="/du-an" data-role="Admin, Trưởng BP Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-tasks w-6"></i> Quản lý dự án
+        </a>
+        <a href="/du-an-ngoai" data-role="Admin, Trưởng BP Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+            <i class="fas fa-handshake w-6 text-indigo-400"></i> Dự án Ngoài Cty
+        </a>
+    </nav>
+
+    <div class="bg-[#020617]/50 border-t border-slate-800">
+        <div class="p-4 space-y-1">
+            <a href="/cai-dat" data-role="Admin"class="nav-item flex items-center p-2 text-sm text-gray-400 hover:text-white transition">
+                <i class="fas fa-cog w-5 text-center"></i> 
+                <span class="ml-2">Cài đặt hệ thống</span>
+            </a>
+            <a href="/tai-khoan" data-role="Admin, Sale" class="nav-item flex items-center p-2 text-sm text-gray-400 hover:text-white transition">
+                <i class="fas fa-users-cog w-5 text-center"></i> 
+                <span class="ml-2">Quản lý tài khoản</span>
+            </a>
+        </div>
+
+        <div class="p-4 bg-[#020617] flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shrink-0">
+                <%= (typeof user !== 'undefined' && user) ? user.name.substring(0,2).toUpperCase() : 'AD' %>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-[11px] font-black truncate text-white uppercase">
+                    <%= (typeof user !== 'undefined' && user) ? user.name : 'Administrator' %>
+                </p>
+                <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-widest">
+                    <%= (typeof user !== 'undefined' && user) ? user.role : 'Admin' %>
+                </p>
+            </div>
+            <a href="/logout" title="Đăng xuất" class="text-red-400 hover:text-red-300 transition-colors">
+                <i class="fas fa-sign-out-alt"></i>
+            </a>
+        </div>
+    </div>
+</aside>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Ưu tiên Role từ Session (Server), nếu không có mới dùng LocalStorage
+        const activeRole = "<%= (typeof user !== 'undefined' && user) ? user.role : '' %>" || localStorage.getItem('active_role') || 'Admin';
+        const currentPath = window.location.pathname;
+
+        document.querySelectorAll('.nav-item').forEach(link => {
+            const allowedRoles = link.getAttribute('data-role');
+            
+            if (allowedRoles && !allowedRoles.includes(activeRole)) {
+                link.style.opacity = "0.2";
+                link.style.pointerEvents = "none";
+                link.style.filter = "grayscale(1)";
+            }
+
+            if (link.getAttribute('href') === currentPath) {
+                link.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+            }
+        });
+    });
+</script>

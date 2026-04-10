@@ -1,0 +1,182 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+
+<div class="mb-8">
+    <h1 class="text-2xl font-black text-slate-800 uppercase tracking-tight">Hệ thống Điều hành Dashboard</h1>
+    <p class="text-gray-500 mt-1 italic text-sm">Dữ liệu tổng hợp thời gian thực từ Database</p>
+</div>
+
+<div class="flex gap-4 mb-8">
+    <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm">
+        <span class="relative flex h-2 w-2">
+            <span id="status-drive-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span id="status-drive-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Google Drive:</span>
+        <span id="status-drive-text" class="text-[10px] font-black uppercase text-emerald-600">Đã kết nối</span>
+    </div>
+
+    <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm">
+        <span class="relative flex h-2 w-2">
+            <span id="status-webhook-dot" class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+        </span>
+        <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Google Chat:</span>
+        <span id="status-webhook-text" class="text-[10px] font-black uppercase text-amber-600">Chưa cấu hình</span>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white rounded-[2rem] shadow-sm p-8 border-l-8 border-blue-500 flex items-center justify-between transition-all hover:shadow-lg">
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tổng Khách Hàng</p>
+            <p id="dash-total-kh" class="text-4xl font-black text-slate-800 mt-2">0</p>
+        </div>
+        <div class="bg-blue-50 p-4 rounded-2xl text-blue-600">
+            <i class="fas fa-users text-3xl"></i>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-[2rem] shadow-sm p-8 border-l-8 border-emerald-500 flex items-center justify-between transition-all hover:shadow-lg">
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Đơn Đang Xử Lý</p>
+            <p id="dash-active-orders" class="text-4xl font-black text-slate-800 mt-2">0</p>
+        </div>
+        <div class="bg-emerald-50 p-4 rounded-2xl text-emerald-600">
+            <i class="fas fa-shopping-cart text-3xl"></i>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-[2rem] shadow-sm p-8 border-l-8 border-red-500 flex items-center justify-between transition-all hover:shadow-lg">
+        <div>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tổng Công Nợ Khách</p>
+            <p id="dash-total-debt" class="text-3xl font-black text-red-600 mt-2">0 đ</p>
+        </div>
+        <div class="bg-red-50 p-4 rounded-2xl text-red-600">
+            <i class="fas fa-file-invoice-dollar text-3xl"></i>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-[2.5rem] shadow-sm overflow-hidden border border-gray-100">
+    <div class="px-8 py-5 border-b border-gray-50 bg-slate-50 flex justify-between items-center">
+        <h2 class="font-black text-slate-700 uppercase text-xs tracking-widest">Đơn hàng mới cập nhật</h2>
+        <a href="/don-hang" class="text-[10px] font-bold text-blue-600 hover:underline">XEM TẤT CẢ</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="text-[10px] font-black text-slate-400 uppercase border-b bg-white">
+                    <th class="px-8 py-4">Mã ĐH</th>
+                    <th class="px-8 py-4">Tên Mạch / Dự án</th>
+                    <th class="px-8 py-4 text-center">Trạng thái</th>
+                    <th class="px-8 py-4">Giá trị</th>
+                </tr>
+            </thead>
+            <tbody id="dash-recent-orders-tbody" class="divide-y divide-gray-50">
+                </tbody>
+        </table>
+    </div>
+</div>
+</main>
+<script>
+// --- HÀM LOAD DATA TỪ SERVER ---
+async function loadDashboardData() {
+    try {
+        const response = await fetch('/api/dashboard-stats');
+        
+        // Nếu Server lỗi 500, response.ok sẽ là false
+        if (!response.ok) throw new Error("Server trả về lỗi 500");
+
+        const data = await response.json();
+
+        // 1. Cập nhật các con số thống kê (Dùng || 0 để an toàn)
+        document.getElementById('dash-total-kh').innerText = data.countKH || 0;
+        document.getElementById('dash-active-orders').innerText = data.activeOrders || 0;
+        document.getElementById('dash-total-debt').innerText = new Intl.NumberFormat('vi-VN').format(data.totalDebt || 0) + ' đ';
+
+        // 2. Cập nhật Trạng thái Hệ thống (Kiểm tra tồn tại trước khi xử lý)
+        if (data.systemStatus) {
+            updateStatusUI('drive', data.systemStatus.drive);
+            updateStatusUI('webhook', data.systemStatus.webhook);
+        }
+
+        // 3. Đổ dữ liệu vào bảng Đơn hàng mới
+        const tbody = document.getElementById('dash-recent-orders-tbody');
+        if (tbody) {
+            if (data.recentOrders && data.recentOrders.length > 0) {
+                tbody.innerHTML = data.recentOrders.map(order => `
+                    <tr class="hover:bg-slate-50 transition-colors border-b">
+                        <td class="px-8 py-5">
+                            <p class="font-black text-blue-600 text-[11px] uppercase tracking-tighter">${order.maDH}</p>
+                        </td>
+                        <td class="px-8 py-5 font-bold text-slate-700 text-sm">${order.tenMach || 'N/A'}</td>
+                        <td class="px-8 py-5 text-center">
+                            <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${getStatusClass(order.ttQuyTrinh)}">
+                                ${order.ttQuyTrinh}
+                            </span>
+                        </td>
+                        <td class="px-8 py-5 font-black text-slate-800 text-xs text-right">
+                            ${new Intl.NumberFormat('vi-VN').format(order.giaBao || 0)} đ
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-gray-400 italic">Chưa có dữ liệu đơn hàng.</td></tr>';
+            }
+        }
+
+    } catch (e) {
+        console.error("Lỗi Dashboard Frontend:", e);
+    }
+}
+
+// Hàm bổ trợ cập nhật màu sắc Trạng thái
+function updateStatusUI(type, status) {
+    const dot = document.getElementById(`status-${type}-dot`);
+    const text = document.getElementById(`status-${type}-text`);
+    const pulse = document.getElementById(`status-${type}-pulse`);
+    const isConnected = (status === 'connected');
+
+    if (dot && text) {
+        dot.className = `relative inline-flex rounded-full h-2 w-2 ${isConnected ? 'bg-emerald-500' : 'bg-red-500'}`;
+        text.innerText = isConnected ? "Đã kết nối" : (type === 'drive' ? "Chưa kết nối" : "Chưa cấu hình");
+        text.className = `text-[10px] font-black uppercase ${isConnected ? 'text-emerald-600' : 'text-red-600'}`;
+        
+        if (pulse) {
+            isConnected ? pulse.classList.remove('hidden') : pulse.classList.add('hidden');
+        }
+    }
+}
+
+// Màu sắc cho trạng thái đơn hàng
+function getStatusClass(status) {
+    const colors = {
+        'Đã chốt': 'bg-emerald-100 text-emerald-600',
+        'Chờ chốt': 'bg-amber-100 text-amber-600',
+        'Đang xử lý': 'bg-blue-100 text-blue-600',
+        'Hoàn thành': 'bg-slate-100 text-slate-600',
+        'Hủy': 'bg-red-100 text-red-600'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-400';
+}
+
+// Helper: Màu sắc trạng thái
+function getStatusClass(status) {
+    const map = {
+        'Đã chốt': 'bg-emerald-100 text-emerald-600',
+        'Chờ chốt': 'bg-amber-100 text-amber-600',
+        'Đang xử lý': 'bg-blue-100 text-blue-600',
+        'Hoàn thành': 'bg-slate-100 text-slate-600'
+    };
+    return map[status] || 'bg-gray-100 text-gray-400';
+}
+
+function formatVND(num) { return new Intl.NumberFormat('vi-VN').format(num); }
+
+// Tự động chạy khi load trang
+window.onload = loadDashboardData;
+</script>
+
+<%- include('../partials/footer') %>

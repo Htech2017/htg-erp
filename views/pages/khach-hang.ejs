@@ -1,0 +1,311 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<script src="/js/auth-db.js"></script>
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+<div class="flex justify-between items-center mb-8">
+    <h1 class="text-2xl font-bold text-gray-800">Quản lý Khách hàng</h1>
+    <div class="flex gap-2">
+    <a href="/api/customers/template" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-200 transition flex items-center gap-2 text-sm font-medium">
+        <i class="fas fa-download"></i> Tải mẫu
+    </a>
+
+    <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" onchange="handleImportExcel(event)">
+    <button onclick="document.getElementById('excelInput').click()" class="bg-emerald-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-emerald-700 transition flex items-center gap-2">
+        <i class="fas fa-file-excel"></i> Import Excel
+    </button>
+    
+    <button onclick="openModal()" class="bg-blue-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition">
+        + Thêm Khách hàng
+    </button>
+</div>
+</div>
+
+<div class="flex flex-wrap gap-4 mb-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+    <div class="flex-1 min-w-[250px] relative">
+        <span class="absolute left-3 top-2.5 text-gray-400"><i class="fas fa-search"></i></span>
+        <input type="text" id="filterSearch" oninput="renderTable()" placeholder="Tìm tên khách, mã KH, số điện thoại..." 
+               class="w-full border rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm overflow-hidden">
+    <table class="w-full text-left">
+        <thead class="bg-gray-50 border-b">
+            <tr>
+                <th class="p-4 font-semibold text-gray-600">Mã KH</th>
+                <th class="p-4 font-semibold text-gray-600">Nick name</th>
+                <th class="p-4 font-semibold text-gray-600">Tên KH</th>
+                <th class="p-4 font-semibold text-gray-600">SĐT</th>
+                <th class="p-4 font-semibold text-gray-600">Công nợ (VNĐ)</th>
+                <th class="p-4 font-semibold text-gray-600 text-center">Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="customer-tbody"></tbody>
+    </table>
+</div>
+
+<div id="modalKH" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 id="modalTitle" class="font-bold text-lg text-gray-800">Thêm khách hàng mới</h2>
+            <button onclick="closeModal()" class="text-gray-500 hover:text-red-500"><i class="fas fa-times"></i></button>
+        </div>
+        <form class="p-6 space-y-4" id="formKH" onsubmit="handleSaveCustomer(event)">
+            <input type="hidden" id="kh_id">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm mb-1 font-medium">Nick name</label>
+                    <input type="text" id="nick_name" maxlength="10" class="w-full border rounded p-2 outline-none focus:border-blue-500 uppercase" required>
+                </div>
+                <div>
+                    <label class="block text-sm mb-1 font-medium">Số điện thoại</label>
+                    <input type="text" id="sdt" class="w-full border rounded p-2 outline-none focus:border-blue-500" required>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm mb-1 font-medium">Tên khách hàng</label>
+                <input type="text" id="tenKH" class="w-full border rounded p-2 outline-none focus:border-blue-500" required>
+            </div>
+            <div>
+                <label class="block text-sm mb-1 font-medium">Địa chỉ</label>
+                <input type="text" id="diachi" class="w-full border rounded p-2 outline-none focus:border-blue-500">
+            </div>
+            <div class="bg-blue-50 p-3 rounded border border-blue-100 text-sm text-gray-700">
+                Mã khách hàng dự kiến: <span id="previewMaKH" class="font-bold text-blue-700 text-base ml-2">--</span>
+            </div>
+            <div class="col-span-12">
+                <label class="block text-[10px] font-black text-blue-600 uppercase mb-1">
+                    <i class="fas fa-history mr-1"></i> Công nợ cũ chuyển sang (Đầu kỳ)
+                </label>
+                <input type="number" id="c_old_debt" name="old_debt" 
+                    class="w-full border-2 border-blue-100 rounded-xl p-3 font-black text-blue-700 focus:border-blue-500 outline-none" 
+                    placeholder="0" value="0">
+                <p class="text-[9px] text-gray-400 mt-1 italic">* Số tiền khách còn nợ từ hệ thống cũ tính đến thời điểm hiện tại.</p>
+            </div>
+            <div class="flex justify-end space-x-3 pt-4 border-t mt-4">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Hủy</button>
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">Lưu thông tin</button>
+            </div>
+        </form>
+    </div>
+</div>
+</main>
+<script>
+let currentCustomers = []; // Biến tạm lưu danh sách để dùng cho hàm sửa
+
+// --- 1. RENDER BẢNG ---
+// Thay vì dùng: const db = await getDB(); (Gây lỗi 404)
+// Hãy dùng:
+async function renderTable() {
+    try {
+        const response = await fetch('/api/customers');
+        const customers = await response.json();
+        currentCustomers = customers;
+
+        const tbody = document.getElementById('customer-tbody');
+        tbody.innerHTML = customers.map(kh => {
+            // Log thử để bạn kiểm tra tên cột thực tế từ DB
+            console.log("Dữ liệu 1 dòng khách:", kh); 
+
+            // Trong hàm renderTable(), đoạn map customers:
+        return `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-4 font-bold text-blue-600 uppercase text-[11px]">
+                    ${kh.maKH || (kh.nick_name + '_' + (kh.sdt || '').slice(-5))}
+                </td>
+                <td class="p-4 text-sm">${kh.nick_name || ''}</td>
+                <td class="p-4 font-bold text-slate-700">${kh.tenKH || kh.name || 'N/A'}</td>
+                <td class="p-4 text-sm">${kh.sdt || kh.phone || ''}</td>
+                
+                <td class="p-4 font-black text-red-600 text-sm">
+                    ${new Intl.NumberFormat('vi-VN').format(kh.total_debt || 0)} đ
+                </td>
+
+                <td class="p-4 text-center">
+                    <div class="flex justify-center items-center gap-2">
+                        <button onclick="createOrderForKH('${kh.maKH}')" 
+                                class="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white w-8 h-8 rounded-lg transition-all flex items-center justify-center shadow-sm" 
+                                title="Tạo đơn hàng cho khách này">
+                            <i class="fas fa-plus-circle"></i>
+                        </button>
+
+                        <button onclick="editCustomer(${kh.id})" class="text-blue-500 hover:text-blue-700 p-2">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteCustomer(${kh.id})" class="text-red-400 hover:text-red-600 p-2">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+        }).join('');
+    } catch (error) {
+        console.error("Lỗi hiển thị bảng:", error);
+    }
+}
+
+// --- 2. XỬ LÝ MÃ KH TỰ ĐỘNG ---
+function updateMaKH() {
+    const nick = document.getElementById('nick_name').value.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '') || 'NICK';
+    const sdt = document.getElementById('sdt').value.replace(/\D/g, '').slice(-5) || 'SDT';
+    document.getElementById('previewMaKH').innerText = `${nick}_${sdt}`;
+}
+
+document.getElementById('nick_name').addEventListener('input', updateMaKH);
+document.getElementById('sdt').addEventListener('input', updateMaKH);
+
+// --- 3. ĐÓNG MỞ MODAL ---
+function openModal() {
+    document.getElementById('modalKH').classList.remove('hidden');
+    document.getElementById('modalTitle').innerText = "Thêm khách hàng mới";
+    document.getElementById('formKH').reset();
+    document.getElementById('kh_id').value = '';
+    updateMaKH();
+}
+
+function closeModal() {
+    document.getElementById('modalKH').classList.add('hidden');
+}
+
+async function editCustomer(id) {
+    const kh = currentCustomers.find(c => c.id === id);
+    if (!kh) return;
+
+    document.getElementById('modalKH').classList.remove('hidden');
+    document.getElementById('modalTitle').innerText = "Sửa thông tin khách hàng";
+    
+    document.getElementById('kh_id').value = kh.id;
+    document.getElementById('nick_name').value = kh.nick_name;
+    document.getElementById('tenKH').value = kh.tenKH;
+    document.getElementById('sdt').value = kh.sdt;
+    document.getElementById('diachi').value = kh.diaChi || '';
+    
+    // DÒNG CẦN THÊM: Gán giá trị nợ cũ vào form khi sửa
+    // Lưu ý: ID input phải khớp với ID bạn đặt ở Form (ví dụ: c_old_debt)
+    const oldDebtInput = document.getElementById('c_old_debt');
+    if(oldDebtInput) {
+        oldDebtInput.value = kh.old_debt || 0;
+    }
+    
+    updateMaKH();
+}
+
+// --- 4. LƯU (THÊM/SỬA) ---
+async function handleSaveCustomer(event) {
+    event.preventDefault();
+    
+    // Lấy tất cả elements cần thiết
+    const elId = document.getElementById('kh_id');
+    const elNick = document.getElementById('nick_name');
+    const elName = document.getElementById('tenKH');
+    const elSdt = document.getElementById('sdt');
+    const elDiaChi = document.getElementById('diachi');
+    const elOldDebt = document.getElementById('c_old_debt');
+
+    // Kiểm tra an toàn
+    if (!elName || !elOldDebt || !elNick || !elSdt) {
+        alert("Lỗi: Form thiếu các trường bắt buộc!");
+        return;
+    }
+
+    // Đóng gói dữ liệu CHUẨN
+    const data = {
+        id: elId.value || null,
+        nick_name: elNick.value,
+        name: elName.value, // Ở Server bạn dùng 'name' hay 'tenKH'? Theo API trước là 'name'
+        phone: elSdt.value,
+        address: elDiaChi.value,
+        old_debt: parseFloat(elOldDebt.value) || 0
+    };
+
+    try {
+        const response = await fetch('/api/customers/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert("Đã lưu thành công!"); // Thêm thông báo để biết là đã xong
+            closeModal(); // Bạn đang dùng closeModal() chứ không phải closeCustomerModal()
+            renderTable(); 
+        } else {
+            alert("Lỗi từ Server: " + result.error);
+        }
+    } catch (e) {
+        console.error("Lỗi khi lưu:", e);
+        alert("Không thể kết nối đến máy chủ!");
+    }
+}
+
+// --- 5. XÓA ---
+async function deleteCustomer(id) {
+    if(!confirm("Xác nhận xóa khách hàng này? Dữ liệu đơn hàng liên quan sẽ không bị xóa nhưng có thể hiển thị sai tên khách.")) return;
+    
+    try {
+        const response = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+        const result = await response.json();
+        if(result.success) {
+            renderTable();
+        }
+    } catch (err) {
+        alert("Lỗi khi xóa dữ liệu!");
+    }
+}
+
+async function handleImportExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Hiển thị loading
+    Swal.fire({
+        title: 'Đang xử lý file...',
+        html: 'Hệ thống đang đọc dữ liệu Excel và tạo mã khách hàng...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/api/customers/import', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Hoàn tất',
+                text: result.message,
+            });
+            renderTable(); // Load lại danh sách khách hàng
+        } else {
+            Swal.fire("Lỗi", result.error, "error");
+        }
+    } catch (error) {
+        Swal.fire("Lỗi", "Không thể kết nối server", "error");
+    } finally {
+        // Reset input file để có thể chọn lại cùng 1 file nếu muốn
+        event.target.value = '';
+    }
+}
+
+// Hàm chuyển sang trang đơn hàng và truyền mã khách hàng qua URL
+function createOrderForKH(maKH) {
+    if (!maKH) return alert("Khách hàng này chưa có mã!");
+    // Chuyển hướng sang trang đơn hàng kèm query string ?maKH=...
+    window.location.href = `/don-hang?addFor=${encodeURIComponent(maKH)}`;
+}
+// --- KHỞI CHẠY ---
+window.onload = renderTable;
+</script>
+
+<%- include('../partials/footer') %>

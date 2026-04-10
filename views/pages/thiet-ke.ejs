@@ -1,0 +1,318 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+
+<div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 px-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800 tracking-tight text-[24px]">Điều hành Thiết kế & R&D</h1>
+        <p class="text-sm text-gray-500 italic">Dữ liệu được đồng bộ từ các đơn hàng <b class="text-green-600 uppercase">Đã chốt</b></p>
+    </div>
+    <div class="flex items-center bg-white px-6 py-3 rounded-2xl shadow-sm border border-gray-100">
+        <div class="text-right mr-4 border-r pr-4">
+            <span class="text-[10px] font-bold text-gray-400 uppercase block leading-none mb-1">Dự án đang chạy</span>
+            <span id="countDesign" class="text-2xl font-black text-blue-600">0</span>
+        </div>
+        <i class="fas fa-microchip text-3xl text-blue-100"></i>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 px-4">
+    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tìm kiếm nhanh</label>
+        <input type="text" id="searchDesign" oninput="renderDesignTable()" 
+            placeholder="Mã đơn hàng, tên khách..." 
+            class="w-full border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+    </div>
+    
+    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Trạng thái kỹ thuật</label>
+        <select id="filterDesignStatus" onchange="renderDesignTable()" 
+                class="w-full border border-gray-200 rounded-xl p-2.5 text-sm outline-none bg-gray-50 font-semibold cursor-pointer">
+            <option value="Tất cả">Tất cả tiến độ</option>
+            <option value="Chưa giao việc">Chưa giao việc</option>
+            <option value="Đang xử lý">Đang xử lý</option>
+            <option value="Đã hoàn thành">Đã hoàn thành</option>
+        </select>
+    </div>
+
+    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nhân viên phụ trách</label>
+        <select id="filterDesignStaff" onchange="renderDesignTable()" 
+                class="w-full border border-gray-200 rounded-xl p-2.5 text-sm outline-none bg-gray-50 font-semibold cursor-pointer">
+            <option value="Tất cả">Tất cả nhân viên</option>
+        </select>
+    </div>
+</div>
+
+<div class="mx-4 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="bg-slate-50 border-b border-gray-100 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                <th class="p-4">Trạng thái</th>
+                <th class="p-4">Mã Đơn Hàng</th>
+                <th class="p-4">Người phụ trách</th>
+                <th class="p-4">Hạng mục</th>
+                <th class="p-4">Phiên bản</th>
+                <th class="p-4 text-center">Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="design-tbody" class="divide-y divide-gray-50">
+            </tbody>
+    </table>
+</div>
+
+<div id="modalDesign" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-[2.5rem] w-full max-w-5xl shadow-2xl overflow-hidden animate__animated animate__zoomIn animate__faster">
+        <div class="p-6 border-b flex justify-between items-center bg-slate-900 text-white">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i class="fas fa-tools text-xl text-slate-900"></i>
+                </div>
+                <div>
+                    <h2 class="font-black tracking-tight uppercase text-lg">Xử lý kỹ thuật dự án</h2>
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest leading-none mt-1">Cập nhật tiến độ & Đồng bộ Drive</p>
+                </div>
+            </div>
+            <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-800 transition text-slate-400">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <form id="formDesign" class="p-8 grid grid-cols-12 gap-8" onsubmit="handleSaveDesign(event)">
+            <input type="hidden" id="design_id">
+            
+            <div class="col-span-12 lg:col-span-4 space-y-6 border-r border-slate-100 pr-6">
+                <h3 class="font-bold text-blue-600 uppercase text-[11px] tracking-widest flex items-center mb-2">
+                    <i class="fas fa-info-circle mr-2"></i> 1. Thông tin từ Sale
+                </h3>
+                <div class="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">
+                    <label class="block text-[10px] font-black text-blue-400 uppercase mb-2">Mã Đơn Hàng</label>
+                    <p id="viewMaDH" class="text-lg font-black text-blue-800 uppercase tracking-tight">--</p>
+                    <hr class="my-4 border-blue-200 border-dashed">
+                    <label class="block text-[10px] font-black text-blue-400 uppercase mb-3">Hạng mục triển khai</label>
+                    <div id="viewDauViec" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="bg-slate-900 p-6 rounded-[2rem] shadow-xl text-white">
+                    <p class="text-[10px] font-black text-slate-500 uppercase mb-3">Hành động nhanh</p>
+                    <button type="button" id="btnOpenInput" class="w-full py-3 mb-3 bg-blue-600 rounded-xl font-bold text-xs uppercase hover:bg-blue-500 transition shadow-lg shadow-blue-900/40">
+                        <i class="fab fa-google-drive mr-2"></i> Mở Folder INPUT
+                    </button>
+                    <p class="text-[9px] text-slate-400 italic text-center">Nơi lấy yêu cầu & file requirements</p>
+                </div>
+            </div>
+
+            <div class="col-span-12 lg:col-span-8 space-y-6">
+                <h3 class="font-bold text-orange-600 uppercase text-[11px] tracking-widest flex items-center mb-2">
+                    <i class="fas fa-sync-alt mr-2"></i> 2. Cập nhật tiến độ kỹ thuật
+                </h3>
+                
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Người phụ trách</label>
+                        <select id="designer" class="w-full border-2 border-slate-100 rounded-2xl p-3.5 text-sm font-bold bg-gray-50 outline-none focus:border-blue-500 transition-all cursor-pointer" required></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Trạng thái xử lý</label>
+                        <select id="ttThietKe" class="w-full border-2 border-slate-100 rounded-2xl p-3.5 text-sm font-bold bg-gray-50 outline-none focus:border-orange-500 transition-all cursor-pointer">
+                            <option value="Chưa giao việc">Chưa giao việc</option>
+                            <option value="Đang xử lý">Đang xử lý</option>
+                            <option value="Đã hoàn thành">Đã hoàn thành</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-6">
+                    <div class="col-span-1">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Phiên bản</label>
+                        <input type="text" id="version" class="w-full border-2 border-slate-100 rounded-2xl p-3.5 text-sm font-black text-blue-600 text-center uppercase outline-none focus:border-blue-400" placeholder="V1.0">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Ghi chú / Phản hồi (Báo lên Google Chat)</label>
+                        <input type="text" id="feedbackTK" class="w-full border-2 border-slate-100 rounded-2xl p-3.5 text-sm outline-none focus:border-blue-400" placeholder="Mô tả nhanh tiến độ...">
+                    </div>
+                </div>
+
+                <div class="p-6 bg-emerald-50 rounded-[2rem] border-2 border-emerald-100 border-dashed">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-black text-emerald-700 uppercase">Thư mục kết quả (OUTPUT)</p>
+                            <p class="text-[10px] text-emerald-600 opacity-70">Kỹ thuật nén file kết quả và thả vào đây</p>
+                        </div>
+                        <button type="button" id="btnOpenOutput" class="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase hover:bg-emerald-700 transition shadow-lg shadow-emerald-200">
+                            Mở Folder Output
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" onclick="closeModal()" class="px-6 py-3 text-gray-400 font-bold hover:text-red-500 transition-all uppercase text-[10px]">Đóng</button>
+                    <button type="submit" class="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:bg-black transition-all active:scale-95 uppercase text-[11px] tracking-widest flex items-center gap-3">
+                        <i class="fas fa-check-circle text-emerald-400"></i> Cập nhật & Thông báo Sale
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+</main>
+<script>
+let currentDesignJobs = [];
+
+// --- 1. RENDER BẢNG DỮ LIỆU ---
+async function renderDesignTable() {
+    try {
+        const response = await fetch('/api/design-jobs');
+        currentDesignJobs = await response.json();
+
+        const tbody = document.getElementById('design-tbody');
+        const searchText = document.getElementById('searchDesign')?.value.toLowerCase() || '';
+        const filterStatus = document.getElementById('filterDesignStatus')?.value || 'Tất cả';
+        const filterStaff = document.getElementById('filterDesignStaff')?.value || 'Tất cả';
+
+        const filtered = currentDesignJobs.filter(job => {
+            const matchesSearch = job.maDH.toLowerCase().includes(searchText);
+            const matchesStatus = filterStatus === 'Tất cả' || job.ttThietKe === filterStatus;
+            const matchesStaff = filterStaff === 'Tất cả' || job.designer === filterStaff;
+            return matchesSearch && matchesStatus && matchesStaff;
+        });
+
+        document.getElementById('countDesign').innerText = filtered.filter(j => j.ttThietKe !== 'Đã hoàn thành').length;
+
+        tbody.innerHTML = filtered.map(job => {
+            const statusClass = job.ttThietKe === 'Đã hoàn thành' ? 'bg-emerald-100 text-emerald-700' : 
+                               (job.ttThietKe === 'Đang xử lý' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600');
+            
+            // driveLink ở đây chính là Input Folder ID được đồng bộ từ Sale
+            const hasLink = job.driveLink && job.driveLink !== 'null' && job.driveLink !== '';
+
+            return `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-gray-50">
+                    <td class="p-4">
+                        <span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${statusClass}">${job.ttThietKe}</span>
+                    </td>
+                    <td class="p-4 font-bold text-slate-700 text-xs tracking-tight uppercase">${job.maDH}</td>
+                    <td class="p-4 text-xs text-gray-500 font-bold uppercase">${job.designer || '<span class="text-gray-300 italic font-normal">Chưa giao</span>'}</td>
+                    <td class="p-4"><div class="flex flex-wrap gap-1">${(Array.isArray(job.dauViec) ? job.dauViec : []).map(d => `<span class="text-[9px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 font-bold">${d}</span>`).join('')}</div></td>
+                    <td class="p-4 font-mono text-xs text-blue-600 font-bold">${job.version || 'V1.0'}</td>
+                    <td class="p-4 text-center">
+                        <div class="flex justify-center gap-2">
+                            <button onclick="openDriveLink('${job.driveLink}')" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition flex items-center justify-center ${!hasLink ? 'opacity-20 cursor-not-allowed' : ''}">
+                                <i class="fab fa-google-drive"></i>
+                            </button>
+                            <button onclick="openModal(${job.id})" class="bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase hover:bg-black transition">Xử lý</button>
+                            <button onclick="deleteDesignJob(${job.id})" class="text-red-300 hover:text-red-600 p-1.5 transition"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+    } catch (e) { console.error("Lỗi Render Table:", e); }
+}
+
+// --- 2. XỬ LÝ MODAL ---
+async function openModal(id) {
+    const job = currentDesignJobs.find(x => x.id === id);
+    if (!job) return;
+
+    document.getElementById('design_id').value = job.id;
+    document.getElementById('viewMaDH').innerText = job.maDH;
+    
+    // Render thẻ Tag đầu việc
+    const tagsContainer = document.getElementById('viewDauViec');
+    tagsContainer.innerHTML = (Array.isArray(job.dauViec) ? job.dauViec : []).map(item => 
+        `<span class="bg-blue-100 text-blue-700 text-[9px] px-2 py-1 rounded-md font-bold uppercase border border-blue-200">${item}</span>`
+    ).join('') || '<span class="text-gray-400 italic text-xs">Không có đầu việc</span>';
+
+    // Load danh sách nhân viên kỹ thuật
+    const resUsers = await fetch('/api/users/technicians');
+    const technicians = await resUsers.json();
+    document.getElementById('designer').innerHTML = '<option value="">-- Chọn NV phụ trách --</option>' + 
+        technicians.map(u => `<option value="${u.name}" ${job.designer === u.name ? 'selected' : ''}>${u.name}</option>`).join('');
+
+    document.getElementById('ttThietKe').value = job.ttThietKe || 'Chưa giao việc';
+    document.getElementById('version').value = job.version || 'V1.0';
+    document.getElementById('feedbackTK').value = job.feedbackTK || '';
+
+    // Gán Link Drive cho các nút trong Modal (Dựa trên folderId đồng bộ từ Sale)
+    // driveLink ở đây là Input Folder, ta giả định Output là folderId cha (hoặc bạn có thể Fetch thêm)
+    document.getElementById('btnOpenInput').onclick = () => openDriveLink(job.driveLink);
+    document.getElementById('btnOpenOutput').onclick = () => openDriveLink(job.outputFolderId); // Hoặc link output cụ thể
+
+    document.getElementById('modalDesign').classList.remove('hidden');
+}
+
+// --- 3. LƯU DỮ LIỆU ---
+async function handleSaveDesign(e) {
+    e.preventDefault();
+    
+    // Popup thông báo
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu...';
+    btn.disabled = true;
+
+    const data = {
+        id: document.getElementById('design_id').value,
+        designer: document.getElementById('designer').value,
+        ttThietKe: document.getElementById('ttThietKe').value,
+        version: document.getElementById('version').value,
+        feedbackTK: document.getElementById('feedbackTK').value,
+        maDH: document.getElementById('viewMaDH').innerText
+    };
+
+    try {
+        const response = await fetch('/api/design-jobs/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if(result.success) {
+            closeModal();
+            renderDesignTable();
+        }
+    } catch (e) { alert("Lỗi kết nối server!"); }
+    finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+// --- HÀM PHỤ TRỢ ---
+function openDriveLink(id) {
+    if (!id || id === 'null' || id === '') {
+        alert("Thư mục chưa được khởi tạo cho đơn hàng này!");
+        return;
+    }
+    window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
+}
+
+function closeModal() { document.getElementById('modalDesign').classList.add('hidden'); }
+
+async function deleteDesignJob(id) {
+    if (!confirm("Xóa dự án kỹ thuật này? (Lưu ý: Chỉ xóa ở trang kỹ thuật, đơn hàng Sale vẫn giữ nguyên)")) return;
+    await fetch(`/api/design-jobs/${id}`, { method: 'DELETE' });
+    renderDesignTable();
+}
+
+// Load bộ lọc nhân viên
+async function initFilters() {
+    const res = await fetch('/api/users/technicians');
+    const technicians = await res.json();
+    const filterSelect = document.getElementById('filterDesignStaff');
+    if (filterSelect) {
+        filterSelect.innerHTML = '<option value="Tất cả">Tất cả nhân viên</option>' + 
+            technicians.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+    }
+}
+
+window.onload = async () => {
+    await initFilters();
+    await renderDesignTable();
+};
+</script>
+
+<%- include('../partials/footer') %>

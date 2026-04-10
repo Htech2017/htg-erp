@@ -1,0 +1,137 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-800">Báo cáo & Phân tích</h1>
+    <p class="text-sm text-gray-500">Dữ liệu kinh doanh thời gian thực hệ thống H-TECH</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+        <div class="relative z-10">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tổng doanh thu</p>
+            <h3 id="repRevenue" class="text-2xl font-black text-blue-600">0 đ</h3>
+        </div>
+        <i class="fas fa-money-bill-wave absolute -right-4 -bottom-4 text-6xl text-blue-50 opacity-50"></i>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+        <div class="relative z-10">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Thực thu (Tạm ứng)</p>
+            <h3 id="repCollected" class="text-2xl font-black text-emerald-600">0 đ</h3>
+        </div>
+        <i class="fas fa-hand-holding-usd absolute -right-4 -bottom-4 text-6xl text-emerald-50 opacity-50"></i>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+        <div class="relative z-10">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tổng nợ chưa thu</p>
+            <h3 id="repDebt" class="text-2xl font-black text-red-500">0 đ</h3>
+        </div>
+        <i class="fas fa-exclamation-triangle absolute -right-4 -bottom-4 text-6xl text-red-50 opacity-50"></i>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
+        <div class="relative z-10">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tỷ lệ chốt đơn</p>
+            <h3 id="repWinRate" class="text-2xl font-black text-purple-600">0%</h3>
+        </div>
+        <i class="fas fa-chart-line absolute -right-4 -bottom-4 text-6xl text-purple-50 opacity-50"></i>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-users-cog mr-2 text-blue-500"></i> Danh sách khách hàng còn nợ
+        </h3>
+        <table class="w-full text-left text-sm">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="p-3 text-gray-500">Khách hàng</th>
+                    <th class="p-3 text-right text-gray-500">Tổng nợ</th>
+                    <th class="p-3 text-center text-gray-500">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="topDebtTable"></tbody>
+        </table>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center">
+         <h3 class="font-bold text-gray-800 mb-6 self-start">Cơ cấu trạng thái đơn</h3>
+         <canvas id="orderChart" width="250" height="250"></canvas>
+    </div>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+async function loadReportData() {
+    try {
+        const res = await fetch('/api/reports/summary');
+        const data = await res.json();
+        const fmt = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' đ';
+
+        document.getElementById('repRevenue').innerText = fmt(data.totalRevenue);
+        document.getElementById('repCollected').innerText = fmt(data.totalCollected);
+        document.getElementById('repDebt').innerText = fmt(data.totalDebt);
+        document.getElementById('repWinRate').innerText = data.winRate + '%';
+
+        loadTopDebt();
+        renderChart();
+    } catch (e) { console.error(e); }
+}
+
+async function loadTopDebt() {
+    const res = await fetch('/api/customers');
+    const customers = await res.json();
+    const table = document.getElementById('topDebtTable');
+    
+    // Chỉ lấy khách hàng có nợ > 0 và sắp xếp nợ giảm dần
+    const debtors = customers
+        .filter(c => c.total_debt > 0)
+        .sort((a, b) => b.total_debt - a.total_debt);
+
+    table.innerHTML = debtors.map(c => `
+        <tr class="border-b">
+            <td class="p-3">
+                <div class="font-bold text-slate-700">${c.tenKH}</div>
+                <div class="text-[10px] text-gray-400">${c.maKH}</div>
+            </td>
+            <td class="p-3 text-right font-black text-red-500">
+                ${new Intl.NumberFormat('vi-VN').format(c.total_debt)} đ
+            </td>
+            <td class="p-3 text-center">
+                <a href="/customers" class="text-blue-500 hover:underline text-xs">Chi tiết</a>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderChart() {
+    // Đây là mẫu vẽ biểu đồ tròn bằng Chart.js
+    const ctx = document.getElementById('orderChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Đã chốt', 'Đang review', 'Bị hủy'],
+            datasets: [{
+                data: [12, 19, 3], // Bạn có thể lấy dữ liệu thật từ API
+                backgroundColor: ['#10b981', '#3b82f6', '#ef4444'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            cutout: '70%',
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
+
+window.onload = loadReportData;
+</script>
+
+<%- include('../partials/footer') %>

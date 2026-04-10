@@ -1,0 +1,295 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+<div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800">Quản lý Quỹ & Tài chính</h1>
+        <p class="text-sm text-gray-500">Theo dõi dòng tiền và phê duyệt chi tự động</p>
+    </div>
+    <div class="flex gap-2">
+    <% if (user && (user.role === 'Trưởng BP Thiết kế' || user.role === 'Admin')) { %>
+        <button onclick="openModalQuy('modal-thu-chi')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-green-700 transition">
+            <i class="fas fa-plus-circle mr-2"></i>Thu/Chi thủ công
+        </button>
+    <% } %>
+    
+    <button onclick="openModalQuy('modal-de-nghi')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition">
+        <i class="fas fa-paper-plane mr-2"></i>Gửi Đề nghị chi
+    </button>
+</div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tổng Thu</p>
+        <p id="tongThu" class="text-2xl font-black text-green-600">0 đ</p>
+    </div>
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tổng Chi</p>
+        <p id="tongChi" class="text-2xl font-black text-red-600">0 đ</p>
+    </div>
+    <div class="bg-slate-900 p-5 rounded-2xl shadow-xl text-white relative overflow-hidden">
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold opacity-60 uppercase tracking-wider">Tồn Quỹ Hiện Tại</p>
+            <p id="tonQuy" class="text-2xl font-black text-blue-400">0 đ</p>
+        </div>
+        <i class="fas fa-wallet absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
+    </div>
+</div>
+
+<div class="flex space-x-1 bg-gray-200 p-1 rounded-xl mb-6 w-fit">
+    <button onclick="switchTab(event, 'tab-so-quy')" class="tab-btn px-6 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600">SỔ QUỸ</button>
+    <button onclick="switchTab(event, 'tab-de-nghi')" class="tab-btn px-6 py-2 text-xs font-bold rounded-lg text-gray-500 hover:bg-gray-50">ĐỀ NGHỊ CHI</button>
+</div>
+
+<div id="tab-so-quy" class="tab-content block">
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <table class="w-full text-left">
+            <thead class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase border-b">
+                <tr>
+                    <th class="p-4">Ngày</th>
+                    <th class="p-4">Loại</th>
+                    <th class="p-4">Hạng mục</th>
+                    <th class="p-4">Số tiền</th>
+                    <th class="p-4">Người lập</th>
+                    <th class="p-4">Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody id="quy-tbody" class="text-sm"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="tab-de-nghi" class="tab-content hidden">
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <table class="w-full text-left">
+            <thead class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase border-b">
+                <tr>
+                    <th class="p-4">Mã số</th>
+                    <th class="p-4">Ngày</th>
+                    <th class="p-4">Nội dung</th>
+                    <th class="p-4">Số tiền</th>
+                    <th class="p-4">Trạng thái</th>
+                    <th class="p-4 text-center">Phê duyệt</th>
+                </tr>
+            </thead>
+            <tbody id="dntt-tbody" class="text-sm"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal-thu-chi" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div class="p-4 bg-gray-800 text-white font-bold flex justify-between">
+            <span>Ghi sổ Thu/Chi</span>
+            <button onclick="closeModalQuy('modal-thu-chi')"><i class="fas fa-times"></i></button>
+        </div>
+        <form class="p-6 space-y-4" onsubmit="handleManualTransaction(event)">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Loại giao dịch</label>
+                    <select id="trans_type" class="w-full border rounded-lg p-2 text-sm">
+                        <option value="THU">Phiếu Thu (+)</option>
+                        <option value="CHI">Phiếu Chi (-)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ngày</label>
+                    <input type="date" id="trans_date" class="w-full border rounded-lg p-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Số tiền</label>
+                <input type="number" id="trans_amount" class="w-full border rounded-lg p-2 font-black text-lg text-blue-600" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Diễn giải</label>
+                <input type="text" id="trans_note" class="w-full border rounded-lg p-2 text-sm" placeholder="Nhập lý do..." required>
+            </div>
+            <form class="p-6 space-y-4" onsubmit="handleManualTransaction(event)">
+                <button type="submit" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold">XÁC NHẬN LƯU</button>
+            </form>
+        </form>
+    </div>
+</div>
+
+<div id="modal-de-nghi" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div class="p-4 bg-indigo-600 text-white font-bold flex justify-between text-sm">
+            <span>GỬI ĐỀ NGHỊ THANH TOÁN (DÀNH CHO NV)</span>
+            <button onclick="closeModalQuy('modal-de-nghi')"><i class="fas fa-times"></i></button>
+        </div>
+        <form class="p-6 space-y-4" onsubmit="handleCreateRequest(event)">
+            <div>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nội dung đề nghị chi</label>
+                <textarea id="req_content" class="w-full border rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="VD: Mua linh kiện test đơn hàng..." required></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Số tiền yêu cầu</label>
+                    <input type="number" id="req_amount" class="w-full border rounded-lg p-2 font-bold text-indigo-600" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ngày yêu cầu</label>
+                    <input type="date" id="req_date" class="w-full border rounded-lg p-2 text-sm">
+                </div>
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition">GỬI YÊU CẦU</button>
+        </form>
+    </div>
+</div>
+</div><main>
+<script>
+    // --- 1. KẾT NỐI DATABASE ---
+let currentUser = { name: "Người dùng", roles: ["Admin"] }; // Giả định user hiện tại
+
+// --- 1. TẢI DỮ LIỆU ---
+async function updateUI() {
+    try {
+        const response = await fetch('/api/fund');
+        const data = await response.json();
+        
+        renderQuy(data.soQuy);
+        renderDeNghi(data.dsDeNghi);
+        calculateStats(data.soQuy);
+    } catch (e) { console.error("Lỗi tải dữ liệu quỹ:", e); }
+}
+
+function calculateStats(soQuy) {
+    const thu = soQuy.filter(i => i.loai === 'THU').reduce((s, i) => s + i.tien, 0);
+    const chi = soQuy.filter(i => i.loai === 'CHI').reduce((s, i) => s + i.tien, 0);
+    
+    document.getElementById('tongThu').innerText = new Intl.NumberFormat('vi-VN').format(thu) + ' đ';
+    document.getElementById('tongChi').innerText = new Intl.NumberFormat('vi-VN').format(chi) + ' đ';
+    document.getElementById('tonQuy').innerText = new Intl.NumberFormat('vi-VN').format(thu - chi) + ' đ';
+}
+
+function renderQuy(soQuy) {
+    const tbody = document.getElementById('quy-tbody');
+    tbody.innerHTML = soQuy.map(i => `
+        <tr class="border-b hover:bg-gray-50 transition-colors">
+            <td class="p-4 text-xs text-gray-500">${i.ngay}</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[9px] font-black ${i.loai === 'THU' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${i.loai}</span></td>
+            <td class="p-4 font-semibold text-gray-700">${i.hangMuc}</td>
+            <td class="p-4 font-bold ${i.loai === 'THU' ? 'text-green-600' : 'text-red-600'}">
+                ${i.loai === 'THU' ? '+' : '-'}${new Intl.NumberFormat('vi-VN').format(i.tien)}
+            </td>
+            <td class="p-4 text-xs font-bold">${i.nguoi}</td>
+            <td class="p-4 text-[11px] text-gray-400 italic">${i.note || ''}</td>
+        </tr>`).join('');
+}
+
+function renderDeNghi(dsDeNghi) {
+    const tbody = document.getElementById('dntt-tbody');
+    // Lấy role từ biến user mà Server đã render ra (EJS pass sang JS)
+    const currentUserRole = "<%= user.role %>"; 
+
+    tbody.innerHTML = dsDeNghi.map(dn => {
+        const isPending = dn.status === 'Chờ duyệt';
+        
+        // Điều kiện hiển thị nút duyệt: Đang chờ duyệt VÀ (là Trưởng BP hoặc Admin)
+        const canApprove = isPending && (currentUserRole === 'Trưởng BP Thiết kế' || currentUserRole === 'Admin');
+
+        return `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-4 font-mono text-[10px] text-indigo-600 font-bold">${dn.id}</td>
+                <td class="p-4 text-xs">${dn.ngay}</td>
+                <td class="p-4 text-xs font-medium">${dn.noiDung}</td>
+                <td class="p-4 font-bold text-gray-800">${new Intl.NumberFormat('vi-VN').format(dn.tien)}</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${isPending ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-700'}">${dn.status}</span></td>
+                <td class="p-4 text-center">
+                    ${canApprove ? 
+                        `<button onclick="approveDN('${dn.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-indigo-700 transition">DUYỆT CHI</button>` 
+                        : (isPending ? '<span class="text-[10px] text-gray-400 italic">Chờ sếp duyệt</span>' : '<i class="fas fa-check-circle text-green-500 text-lg"></i>')
+                    }
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+// --- 2. XỬ LÝ GIAO DỊCH ---
+
+async function handleManualTransaction(e) {
+    e.preventDefault();
+    const data = {
+        id: 'TC' + Date.now(),
+        ngay: document.getElementById('trans_date').value,
+        loai: document.getElementById('trans_type').value,
+        hangMuc: document.getElementById('trans_note').value,
+        tien: parseFloat(document.getElementById('trans_amount').value),
+        nguoi: "Quản trị viên", // Sau này lấy từ session
+        note: 'Ghi sổ thủ công'
+    };
+
+    const res = await fetch('/api/fund/transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    if((await res.json()).success) {
+        alert("Đã ghi sổ!");
+        closeModalQuy('modal-thu-chi');
+        updateUI();
+    }
+}
+
+async function handleCreateRequest(e) {
+    e.preventDefault();
+    const data = {
+        id: 'DN' + Date.now().toString().slice(-4),
+        ngay: document.getElementById('req_date').value,
+        noiDung: document.getElementById('req_content').value,
+        tien: parseFloat(document.getElementById('req_amount').value),
+        nguoi: "Nhân viên A" // Sau này lấy từ session
+    };
+
+    const res = await fetch('/api/fund/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    if((await res.json()).success) {
+        alert("Đã gửi đề nghị chi!");
+        closeModalQuy('modal-de-nghi');
+        updateUI();
+    }
+}
+
+async function approveDN(id) {
+    if(!confirm("Duyệt chi? Tiền sẽ tự động trừ khỏi quỹ.")) return;
+    const res = await fetch('/api/fund/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, approver: "Sếp Tổng" })
+    });
+    if((await res.json()).success) {
+        alert("Phê duyệt thành công!");
+        updateUI();
+    }
+}
+
+// --- 3. UI HELPER ---
+function switchTab(e, tabId) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    document.getElementById(tabId).classList.remove('hidden');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+        b.classList.add('text-gray-500');
+    });
+    e.currentTarget.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+}
+
+function openModalQuy(id) { 
+    document.getElementById(id).classList.remove('hidden'); 
+    document.querySelector(`#${id} input[type="date"]`).value = new Date().toISOString().split('T')[0];
+}
+function closeModalQuy(id) { document.getElementById(id).classList.add('hidden'); }
+
+window.onload = updateUI;
+</script>
+
+<%- include('../partials/footer') %>

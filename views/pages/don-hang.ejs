@@ -1,0 +1,809 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+    <div class="max-w-[1600px] mx-auto">
+<div class="flex justify-between items-center mb-8">
+    <h1 class="text-2xl font-bold text-gray-800">Quản lý Đơn hàng (DH)</h1>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <button onclick="openModal()" class="bg-blue-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition">
+        + Khởi tạo đơn hàng (Sale)
+    </button>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+    <div class="flex flex-wrap gap-4 mb-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div class="flex-1 min-w-[200px]">
+            <input type="text" id="filterSearch" oninput="renderTable()" placeholder="Tìm mã ĐH, tên dịch vụ..." class="w-full border rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <select id="filterStatus" onchange="renderTable()" class="border rounded-lg p-2 text-sm outline-none bg-gray-50 font-semibold">
+    <option value="Tất cả">Tất cả quy trình</option>
+    <optgroup label="Theo Sale">
+        <option value="Mới khởi tạo">Mới khởi tạo</option>
+        <option value="Đã chốt">Sale: Đã chốt</option>
+        <option value="Không chốt">Sale: Không chốt</option>
+    </optgroup>
+    <optgroup label="Theo Quản lý">
+        <option value="Đang review">QL: Đang review</option>
+        <option value="Đã báo giá">QL: Đã báo giá</option>
+        <option value="Hủy đơn">QL: Hủy đơn</option>
+    </optgroup>
+</select>
+        <select id="filterPayment" onchange="renderTable()" class="border rounded-lg p-2 text-sm outline-none">
+            <option value="Tất cả">Tất cả thanh toán</option>
+            <option value="Còn nợ">Còn nợ công nợ</option>
+            <option value="Thu đủ">Đã thu đủ</option>
+        </select>
+    </div>
+    <table class="w-full text-left whitespace-nowrap">
+        <thead class="bg-gray-50 border-b text-gray-600 text-sm">
+            <tr>
+                <th class="p-4">Mã ĐH</th>
+                <th class="p-4">Dịch vụ</th>
+                <th class="p-4">Đầu việc</th>
+                <th class="p-4">Ngày tạo</th>
+                <th class="p-4">Trạng thái</th>
+                <th class="p-4">Triển khai</th>
+                <th class="p-4 text-right">Tạm ứng</th>
+                <th class="p-4 text-right">Công nợ</th>
+                <th class="p-4 text-center">Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="order-tbody" class="text-sm"></tbody>
+    </table>
+</div>
+
+<div id="modalDH" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div class="bg-white rounded-3xl w-full max-w-7xl shadow-2xl my-8 overflow-hidden">
+        
+        <div class="p-5 border-b flex justify-between items-center bg-slate-50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <i class="fas fa-file-invoice text-lg"></i>
+                </div>
+                <div>
+                    <h2 id="modalTitle" class="font-black text-slate-800 uppercase tracking-tight text-sm">Khởi tạo dữ liệu đơn hàng</h2>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mt-1">Hệ thống quản lý H-TECH 2026</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal()" class="text-gray-400 hover:text-red-500 transition-all">
+                <i class="fas fa-times-circle text-2xl"></i>
+            </button>
+        </div>
+        
+        <form class="p-6 lg:p-8 grid grid-cols-12 gap-6" id="formDH" onsubmit="handleSaveOrder(event)">
+            <input type="hidden" id="dh_id">
+            
+            <div class="col-span-12 lg:col-span-3 space-y-5 border-r border-slate-100 pr-4">
+                <h3 class="font-bold text-blue-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
+                    <i class="fas fa-info-circle mr-2"></i> 1. Thông tin chung
+                </h3>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Loại dịch vụ</label>
+                    <select id="loaiDV" class="w-full border-2 border-slate-100 rounded-xl p-2.5 text-sm font-bold outline-none focus:border-blue-500 bg-white" onchange="renderServiceCheckboxes()">
+                        <option value="Thiet ke">Thiết kế mới</option>
+                        <option value="Copy">Copy mạch / Vẽ lại</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2 italic">Hạng mục triển khai:</label>
+                    <div id="service-checkboxes" class="grid grid-cols-1 gap-2 bg-slate-50 p-4 rounded-2xl border border-dashed border-slate-200 max-h-40 overflow-y-auto">
+                        </div>
+                </div>
+                <div class="p-4 bg-blue-900 text-white rounded-2xl shadow-inner border-b-4 border-blue-950">
+                    <span class="text-[9px] opacity-60 uppercase font-black tracking-widest block mb-1">Mã đơn hàng hệ thống</span>
+                    <p id="previewMaDH" class="font-mono font-bold text-xs tracking-tighter text-blue-200 break-all leading-relaxed uppercase">--</p>
+                </div>
+            </div>
+
+            <div class="col-span-12 lg:col-span-3 space-y-5 border-r border-slate-100 pr-4">
+                <h3 class="font-bold text-purple-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
+                    <i class="fas fa-user-tag mr-2"></i> 2. Dữ liệu & Tài liệu
+                </h3>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Khách hàng</label>
+                    <select id="maKH" class="w-full border-2 border-slate-100 rounded-xl p-2.5 text-sm font-bold bg-white" required onchange="updateMaDH()"></select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tên mạch / Model</label>
+                    <input type="text" id="tenMach" class="w-full border-2 border-slate-100 rounded-xl p-2.5 text-sm font-bold uppercase outline-none focus:border-purple-500 bg-slate-50" placeholder="NHẬP TÊN MẠCH..." required oninput="updateMaDH()">
+                </div>
+                
+                <div class="col-span-12 space-y-3">
+    <label class="block text-[11px] font-black text-blue-600 uppercase tracking-widest">Tài liệu Google Drive</label>
+    <div class="col-span-12 grid grid-cols-2 gap-4 mt-2">
+    <a id="btnOpenInput" target="_blank" class="flex items-center justify-center p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 opacity-20 pointer-events-none transition-all hover:bg-blue-100">
+        <i class="fab fa-google-drive mr-2"></i> Folder <b>INPUT</b>
+    </a>
+    <a id="btnOpenOutput" target="_blank" class="flex items-center justify-center p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 opacity-20 pointer-events-none transition-all hover:bg-green-100">
+        <i class="fab fa-google-drive mr-2"></i> Folder <b>OUTPUT</b>
+    </a>
+</div>
+    <input type="hidden" id="inputFolderId_hidden">
+    <input type="hidden" id="outputFolderId_hidden">
+</div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ghi chú (Sale)</label>
+                    <textarea id="noteDH" class="w-full border-2 border-slate-100 rounded-xl p-3 text-xs outline-none focus:border-purple-500 bg-white" rows="2" placeholder="Yêu cầu riêng..."></textarea>
+                </div>
+            </div>
+
+            <div class="col-span-12 lg:col-span-3 space-y-5 border-r border-slate-100 pr-4">
+                <h3 class="font-bold text-orange-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
+                    <i class="fas fa-tasks mr-2"></i> 3. Thời gian & Tiến độ
+                </h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="min-w-0"> <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Ngày tạo</label>
+                        <input type="date" id="ngayTao" class="w-full border-2 border-slate-100 rounded-xl p-2 text-[11px] font-bold outline-none bg-white" onchange="updateMaDH()">
+                    </div>
+                    <div class="min-w-0">
+                        <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Ngày chốt</label>
+                        <input type="date" id="ngayChot" class="w-full border-2 border-slate-100 rounded-xl p-2 text-[11px] font-bold outline-none bg-white" onchange="calculateDeadline()">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Leadtime (Ngày)</label>
+                        <input type="number" id="leadtime" value="3" class="w-full border-2 border-slate-100 rounded-xl p-2 text-xs font-bold text-center outline-none bg-white" oninput="calculateDeadline()">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-bold text-blue-500 uppercase mb-1 italic">Hạn bàn giao</label>
+                        <input type="date" id="ngayBanGiao" class="w-full border-2 border-blue-100 bg-blue-50 rounded-xl p-2 text-[11px] font-black text-blue-700" readonly>
+                    </div>
+                </div>
+                
+                <div class="space-y-4 pt-4 border-t border-dashed border-slate-200">
+                    <div>
+                        <label class="block text-[10px] font-black text-blue-600 uppercase mb-1">1. Trạng thái chốt đơn (Sale)</label>
+                        <select id="ttChotDon" class="w-full border-2 border-blue-100 bg-blue-50 rounded-xl p-2.5 text-[11px] font-black text-blue-800 outline-none uppercase tracking-tighter">
+                            <option value="Mới khởi tạo">Mới khởi tạo</option>
+                            <option value="Đã chốt">Đã chốt</option>
+                            <option value="Không chốt">Không chốt</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-purple-600 uppercase mb-1">2. Trạng thái phê duyệt (Quản lý)</label>
+                        <select id="ttQuyTrinh" onchange="toggleCancelNote()" class="w-full border-2 border-purple-100 bg-purple-50 rounded-xl p-2.5 text-[11px] font-black text-purple-800 outline-none uppercase tracking-tighter">
+                            <option value="Đang review">Đang review</option>
+                            <option value="Đã báo giá">Đã báo giá</option>
+                            <option value="Hủy đơn">Hủy đơn</option>
+                        </select>
+                    </div>
+
+                    <div id="cancelNoteBox" class="hidden animate__animated animate__fadeIn">
+                        <label class="block text-[10px] font-black text-red-500 uppercase mb-1">Lý do hủy đơn:</label>
+                        <textarea id="lyDoHuy" class="w-full border-2 border-red-100 rounded-xl p-3 text-xs outline-none bg-red-50 text-red-700" rows="2" placeholder="Nhập lý do hủy..."></textarea>
+                    </div>
+
+                    <div id="design-status-box" class="p-3 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Tiến độ kỹ thuật</label>
+                            <span id="viewTTThietKe" class="text-[10px] font-black uppercase text-slate-600 italic">Chờ triển khai</span>
+                        </div>
+                        <i class="fas fa-microchip text-slate-300 text-lg"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-span-12 lg:col-span-3 space-y-5">
+    <h3 class="font-bold text-emerald-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
+        <i class="fas fa-coins mr-2"></i> 4. Báo giá chi tiết
+    </h3>
+    
+    <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col min-h-[350px]">
+        <div class="space-y-5 relative z-10">
+            <div class="flex justify-between items-center group">
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-emerald-500 transition-colors">Giá gốc TK</span>
+                <div class="relative w-32">
+                    <input type="number" id="giaThietKe" 
+                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-emerald-400 focus:border-emerald-500 transition-all" 
+                        value="0" oninput="updateGiaBao()">
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center group">
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-white transition-colors">Hệ số x</span>
+                <div class="relative w-24">
+                    <input type="number" id="heSoSale" step="0.1" 
+                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-white focus:border-emerald-500 transition-all" 
+                        value="1.0" oninput="updateGiaBao()">
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center group">
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-white transition-colors">VAT (%)</span>
+                <div class="relative w-20">
+                    <input type="number" id="vat" 
+                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-white focus:border-emerald-500 transition-all" 
+                        value="0" oninput="updateGiaBao()">
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center group">
+                <span class="text-[10px] font-black text-red-500 uppercase tracking-tighter">CK (%)</span>
+                <div class="relative w-20">
+                    <input type="number" id="chietKhau" 
+                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-red-400 focus:border-red-500 transition-all" 
+                        value="0" oninput="updateGiaBao()">
+                </div>
+            </div>
+            
+            <div class="pt-6 mt-2 border-t border-slate-800/50">
+                <p class="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] text-right mb-1">Tổng tiền báo khách</p>
+                <p id="previewGiaBao" class="text-2xl font-black text-emerald-400 text-right tracking-tighter leading-none drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
+                    0 VNĐ
+                </p>
+            </div>
+
+            <div class="mt-4 space-y-2">
+            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Chọn Brand báo giá:</label>
+            <div class="flex gap-2">
+                <select id="selectBrand" class="flex-1 bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-[11px] outline-none focus:border-emerald-500 transition-all">
+                    </select>
+                
+                <button type="button" onclick="exportQuote()" class="px-4 py-3 bg-emerald-500 text-slate-900 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-400 transition-all shadow-lg active:scale-95 flex items-center gap-2">
+                    <i class="fas fa-file-pdf text-sm"></i> Xuất PDF
+                </button>
+            </div>
+        </div>
+        </div>
+        
+        <i class="fas fa-receipt absolute -bottom-6 -left-6 text-9xl text-white opacity-[0.03] pointer-events-none rotate-12"></i>
+    </div>
+
+    <div class="bg-orange-50 p-5 rounded-3xl border border-orange-100 text-center relative overflow-hidden">
+        <label class="block text-[10px] font-black text-orange-600 uppercase mb-1 tracking-[0.1em]">Khách đã tạm ứng</label>
+        <input type="number" id="tamUng" class="w-full bg-transparent text-center text-2xl font-black text-orange-700 outline-none" value="0">
+        <div class="w-16 h-1 bg-orange-200 mx-auto mt-2 rounded-full"></div>
+    </div>
+</div>
+
+            <div class="col-span-12 flex flex-col md:flex-row justify-between items-center gap-4 pt-6 border-t mt-4">
+                <p class="text-[10px] text-gray-400 italic font-medium flex items-center gap-2">
+                    <i class="fas fa-shield-check text-blue-500"></i> Dữ liệu được bảo mật và lưu trữ trên hệ thống SQLite nội bộ.
+                </p>
+                <div class="flex gap-4">
+                    <button type="button" onclick="closeModal()" class="px-8 py-3 text-gray-400 font-bold hover:text-red-500 transition-all uppercase text-[10px] tracking-widest">Hủy đơn</button>
+                    <button type="submit" class="bg-blue-600 text-white px-12 py-3 rounded-2xl font-black shadow-xl shadow-blue-900/20 hover:bg-blue-700 transition-all active:scale-95 uppercase text-xs tracking-widest flex items-center">
+                        <i class="fas fa-save mr-3 text-lg"></i> XÁC NHẬN LƯU HỆ THỐNG
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+</div>
+</main>
+<script>
+let currentOrders = [];
+const serviceData = {
+    'Thiet ke': ['Nguyên lý', 'Layout', 'Code', 'Prototype'],
+    'Copy': ['Copy mạch', 'Tạo BOM', 'Vẽ lại nguyên lý', 'Code firmware']
+};
+
+// --- LOGIC GIAO DIỆN ---
+
+function renderServiceCheckboxes(selectedItems = []) {
+    const type = document.getElementById('loaiDV').value;
+    const container = document.getElementById('service-checkboxes');
+    container.innerHTML = '';
+    const items = serviceData[type] || [];
+    items.forEach(item => {
+        const isChecked = selectedItems.includes(item) ? 'checked' : '';
+        container.innerHTML += `
+            <label class="flex items-center space-x-2 text-xs cursor-pointer hover:text-blue-600">
+                <input type="checkbox" name="dv_item" value="${item}" ${isChecked} class="rounded text-blue-600">
+                <span>${item}</span>
+            </label>`;
+    });
+}
+
+function updateMaDH() {
+    const dateVal = document.getElementById('ngayTao').value;
+    const datePart = dateVal ? dateVal.split('-').join('').slice(2) : 'YYMMDD';
+    const khPart = document.getElementById('maKH').value || 'KH';
+    const machPart = document.getElementById('tenMach').value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0,8) || 'MACH';
+    const code = `${datePart}_${khPart}_${machPart}`;
+    document.getElementById('previewMaDH').innerText = code;
+    return code;
+}
+
+function calculateDeadline() {
+    const ngayChotVal = document.getElementById('ngayChot').value;
+    const lead = parseInt(document.getElementById('leadtime').value) || 0;
+    if(ngayChotVal) {
+        let d = new Date(ngayChotVal);
+        d.setDate(d.getDate() + lead);
+        document.getElementById('ngayBanGiao').value = d.toISOString().split('T')[0];
+    }
+}
+
+function updateGiaBao() {
+    const giaTK = parseFloat(document.getElementById('giaThietKe').value) || 0;
+    const hs = parseFloat(document.getElementById('heSoSale').value) || 1;
+    const vat = parseFloat(document.getElementById('vat').value) || 0;
+    const ck = parseFloat(document.getElementById('chietKhau').value) || 0;
+
+    let sub = giaTK * hs;
+    let final = sub + (sub * vat / 100) - (sub * ck / 100);
+    document.getElementById('previewGiaBao').innerText = new Intl.NumberFormat('vi-VN').format(Math.round(final)) + ' VNĐ';
+    return final;
+}
+
+async function populateCustomers() {
+    try {
+        const res = await fetch('/api/customers');
+        const customers = await res.json();
+        const select = document.getElementById('maKH');
+        select.innerHTML = customers.map(kh => `<option value="${kh.maKH}">${kh.maKH} - ${kh.tenKH}</option>`).join('');
+        updateMaDH();
+    } catch (e) { console.error("Lỗi load KH:", e); }
+}
+
+function closeModal() { document.getElementById('modalDH').classList.add('hidden'); }
+
+// --- LOGIC DỮ LIỆU (API) ---
+
+async function renderTable() {
+    renderServiceCheckboxes();
+    try {
+        const response = await fetch('/api/orders');
+        currentOrders = await response.json();
+        const tbody = document.getElementById('order-tbody');
+        const keyword = document.getElementById('filterSearch').value.toLowerCase();
+        const status = document.getElementById('filterStatus').value;
+        const payFilter = document.getElementById('filterPayment').value;
+        
+        tbody.innerHTML = '';
+        currentOrders.filter(o => {
+    const keyword = document.getElementById('filterSearch').value.toLowerCase();
+    const status = document.getElementById('filterStatus').value;
+    
+    const matchesSearch = o.maDH.toLowerCase().includes(keyword) || o.tenMach.toLowerCase().includes(keyword);
+    
+    // Logic lọc trạng thái thông minh: Kiểm tra cả 2 cột
+    const matchesStatus = (status === 'Tất cả') || 
+                          (o.ttChotDon === status) || 
+                          (o.ttQuyTrinh === status);
+
+    const congNo = o.giaBao - o.tamUng;
+    const matchesPay = (payFilter === 'Tất cả') || 
+                       (payFilter === 'Còn nợ' && congNo > 0) || 
+                       (payFilter === 'Thu đủ' && congNo <= 0);
+
+    return matchesSearch && matchesStatus && matchesPay;
+}).forEach(o => {
+            const congNo = o.giaBao - o.tamUng;
+    
+    // ĐỊNH NGHĨA MÀU SẮC CHO TRẠNG THÁI SALE (ttChotDon)
+    const chotDonColor = o.ttChotDon === 'Đã chốt' ? 'bg-green-100 text-green-700' : 
+                         (o.ttChotDon === 'Không chốt' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700');
+
+    // ĐỊNH NGHĨA MÀU SẮC CHO TRẠNG THÁI QUẢN LÝ (ttQuyTrinh)
+    const quyTrinhColor = o.ttQuyTrinh === 'Đã báo giá' ? 'bg-purple-100 text-purple-700' :
+                          (o.ttQuyTrinh === 'Hủy đơn' ? 'bg-slate-200 text-slate-700' : 'bg-orange-100 text-orange-700');
+
+    const tr = document.createElement('tr');
+    tr.className = 'border-b hover:bg-gray-50 transition-colors';
+    tr.innerHTML = `
+        <td class="p-4 font-mono text-blue-700 font-bold text-xs">${o.maDH}</td>
+        <td class="p-4">
+            <div class="text-xs font-bold uppercase text-slate-700">${o.loaiDV}</div>
+            <div class="text-[10px] text-slate-400 font-medium">${o.tenMach}</div>
+        </td>
+        <td class="p-4 text-[10px] text-gray-400 max-w-[150px] truncate">
+            ${Array.isArray(o.dauViec) ? o.dauViec.join(', ') : o.dauViec}
+        </td>
+        <td class="p-4 text-[10px] font-medium text-gray-500">${o.ngayTao}</td>
+        
+        <td class="p-4">
+            <div class="flex flex-col gap-1">
+                <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase w-fit ${chotDonColor}">
+                    SALE: ${o.ttChotDon || 'Mới tạo'}
+                </span>
+                <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase w-fit ${quyTrinhColor}">
+                    QL: ${o.ttQuyTrinh || 'Review'}
+                </span>
+                ${o.ttQuyTrinh === 'Hủy đơn' ? `<span class="text-[8px] text-red-400 italic font-medium">Lý do: ${o.lyDoHuy || 'N/A'}</span>` : ''}
+            </div>
+        </td>
+
+        <td class="p-4">
+            <div class="flex items-center gap-2">
+                <span class="text-[9px] font-bold uppercase text-gray-400 italic">${o.ttThietKe || 'Chờ...'}</span>
+                ${o.inputFolderId ? `
+                    <a href="https://drive.google.com/drive/folders/${o.inputFolderId}" target="_blank" class="text-blue-500 hover:text-blue-700">
+                        <i class="fab fa-google-drive"></i>
+                    </a>
+                ` : ''}
+            </div>
+        </td>
+        <td class="p-4 text-right font-bold text-slate-600">${new Intl.NumberFormat('vi-VN').format(o.tamUng)}</td>
+        <td class="p-4 text-right font-black ${congNo > 0 ? 'text-red-500' : 'text-green-600'}">
+            ${new Intl.NumberFormat('vi-VN').format(congNo)}
+        </td>
+        <td class="p-4 text-center">
+            <div class="flex justify-center gap-1">
+                <button onclick="exportQuote(${o.id})" class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Báo giá">
+                    <i class="fas fa-file-pdf"></i>
+                </button>
+                <button onclick="openModal(${o.id})" class="text-yellow-500 hover:bg-yellow-50 p-2 rounded-lg transition" title="Sửa">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="deleteOrder(${o.id})" class="text-red-300 hover:text-red-500 p-2 rounded-lg transition" title="Xóa">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </td>`;
+    tbody.appendChild(tr);
+        });
+    } catch (e) { console.error("Lỗi load table:", e); }
+}
+
+async function handleSaveOrder(e) {
+    e.preventDefault();
+
+    // Hiển thị Loading chuyên nghiệp
+    Swal.fire({
+        title: 'Đang xử lý...',
+        html: 'Đang lưu đơn và khởi tạo cấu trúc thư mục Drive mẫu...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    const checkedItems = Array.from(document.querySelectorAll('input[name="dv_item"]:checked')).map(cb => cb.value);
+    
+    const data = {
+        id: document.getElementById('dh_id').value || null,
+        maDH: document.getElementById('previewMaDH').innerText,
+        maKH: document.getElementById('maKH').value,
+        tenMach: document.getElementById('tenMach').value,
+        loaiDV: document.getElementById('loaiDV').value,
+        dauViec: checkedItems,
+        ngayTao: document.getElementById('ngayTao').value,
+        ngayChot: document.getElementById('ngayChot').value,
+        leadtime: parseInt(document.getElementById('leadtime').value) || 0,
+        ngayBanGiao: document.getElementById('ngayBanGiao').value,
+        ttQuyTrinh: document.getElementById('ttQuyTrinh').value,
+        giaThietKe: parseFloat(document.getElementById('giaThietKe').value) || 0,
+        heSoSale: parseFloat(document.getElementById('heSoSale').value) || 1,
+        vat: parseFloat(document.getElementById('vat').value) || 0,
+        chietKhau: parseFloat(document.getElementById('chietKhau').value) || 0,
+        noteDH: document.getElementById('noteDH').value,
+        giaBao: updateGiaBao(),
+        tamUng: parseFloat(document.getElementById('tamUng').value) || 0,
+        ttChotDon: document.getElementById('ttChotDon').value,
+        ttQuyTrinh: document.getElementById('ttQuyTrinh').value,
+        lyDoHuy: document.getElementById('lyDoHuy').value,
+        // Gửi kèm ID cũ nếu có
+        folderId: document.getElementById('folderId_hidden')?.value,
+        inputFolderId: document.getElementById('inputFolderId_hidden')?.value,
+        outputFolderId: document.getElementById('outputFolderId_hidden')?.value
+        
+    };
+
+    try {
+        const response = await fetch('/api/orders/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const res = await response.json();
+
+        if (res.success) {
+            // Cập nhật lại Link vào hidden để nút bấm có tác dụng ngay mà không cần tải lại trang
+            document.getElementById('inputFolderId_hidden').value = res.inputFolderId;
+            document.getElementById('outputFolderId_hidden').value = res.outputFolderId;
+
+    // Cập nhật link trực tiếp vào nút bấm
+    const btnIn = document.getElementById('btnOpenInput');
+    const btnOut = document.getElementById('btnOpenOutput');
+    
+    if (res.inputFolderId) {
+        btnIn.href = `https://drive.google.com/drive/folders/${res.inputFolderId}`;
+        btnIn.classList.remove('opacity-20', 'pointer-events-none');
+    }
+    if (res.outputFolderId) {
+        btnOut.href = `https://drive.google.com/drive/folders/${res.outputFolderId}`;
+        btnOut.classList.remove('opacity-20', 'pointer-events-none');
+    }
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Hoàn tất!',
+                text: 'Folder đơn hàng và file requirements đã sẵn sàng.',
+                showConfirmButton: true,
+                confirmButtonText: 'Mở Folder Input ngay'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    openDriveFolder('input');
+                }
+            });
+            
+            renderTable();
+        } else {
+            Swal.fire("Lỗi", res.error, "error");
+        }
+    } catch (err) {
+        Swal.fire("Lỗi hệ thống", "Kết nối server thất bại", "error");
+    }
+}
+
+function editOrder(id) {
+    const order = currentOrders.find(o => o.id === id);
+    if (!order) return;
+
+    // 1. Đổ dữ liệu vào các ô input (giữ nguyên các phần cũ của bạn)
+    document.getElementById('dh_id').value = order.id;
+    document.getElementById('maKH').value = order.maKH;
+    document.getElementById('tenMach').value = order.tenMach;
+    // ... các trường khác ...
+
+    // 2. Gán giá trị vào các ô Hidden (Để khi Save không bị mất link trên DB)
+    document.getElementById('folderId_hidden').value = order.folderId || '';
+    document.getElementById('inputFolderId_hidden').value = order.inputFolderId || '';
+    document.getElementById('outputFolderId_hidden').value = order.outputFolderId || '';
+
+    // 3. CẬP NHẬT LINK CHO NÚT BẤM (FIX LỖI MẤT LINK)
+    const btnIn = document.getElementById('btnOpenInput');
+    const btnOut = document.getElementById('btnOpenOutput');
+
+    if (order.inputFolderId && order.inputFolderId !== 'null') {
+        // Nếu có ID, gắn link và hiện nút
+        btnIn.href = `https://drive.google.com/drive/folders/${order.inputFolderId}`;
+        btnIn.classList.remove('opacity-20', 'pointer-events-none');
+    } else {
+        // Nếu không có, làm mờ nút
+        btnIn.href = "#";
+        btnIn.classList.add('opacity-20', 'pointer-events-none');
+    }
+
+    if (order.outputFolderId && order.outputFolderId !== 'null') {
+        btnOut.href = `https://drive.google.com/drive/folders/${order.outputFolderId}`;
+        btnOut.classList.remove('opacity-20', 'pointer-events-none');
+    } else {
+        btnOut.href = "#";
+        btnOut.classList.add('opacity-20', 'pointer-events-none');
+    }
+
+    openModal(); // Cuối cùng mới mở Modal
+}
+
+function addNewOrder() {
+    document.getElementById('formOrder').reset();
+    document.getElementById('dh_id').value = ''; // Xóa ID
+    document.getElementById('folderId_hidden').value = '';
+    document.getElementById('inputFolderId_hidden').value = '';
+    document.getElementById('outputFolderId_hidden').value = '';
+    document.getElementById('previewMaDH').innerText = 'DH-' + Date.now(); // Tạo mã mới
+    openModal();
+}
+
+// Hàm phụ để cập nhật link nút bấm Drive ngay khi mở Modal sửa
+function updateDriveButtons(inputID, outputID) {
+    const btnIn = document.getElementById('btnOpenInput');
+    const btnOut = document.getElementById('btnOpenOutput');
+
+    if (inputID && inputID !== 'null') {
+        btnIn.onclick = () => window.open(`https://drive.google.com/drive/folders/${inputID}`, '_blank');
+        btnIn.classList.remove('opacity-20', 'pointer-events-none');
+    } else {
+        btnIn.onclick = () => Swal.fire("Thông báo", "Đơn cũ chưa có Folder Input", "info");
+        btnIn.classList.add('opacity-20');
+    }
+
+    if (outputID && outputID !== 'null') {
+        btnOut.onclick = () => window.open(`https://drive.google.com/drive/folders/${outputID}`, '_blank');
+        btnOut.classList.remove('opacity-20', 'pointer-events-none');
+    } else {
+        btnOut.classList.add('opacity-20');
+    }
+}
+
+// Hàm mở folder
+function openDriveFolder(type) {
+    const id = type === 'input' 
+        ? document.getElementById('inputFolderId_hidden').value 
+        : document.getElementById('outputFolderId_hidden').value;
+
+    if (!id || id === 'null') {
+        Swal.fire("Thông báo", "Thư mục này chưa được khởi tạo cho đơn hàng cũ.", "info");
+        return;
+    }
+    window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
+}
+
+async function deleteOrder(id) {
+    if(!confirm("Xác nhận xóa?")) return;
+    try {
+        const response = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+        const res = await response.json();
+        if(res.success) renderTable();
+    } catch (e) { alert("Lỗi khi xóa!"); }
+}
+
+
+
+// 1. Cập nhật hàm mở Modal để hiển thị trạng thái thiết kế
+function openModal(id = null) {
+    populateBrands();
+    document.getElementById('modalDH').classList.remove('hidden');
+    
+    // Lấy các element link và hidden
+    const btnIn = document.getElementById('btnOpenInput');
+    const btnOut = document.getElementById('btnOpenOutput');
+    const hiddenIn = document.getElementById('inputFolderId_hidden');
+    const hiddenOut = document.getElementById('outputFolderId_hidden');
+
+    if(id) {
+        // --- LOGIC SỬA ĐƠN ---
+        const o = currentOrders.find(x => x.id == id);
+        if(!o) return;
+
+        document.getElementById('ttChotDon').value = o.ttChotDon || 'Mới khởi tạo';
+        document.getElementById('ttQuyTrinh').value = o.ttQuyTrinh || 'Đang review';
+        document.getElementById('lyDoHuy').value = o.lyDoHuy || '';
+        
+        document.getElementById('dh_id').value = o.id;
+        document.getElementById('loaiDV').value = o.loaiDV;
+        document.getElementById('maKH').value = o.maKH;
+        document.getElementById('tenMach').value = o.tenMach;
+        document.getElementById('ngayTao').value = o.ngayTao;
+        document.getElementById('ngayChot').value = o.ngayChot;
+        document.getElementById('leadtime').value = o.leadtime;
+        document.getElementById('giaThietKe').value = o.giaThietKe;
+        document.getElementById('heSoSale').value = o.heSoSale;
+        document.getElementById('vat').value = o.vat || 0;
+        document.getElementById('chietKhau').value = o.chietKhau || 0;
+        document.getElementById('tamUng').value = o.tamUng || 0;
+        document.getElementById('noteDH').value = o.noteDH || '';
+        
+        hiddenIn.value = o.inputFolderId || '';
+        hiddenOut.value = o.outputFolderId || '';
+
+        // Cập nhật Folder INPUT
+        if (o.inputFolderId && o.inputFolderId !== 'null') {
+            btnIn.href = `https://drive.google.com/drive/folders/${o.inputFolderId}`;
+            btnIn.classList.remove('opacity-20', 'pointer-events-none');
+        } else {
+            btnIn.href = "#";
+            btnIn.classList.add('opacity-20', 'pointer-events-none');
+        }
+
+        // Cập nhật Folder OUTPUT (Sửa lỗi dẫn đến folder INPUT)
+        if (o.outputFolderId && o.outputFolderId !== 'null') {
+            btnOut.href = `https://drive.google.com/drive/folders/${o.outputFolderId}`;
+            btnOut.classList.remove('opacity-20', 'pointer-events-none');
+        } else {
+            btnOut.href = "#";
+            btnOut.classList.add('opacity-20', 'pointer-events-none');
+        }
+
+        const viewTK = document.getElementById('viewTTThietKe');
+        viewTK.innerText = o.ttThietKe || "Chờ triển khai";
+        viewTK.className = `text-xs font-black uppercase ${o.ttThietKe === 'Đã hoàn thành' ? 'text-green-600' : 'text-blue-500'}`;
+        
+        renderServiceCheckboxes(o.dauViec);
+    } else {
+        // --- LOGIC THÊM MỚI ---
+        // 1. Lưu lại giá trị maKH hiện tại (do window.onload gán vào trước đó)
+        const savedMaKH = document.getElementById('maKH').value;
+
+        document.getElementById('formDH').reset();
+        
+        // 2. Sau khi reset, gán lại mã KH nếu có
+        if (savedMaKH) {
+            document.getElementById('maKH').value = savedMaKH;
+        }
+
+        document.getElementById('dh_id').value = '';
+        hiddenIn.value = '';
+        hiddenOut.value = '';
+        btnIn.classList.add('opacity-20', 'pointer-events-none');
+        btnOut.classList.add('opacity-20', 'pointer-events-none');
+        document.getElementById('ngayTao').valueAsDate = new Date();
+        document.getElementById('viewTTThietKe').innerText = "Chưa có đơn";
+        
+        // Set mặc định cho đơn mới
+        document.getElementById('ttChotDon').value = 'Mới khởi tạo';
+        document.getElementById('ttQuyTrinh').value = 'Đang review';
+        
+        renderServiceCheckboxes();
+    }
+    
+    toggleCancelNote();
+    updateMaDH();
+    calculateDeadline();
+    updateGiaBao();
+}
+
+// 2. Hàm Báo giá nhanh
+function exportQuote(id = null) {
+    const finalId = id || document.getElementById('dh_id').value;
+    const brandId = document.getElementById('selectBrand').value || 1;
+
+    if (!finalId) {
+        Swal.fire("Chú ý", "Vui lòng lưu đơn trước khi xem báo giá!", "warning");
+        return;
+    }
+
+    // Gửi kèm tham số brandId qua Query String
+    const url = `/api/orders/export-pdf/${finalId}?brandId=${brandId}`;
+    window.open(url, '_blank');
+}
+
+// Tại don-hang.ejs
+async function handleUpload(orderId, folderId) {
+    console.log("Đang upload vào Folder ID:", folderId); // Kiểm tra log F12 xem có ID không
+    if (!folderId || folderId === 'null') {
+        alert("Đơn hàng này chưa có Folder ID trên Drive!");
+        return;
+    }
+    // ... code upload tiếp theo
+}
+
+// Thêm vào trong script
+async function populateBrands() {
+    try {
+        const res = await fetch('/api/brands'); // Giả định bạn đã có API này
+        const brands = await res.json();
+        const select = document.getElementById('selectBrand');
+        
+        if (brands.length > 0) {
+            select.innerHTML = brands.map(b => `<option value="${b.id}">${b.company}</option>`).join('');
+        } else {
+            select.innerHTML = '<option value="1">Brand Mặc Định</option>';
+        }
+    } catch (e) {
+        console.error("Lỗi load Brand:", e);
+    }
+}
+
+function toggleCancelNote() {
+    const status = document.getElementById('ttQuyTrinh').value;
+    const box = document.getElementById('cancelNoteBox');
+    if (status === 'Hủy đơn') {
+        box.classList.remove('hidden');
+    } else {
+        box.classList.add('hidden');
+        document.getElementById('lyDoHuy').value = ''; // Reset khi không hủy
+    }
+}
+
+
+window.onload = async () => {
+    // Tải dữ liệu
+    await populateCustomers(); 
+    await renderTable();
+    await populateBrands();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const maKHFromUrl = urlParams.get('addFor');
+
+    if (maKHFromUrl) {
+        // Bước 1: Gán giá trị vào select trước khi mở modal
+        const selectKH = document.getElementById('maKH');
+        if (selectKH) {
+            selectKH.value = maKHFromUrl;
+        }
+
+        // Bước 2: Mở modal (Hàm openModal bây giờ đã biết giữ lại giá trị maKH)
+        openModal(); 
+
+        // Bước 3: Ép một lần nữa cho chắc chắn sau khi Form render xong
+        setTimeout(() => {
+            if (selectKH && selectKH.value !== maKHFromUrl) {
+                selectKH.value = maKHFromUrl;
+                updateMaDH();
+            }
+        }, 500);
+
+        // Làm sạch URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+};
+</script>
+
+<%- include('../partials/footer') %>

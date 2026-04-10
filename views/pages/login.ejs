@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <title>Đăng nhập | H-TECH SYSTEM</title>
+</head>
+<body class="bg-slate-900 h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-black text-slate-800 tracking-tighter">H-TECH ERP</h1>
+            <p class="text-gray-400 text-xs uppercase font-bold tracking-widest mt-2">Hệ thống quản lý nội bộ</p>
+        </div>
+        <form onsubmit="handleLogin(event)" class="space-y-5">
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Tài khoản</label>
+                <input type="text" id="username" class="w-full border-2 border-slate-100 rounded-xl p-3 outline-none focus:border-blue-500 font-bold" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Mật khẩu</label>
+                <input type="password" id="password" class="w-full border-2 border-slate-100 rounded-xl p-3 outline-none focus:border-blue-500 font-bold" required>
+            </div>
+            <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
+                Đăng nhập ngay
+            </button>
+        </form>
+    </div>
+
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+            const result = await res.json();
+
+            if(result.success) {
+                window.location.href = '/';
+            } else {
+                Swal.fire('Lỗi', result.error, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
