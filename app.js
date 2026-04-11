@@ -318,7 +318,7 @@ app.post('/api/orders/save', async (req, res) => {
 
         } else {
             // --- TRƯỜNG HỢP THÊM MỚI (INSERT) ---
-            const sql = `INSERT INTO orders (maDH, loaiDV, maKH, tenMach, ngayTao, ngayChot, leadtime, ngayBanGiao, ttQuyTrinh, giaThietKe, heSoSale, vat, chietKhau, noteDH, giaBao, tamUng, dauViec, folderId, inputFolderId, outputFolderId, ttChotDon, lyDoHuy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+            const sql = `INSERT INTO orders (maDH, loaiDV, maKH, tenMach, ngayTao, ngayChot, leadtime, ngayBanGiao, ttQuyTrinh, giaThietKe, heSoSale, vat, chietKhau, noteDH, giaBao, tamUng, dauViec, folderId, inputFolderId, outputFolderId, ttChotDon, lyDoHuy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
             
             db.run(sql, params, function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
