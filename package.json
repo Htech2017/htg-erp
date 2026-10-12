@@ -5,7 +5,9 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "demo": "node scripts/demo.js",
+    "demo:reset": "node scripts/demo.js --reset"
   },
   "keywords": [],
   "author": "",
@@ -20,11 +22,13 @@
     "googleapis": "^171.4.0",
     "html-pdf-node": "^1.0.8",
     "multer": "^2.1.1",
-    "mysql2": "^3.20.0",
-    "sqlite3": "^6.0.1",
+    "sqlite3": "^5.1.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

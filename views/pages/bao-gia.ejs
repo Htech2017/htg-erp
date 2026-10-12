@@ -1,0 +1,1069 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto">
+
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Báo giá <%= typeof deptLabel !== 'undefined' ? deptLabel : 'cost' %></h1>
+            <p class="text-sm text-gray-400 mt-0.5">Sale tạo đơn → Mua hàng kiểm dữ liệu khách gửi, hỏi giá NCC (Kho là một nguồn, cần xác nhận còn hàng), nhập giá cost tại đây → Sale nhân hệ số và báo khách</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+            <input type="text" id="bgSearch" oninput="renderQuotes()" placeholder="Tìm mã ĐH, tên mạch, khách, sale..." class="border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400 w-64">
+            <select id="bgSort" onchange="renderQuotes()" class="border rounded-lg px-3 py-2 text-sm bg-white" title="Sắp xếp">
+                <option value="wait">Chờ lâu nhất trước</option>
+                <option value="due">Bàn giao gần nhất trước</option>
+                <option value="new">Mới tạo trước</option>
+                <option value="cost">Cost lớn trước</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Tong quan: bam vao the de loc -->
+    <div id="bgDetail" style="display:none"></div>
+    <div id="bgKpi" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+        <button onclick="setQuoteFilter('pending')" data-f="pending" class="bg-kpi text-left bg-white rounded-xl shadow-sm p-4 border-2 border-transparent">
+            <p class="text-[10px] font-black text-gray-400 uppercase">Chờ tôi báo giá</p>
+            <p class="text-2xl font-black text-amber-600 mt-1"><span id="kPending">0</span> <span class="text-xs font-semibold text-gray-400">đơn · <span id="kPendingItems">0</span> hạng mục</span></p>
+        </button>
+        <button onclick="setQuoteFilter('late')" data-f="late" class="bg-kpi text-left bg-white rounded-xl shadow-sm p-4 border-2 border-transparent">
+            <p class="text-[10px] font-black text-gray-400 uppercase">Chờ quá <span class="lateDays"></span> ngày</p>
+            <p class="text-2xl font-black text-red-600 mt-1"><span id="kLate">0</span> <span class="text-xs font-semibold text-gray-400">đơn</span></p>
+        </button>
+        <button onclick="setQuoteFilter('due')" data-f="due" class="bg-kpi text-left bg-white rounded-xl shadow-sm p-4 border-2 border-transparent">
+            <p class="text-[10px] font-black text-gray-400 uppercase">Bàn giao trong 7 ngày</p>
+            <p class="text-2xl font-black text-orange-500 mt-1"><span id="kDue">0</span> <span class="text-xs font-semibold text-gray-400">đơn chưa báo giá</span></p>
+        </button>
+        <button onclick="setQuoteFilter('done')" data-f="done" class="bg-kpi text-left bg-white rounded-xl shadow-sm p-4 border-2 border-transparent">
+            <p class="text-[10px] font-black text-gray-400 uppercase">Tôi đã báo, chờ chốt</p>
+            <p class="text-2xl font-black text-emerald-600 mt-1"><span id="kDone">0</span> <span class="text-xs font-semibold text-gray-400">đơn</span></p>
+        </button>
+        <button onclick="setQuoteFilter('')" data-f="" class="bg-kpi text-left bg-white rounded-xl shadow-sm p-4 border-2 border-transparent">
+            <p class="text-[10px] font-black text-gray-400 uppercase">Tổng cost tôi đã báo</p>
+            <p class="text-2xl font-black text-slate-800 mt-1"><span id="kCost">0</span><span class="text-xs font-semibold text-gray-400"> đ · <span id="kAll">0</span> đơn</span></p>
+        </button>
+    </div>
+
+    <div id="bgTable" class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left">
+                <tr>
+                    <th class="p-3">Đơn hàng</th>
+                    <th class="p-3">Khách hàng · Sale</th>
+                    <th class="p-3">Loại mạch · Số lượng</th>
+                    <th class="p-3">Đã chờ</th>
+                    <th class="p-3">Bàn giao</th>
+                    <th class="p-3 w-40">Phần của tôi</th>
+                    <th class="p-3 text-right">Cost tôi báo</th>
+                    <th class="p-3">Bộ phận khác</th>
+                    <th class="p-3">Giai đoạn</th>
+                </tr>
+            </thead>
+            <tbody id="bgList"></tbody>
+        </table>
+        </div>
+        <p id="bgInfo" class="px-4 py-2 text-xs text-gray-400 border-t"></p>
+    </div>
+</div>
+
+<!-- ===== CONG CU KIEM TRA KHO: can mua = can - ton kho; cost = lay kho x gia kho + can mua x gia mua ===== -->
+<div id="stockModal" class="fixed inset-0 bg-black bg-opacity-60 items-start justify-center p-4 z-50 overflow-y-auto" style="display:none">
+    <div class="bg-white rounded-2xl w-full max-w-6xl shadow-2xl my-6">
+        <div class="px-6 py-4 border-b flex justify-between items-center bg-amber-50 rounded-t-2xl">
+            <div>
+                <h2 class="font-bold text-slate-800"><i class="fas fa-warehouse text-amber-500 mr-2"></i>Kiểm tra kho &amp; tính giá cost — <span id="stTitle"></span></h2>
+                <p class="text-xs text-gray-500 mt-0.5">Số lượng cần mua = số lượng cần − tồn kho · Giá cost = lấy kho × giá kho + cần mua × giá mua</p>
+            </div>
+            <button onclick="closeStockTool()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times-circle text-xl"></i></button>
+        </div>
+        <div class="p-6">
+            <!-- ===== SO KHOP BOM CUA KHACH VOI KHO ===== -->
+            <div class="border border-indigo-200 bg-indigo-50/50 rounded-xl p-4 mb-5">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-xs font-bold text-indigo-700 uppercase"><i class="fas fa-random mr-1"></i>Lấy BOM của khách</span>
+                    <select id="bomDriveFile" class="border rounded-lg px-3 py-2 text-sm bg-white max-w-xs"><option value="">Đang tìm file trong Google Drive...</option></select>
+                    <button onclick="loadBomFromDrive()" class="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700">Đọc file Drive</button>
+                    <span class="text-xs text-gray-400">hoặc</span>
+                    <input type="file" id="bomUpload" accept=".xlsx,.xls,.csv" onchange="loadBomFromUpload(this)" class="text-xs">
+                </div>
+                <p id="bomHint" class="text-xs text-gray-500 mt-2"></p>
+
+                <div id="bomMapping" class="hidden mt-4">
+                    <p class="text-xs font-semibold text-gray-600 mb-2">File <b id="bomFileName"></b> — <span id="bomRowCount"></span> dòng. Kiểm tra cột tương ứng:</p>
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-3 text-xs">
+                        <label>Sheet<select id="bomSheet" onchange="reparseBomSheet()" class="w-full border rounded px-2 py-1.5 bg-white mt-1"></select></label>
+                        <label>Tên / giá trị *<select id="map_name" class="w-full border rounded px-2 py-1.5 bg-white mt-1"></select></label>
+                        <label>Mô tả<select id="map_desc" class="w-full border rounded px-2 py-1.5 bg-white mt-1"></select></label>
+                        <label>Số lượng / 1 SP *<select id="map_qty" class="w-full border rounded px-2 py-1.5 bg-white mt-1"></select></label>
+                        <label>Mã NSX<select id="map_mpn" class="w-full border rounded px-2 py-1.5 bg-white mt-1"></select></label>
+                        <label>Kiểu chân<select id="map_package" class="w-full border rounded px-2 py-1.5 bg-white mt-1"></select></label>
+                    </div>
+                    <button onclick="runBomMatch()" class="mt-3 bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700"><i class="fas fa-search mr-1"></i>So khớp với kho</button>
+                </div>
+
+                <div id="bomResult" class="hidden mt-4">
+                    <div class="flex flex-wrap items-center gap-4 text-xs mb-2">
+                        <span id="bomSummary" class="font-semibold text-gray-700"></span>
+                        <label class="flex items-center gap-1"><input type="checkbox" id="bomRemember" checked> Ghi nhớ tên gọi của khách cho các mã đã khớp (lần sau tự nhận)</label>
+                    </div>
+                    <div class="overflow-x-auto max-h-80 overflow-y-auto bg-white border rounded-lg">
+                        <table class="w-full text-xs whitespace-nowrap">
+                            <thead class="bg-gray-50 text-gray-500 uppercase sticky top-0">
+                                <tr><th class="px-2 py-2 text-left">Tên khách gọi</th><th class="px-2 py-2 text-right">SL / 1 SP</th><th class="px-2 py-2 text-left">Mã hàng trong kho (sửa được)</th><th class="px-2 py-2 text-left">Độ khớp</th><th class="px-2 py-2 text-left">Gợi ý khác</th></tr>
+                            </thead>
+                            <tbody id="bomRows"></tbody>
+                        </table>
+                    </div>
+                    <button onclick="applyBomToQuote()" class="mt-3 bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700"><i class="fas fa-arrow-down mr-1"></i>Đưa vào bảng báo giá bên dưới</button>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 mb-3 bg-slate-50 border rounded-lg px-3 py-2">
+                <label class="text-xs font-bold text-slate-700"><i class="fas fa-layer-group mr-1 text-slate-400"></i>NCC nhóm tụ, trở
+                    <input id="stPassiveSup" list="stSuppliers" onchange="setPassiveSupplier(this.value)" placeholder="LCSC..." class="ml-2 border rounded px-2 py-1.5 text-sm w-40 font-normal outline-none focus:ring-2 focus:ring-blue-400"></label>
+                <span class="text-[11px] text-gray-500">Tụ, trở mua cả nhóm ở một nhà cung cấp; chỉ bấm "đổi riêng" cho mã mà nhà đó hết hàng. IC và linh kiện khác chọn nguồn theo từng mã.</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm whitespace-nowrap">
+                    <thead class="bg-gray-50 text-gray-500 text-[11px] uppercase border-b">
+                        <tr>
+                            <th class="px-2 py-2 text-left">Vật tư (chọn trong kho hoặc gõ tên mới)</th>
+                            <th class="px-2 py-2 text-right">Định mức / 1 SP</th>
+                            <th class="px-2 py-2 text-right">SL cần</th>
+                            <th class="px-2 py-2 text-right">Tồn kho</th>
+                            <th class="px-2 py-2 text-right">Lấy kho</th>
+                            <th class="px-2 py-2 text-right">Cần mua</th>
+                            <th class="px-2 py-2 text-right">Giá kho</th>
+                            <th class="px-2 py-2 text-right">Giá mua</th>
+                            <th class="px-2 py-2 text-left">Nguồn mua (NCC)</th>
+                            <th class="px-2 py-2 text-center" title="Khách gửi linh kiện này sang: không lấy kho, không mua, không tính vào giá cost">Khách cấp</th>
+                            <th class="px-2 py-2 text-right">Thành tiền</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="stRows"></tbody>
+                </table>
+            </div>
+            <datalist id="stItems"></datalist>
+            <div class="flex flex-wrap justify-between items-center gap-4 mt-4">
+                <button onclick="addStockRow()" class="border border-dashed border-gray-400 text-gray-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-50"><i class="fas fa-plus mr-1"></i>Thêm vật tư</button>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="saveRfqDraft()" class="border border-slate-300 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-slate-50" title="Chưa đủ giá vẫn lưu được, mở lại để nhập tiếp khi NCC báo giá"><i class="fas fa-save mr-1"></i>Lưu nháp (chờ NCC báo giá)</button>
+                    <button onclick="showRfq()" class="border border-blue-300 text-blue-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-blue-50"><i class="fas fa-paper-plane mr-1"></i>Tổng hợp gửi NCC</button>
+                    <button onclick="exportBuyBom()" class="border border-emerald-300 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-50" title="BOM sau khi đã kiểm kho: mang đi xử lý (hỏi giá, chọn NCC) trên Excel"><i class="fas fa-file-export mr-1"></i>Xuất BOM đi mua</button>
+                    <input type="file" id="buyBomFile" accept=".xlsx,.xls,.csv,.txt,.tsv" class="hidden" onchange="buyBomChoose(this.files[0]); this.value = ''">
+                    <button onclick="document.getElementById('buyBomFile').click()" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700" title="Upload BOM đã xử lý: giá, NCC, SL mua, mã thay thế được ghép vào đúng dòng"><i class="fas fa-file-upload mr-1"></i>Upload BOM sau xử lý</button>
+                    <button onclick="askStock()" class="border border-emerald-300 text-emerald-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-50" title="Kho là một nguồn hàng: nhờ Kho kiểm thực tế còn đủ số lấy kho hay không"><i class="fas fa-warehouse mr-1"></i>Gửi Kho xác nhận còn hàng</button>
+                </div>
+                <div class="flex flex-wrap gap-6 text-sm">
+                    <span>Giá trị lấy từ kho: <b id="stSumStock" class="text-emerald-600">0</b></span>
+                    <span>Giá trị cần mua: <b id="stSumBuy" class="text-blue-600">0</b></span>
+                    <span>Giá cost: <b id="stSumTotal" class="text-lg text-red-600">0</b></span>
+                </div>
+            </div>
+            <p id="stDraftInfo" class="text-xs text-indigo-600 mt-2"></p>
+            <div id="stRfq" class="mt-3"></div>
+            <p class="text-xs text-gray-400 mt-3">Khi lưu, phần "lấy kho" được TẠM XUẤT khỏi kho để đơn khác không tính trùng. Nếu khách không chốt hoặc đơn hủy, hệ thống tự TÁI NHẬP. Khi lưu, hệ thống đối chiếu lại tồn kho mới nhất.</p>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+            <button onclick="closeStockTool()" class="px-5 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100">Hủy</button>
+            <button onclick="saveStockQuote()" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700"><i class="fas fa-save mr-1"></i>Lưu giá cost</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CONG CU BAO GIA GIA CONG: dem diem han tu BOM / gerber -> gia ===== -->
+<div id="asmModal" class="fixed inset-0 bg-black bg-opacity-60 items-start justify-center p-4 z-50 overflow-y-auto" style="display:none">
+    <div class="bg-white rounded-2xl w-full max-w-5xl shadow-2xl my-6">
+        <div class="px-6 py-4 border-b flex justify-between items-center bg-violet-50 rounded-t-2xl">
+            <div>
+                <h2 class="font-bold text-slate-800"><i class="fas fa-calculator text-violet-600 mr-2"></i>Tính giá gia công — <span id="asmTitle"></span></h2>
+                <p class="text-xs text-gray-500 mt-0.5">Giá 1 board = điểm dán × đơn giá dán + điểm cắm × đơn giá cắm + số IC × phụ phí IC + phí test · Tổng = giá 1 board × số lượng × (1 + hao hụt) + phí chuẩn bị</p>
+            </div>
+            <button onclick="closeAssemblyTool()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times-circle text-xl"></i></button>
+        </div>
+        <div class="p-6 space-y-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Nguon 1: BOM -->
+                <div class="border rounded-xl p-4">
+                    <p class="text-xs font-bold text-indigo-700 uppercase mb-2"><i class="fas fa-list mr-1"></i>1. Ước lượng từ BOM (theo kiểu chân)</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="asmBomFile" class="border rounded-lg px-2 py-1.5 text-xs bg-white max-w-[220px]"></select>
+                        <button onclick="asmLoadBom('drive')" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">Đọc file Drive</button>
+                        <input type="file" id="asmBomUpload" accept=".xlsx,.xls,.csv" onchange="asmLoadBom('upload')" class="text-xs w-48">
+                    </div>
+                    <div id="asmBomMap" class="hidden grid grid-cols-4 gap-2 text-[11px] mt-3">
+                        <label>Tên<select id="asm_map_name" class="w-full border rounded px-1 py-1 bg-white"></select></label>
+                        <label>Kiểu chân *<select id="asm_map_package" class="w-full border rounded px-1 py-1 bg-white"></select></label>
+                        <label>Vị trí<select id="asm_map_ref" class="w-full border rounded px-1 py-1 bg-white"></select></label>
+                        <label>Số lượng<select id="asm_map_qty" class="w-full border rounded px-1 py-1 bg-white"></select></label>
+                        <button onclick="asmEstimate()" class="col-span-4 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">Ước lượng</button>
+                    </div>
+                    <div id="asmBomResult" class="hidden mt-3 text-xs"></div>
+                </div>
+                <!-- Nguon 2: Gerber -->
+                <div class="border rounded-xl p-4">
+                    <p class="text-xs font-bold text-emerald-700 uppercase mb-2"><i class="fas fa-layer-group mr-1"></i>2. Đếm từ file gerber / file khoan (chính xác nhất)</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="asmGerberFile" class="border rounded-lg px-2 py-1.5 text-xs bg-white max-w-[220px]"></select>
+                        <button onclick="asmLoadGerber('drive')" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">Đọc file Drive</button>
+                        <input type="file" id="asmGerberUpload" multiple onchange="asmLoadGerber('upload')" class="text-xs w-48">
+                    </div>
+                    <p class="text-[11px] text-gray-400 mt-2">Chọn file .zip gerber, hoặc các file lớp kem hàn (.GTP / .GBP, *Paste*) và file khoan (.DRL / .TXT).</p>
+                    <div id="asmGerberResult" class="hidden mt-3 text-xs"></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-50 border rounded-xl p-4">
+                    <p class="text-xs font-bold text-slate-700 uppercase mb-3">Khối lượng của 1 board (sửa tay được)</p>
+                    <div class="grid grid-cols-3 gap-3 text-xs">
+                        <label>Điểm hàn dán (SMD)<input id="asm_smdPads" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm font-bold text-right mt-1"></label>
+                        <label>Điểm hàn cắm (THT)<input id="asm_thtPads" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm font-bold text-right mt-1"></label>
+                        <label>Số IC<input id="asm_icCount" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm font-bold text-right mt-1"></label>
+                    </div>
+                </div>
+                <div class="bg-slate-50 border rounded-xl p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <p class="text-xs font-bold text-slate-700 uppercase">Đơn giá (đ)</p>
+                        <button onclick="asmSaveRates()" class="text-[11px] text-blue-600 hover:underline">Lưu làm đơn giá mặc định</button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 text-xs">
+                        <label>1 điểm dán<input id="asm_r_smdPad" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm text-right mt-1"></label>
+                        <label>1 điểm cắm<input id="asm_r_thtPad" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm text-right mt-1"></label>
+                        <label>Phụ phí / IC<input id="asm_r_ic" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm text-right mt-1"></label>
+                        <label>Test / board<input id="asm_r_test" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm text-right mt-1"></label>
+                        <label>Phí chuẩn bị / loại mạch<input id="asm_r_setup" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm text-right mt-1"></label>
+                        <label>Hao hụt (%)<input id="asm_r_lossPercent" oninput="asmRecalc()" class="w-full border rounded-lg px-2 py-2 text-sm text-right mt-1"></label>
+                    </div>
+                    <p id="asmRateHint" class="hidden text-[11px] text-amber-600 mt-2">Chưa có đơn giá mặc định. Nhập đơn giá của xưởng rồi bấm "Lưu làm đơn giá mặc định".</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap justify-end gap-8 text-sm">
+                <span>Số lượng: <b id="asmQty">0</b></span>
+                <span>Giá 1 board: <b id="asmPerBoard" class="text-blue-600">0</b></span>
+                <span>Giá gia công: <b id="asmTotal" class="text-lg text-red-600">0</b></span>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+            <button onclick="closeAssemblyTool()" class="px-5 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100">Hủy</button>
+            <button onclick="saveAssemblyQuote()" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700"><i class="fas fa-save mr-1"></i>Lưu giá gia công</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let quoteOrders = [];
+const fmtVND = v => new Intl.NumberFormat('vi-VN').format(v || 0);
+const TYPE_CHIP = {
+    rnd: '<span class="bg-violet-100 text-violet-700 rounded px-1.5 py-0.5 text-[10px] font-bold">R&amp;D</span>',
+    sx:  '<span class="bg-sky-100 text-sky-700 rounded px-1.5 py-0.5 text-[10px] font-bold">SX</span>'
+};
+
+// Thu muc OUTPUT cua bo phan dang bao gia (noi luu bao gia NCC, file tinh gia...)
+const QUOTE_DEPT_FOLDER = { pcb: ['pcb', 'PCB', 'in-pcb', 'PCB'], lk: ['linhkien', 'Linh kiện', 'in-bom', 'BOM'], sx: ['sanxuat', 'Sản xuất', 'in-smt', 'SMT'], rnd: ['thietke', 'Thiết kế', 'in-design', 'Design'] }['<%= typeof dept !== 'undefined' ? dept : '' %>'] || null;
+const QUOTE_LATE_DAYS = 3; // don tao qua so ngay nay ma bo phan chua bao gia -> canh bao
+let quoteFilter = 'pending';
+const openQuotes = new Set(); // cac don dang mo phan nhap gia (giu nguyen sau khi luu)
+
+const daysSince = d => { const t = new Date(String(d || '').slice(0, 10)).getTime(); return Number.isNaN(t) ? null : Math.max(0, Math.floor((Date.now() - t) / 86400000)); };
+const daysUntil = d => { const t = new Date(String(d || '').slice(0, 10)).getTime(); return Number.isNaN(t) ? null : Math.ceil((t - Date.now()) / 86400000); };
+const quoteItems = o => o.lines.flatMap(l => l.items);
+
+async function loadQuotes() {
+    const res = await fetch('/api/orders/quote-requests?dept=<%= typeof dept !== 'undefined' ? dept : '' %>');
+    quoteOrders = (res.ok ? await res.json() : []).map(o => {
+        const items = quoteItems(o);
+        return { ...o, total: items.length, done: items.filter(i => i.cost > 0).length, myCost: items.reduce((s, i) => s + (i.cost || 0), 0), wait: daysSince(o.ngayTao), due: daysUntil(o.ngayBanGiao) };
+    });
+    const pend = quoteOrders.filter(o => o.pending);
+    document.getElementById('kPending').textContent = pend.length;
+    document.getElementById('kPendingItems').textContent = pend.reduce((s, o) => s + (o.total - o.done), 0);
+    document.getElementById('kLate').textContent = pend.filter(o => o.wait > QUOTE_LATE_DAYS).length;
+    document.getElementById('kDue').textContent = pend.filter(o => o.due !== null && o.due <= 7).length;
+    document.getElementById('kDone').textContent = quoteOrders.filter(o => !o.pending).length;
+    document.getElementById('kCost').textContent = fmtVND(quoteOrders.reduce((s, o) => s + o.myCost, 0));
+    document.getElementById('kAll').textContent = quoteOrders.length;
+    document.querySelectorAll('.lateDays').forEach(e => { e.textContent = QUOTE_LATE_DAYS; });
+    renderQuotes();
+}
+
+function setQuoteFilter(f) { quoteFilter = f; renderQuotes(); }
+// Bam 1 dong -> trang chi tiet cua don do (an bang tong hop); "Quay lai" de ve bang
+function toggleQuote(id) { openQuotes.clear(); openQuotes.add(id); renderQuotes(); const m = document.querySelector('main'); if (m) m.scrollTop = 0; }
+function closeQuote() { openQuotes.clear(); renderQuotes(); }
+
+function visibleQuotes() {
+    const q = document.getElementById('bgSearch').value.toLowerCase();
+    const sort = document.getElementById('bgSort').value;
+    const pass = {
+        pending: o => o.pending, done: o => !o.pending,
+        late: o => o.pending && o.wait > QUOTE_LATE_DAYS,
+        due: o => o.pending && o.due !== null && o.due <= 7
+    }[quoteFilter] || (() => true);
+    const list = quoteOrders.filter(o => pass(o) && (!q || [o.maDH, o.tenMach, o.customerName, o.maKH, o.saleName].some(v => (v || '').toLowerCase().includes(q))));
+    const big = 1e9;
+    const by = {
+        wait: (a, b) => (b.pending - a.pending) || ((b.wait || 0) - (a.wait || 0)),
+        due: (a, b) => (a.due === null ? big : a.due) - (b.due === null ? big : b.due),
+        new: (a, b) => b.id - a.id,
+        cost: (a, b) => b.myCost - a.myCost
+    }[sort];
+    return list.sort(by);
+}
+
+// Tom tat 1 hang muc: gia, va voi bang vat tu thi so ma lay kho / can mua
+function quoteItemNote(it) {
+    if (it.detail && it.detail.lines) {
+        const fromStock = it.detail.lines.filter(l => l.fromStock > 0).length;
+        const toBuy = it.detail.lines.filter(l => l.toBuy > 0).length;
+        return `${it.detail.lines.length} vật tư · <span class="text-emerald-600">${fromStock} mã lấy kho</span> · <span class="${toBuy ? 'text-red-500' : 'text-gray-400'}">${toBuy} mã cần mua</span>${it.detail.released ? ' · <b class="text-red-500">đã tái nhập, cần lập lại</b>' : ''}`;
+    }
+    if (it.detail && it.detail.assembly) {
+        const c = it.detail.assembly.counts || {};
+        return `${fmtVND(c.smdPads)} điểm dán · ${fmtVND(c.thtPads)} điểm cắm · ${fmtVND(c.icCount)} IC / board`;
+    }
+    return it.cost > 0 ? 'Nhập tay' : '';
+}
+
+// Chi tiet 1 don o trang bao gia (dung chung cho PCB / linh kien / san xuat / R&D): 1 BANG TONG HOP, moi phan viec
+// (1 loai mach x 1 hang muc cua bo phan nay) la 1 dong. Bam dong co BOM -> mo BOM chi tiet. PCB khong co BOM: mo thu muc gerber tren Drive roi nhap gia.
+// Thong tin chung cua don (tong cost, bo phan khac da bao chua...) la viec cua Sale, khong hien o day.
+function quoteDetailRow(o) {
+    const F = QUOTE_DEPT_FOLDER;
+    const folder = F && o.inputFolderId ? `/api/orders/${o.id}/folder/${F[2]}` : ((o.inputFolderId || o.folderId) ? `/api/orders/${o.id}/folder/input` : '');
+    const folderLabel = F ? ({ PCB: 'Gerber (PCB)', BOM: 'BOM', SMT: 'SMT' }[F[3]] || F[3]) : 'dữ liệu';
+    const btn = 'px-2.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap';
+    const rows = o.lines.flatMap(l => l.items.map(it => {
+        const open = it.tool === 'stock' ? `openStockTool(${o.id}, ${l.lineId}, '${it.field}')` : it.tool === 'assembly' ? `openAssemblyTool(${o.id}, ${l.lineId})` : '';
+        const done = it.cost > 0;
+        return `<tr ${open ? `onclick="${open}" title="Bấm để xem BOM chi tiết"` : ''} class="border-t ${open ? 'cursor-pointer hover:bg-blue-50/50' : ''}">
+            <td class="p-3 font-bold text-slate-800"><i class="fas fa-microchip mr-1 text-slate-400"></i>${esc(l.tenMach || o.tenMach || '')}</td>
+            <td class="p-3 text-xs text-gray-600">${esc(it.label)}</td>
+            <td class="p-3 text-right font-bold">${it.quantity !== null ? fmtVND(it.quantity) : '—'}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${done ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${done ? 'Đã báo giá' : 'Chờ báo giá'}</span></td>
+            <td class="p-3 text-right font-black whitespace-nowrap ${done ? 'text-slate-800' : 'text-gray-300'}">${done ? fmtVND(it.cost) + ' đ' : '—'}${it.quantity > 0 && done ? `<span class="block text-[11px] font-normal text-gray-500">≈ ${fmtVND(Math.round(it.cost / it.quantity))} đ / cái</span>` : ''}</td>
+            <td class="p-3 text-[11px] text-gray-500">${quoteItemNote(it)}</td>
+            <td class="p-3" onclick="event.stopPropagation()"><div class="flex flex-wrap items-center gap-1.5">
+                ${folder ? `<a href="${folder}${l.lineId && F && o.inputFolderId ? '?line=' + l.lineId : ''}" target="_blank" title="Thư mục riêng của mạch này" class="${btn} bg-white border text-blue-700 hover:bg-blue-50"><i class="fas fa-folder-open mr-1"></i>Mở thư mục ${folderLabel}</a>` : '<span class="text-[11px] text-gray-400">đơn chưa có thư mục Drive</span>'}
+                ${it.tool === 'stock' ? `<button onclick="${open}" class="${btn} bg-amber-500 text-white hover:bg-amber-600"><i class="fas fa-list mr-1"></i>BOM chi tiết</button>
+                    <button onclick="${open}.then(() => { const u = document.getElementById('bomUpload'); u && u.scrollIntoView && u.scrollIntoView(); })" class="${btn} bg-white border text-indigo-700 hover:bg-indigo-50" title="Đọc file BOM của khách, chọn cột tương ứng, so khớp với kho"><i class="fas fa-file-import mr-1"></i>Nhập BOM từ file</button>` : ''}
+                ${it.tool === 'assembly' ? `<button onclick="${open}" class="${btn} bg-violet-600 text-white hover:bg-violet-700"><i class="fas fa-calculator mr-1"></i>Tính giá gia công</button>` : ''}
+            </div></td>
+            <td class="p-3" onclick="event.stopPropagation()"><div class="flex items-center gap-1.5">
+                <input type="text" inputmode="numeric" id="cost_${o.id}_${l.lineId || 0}_${it.field}" value="${done ? fmtVND(it.cost) : ''}" placeholder="${it.tool ? 'hoặc nhập tay (đ)' : 'Giá cost (đ)'}" oninput="formatCurrencyInput(this)" class="border rounded-lg px-2 py-1.5 text-sm font-bold text-right w-36 outline-none focus:ring-2 focus:ring-blue-400 ${done ? '' : 'bg-amber-50 border-amber-300'}">
+                <button onclick="saveCost(${o.id}, ${l.lineId || 'null'}, '${it.field}')" class="${btn} bg-blue-600 text-white hover:bg-blue-700">Lưu giá</button></div></td>
+        </tr>`; }));
+    const hasBom = o.lines.some(l => l.items.some(it => it.tool));
+    return `
+    <tr>
+        <td class="p-0">
+            <p class="text-xs text-gray-500 mb-3">Khách: <b class="text-gray-700">${esc(o.customerName || o.maKH || '')}</b>${o.ngayBanGiao ? ` · bàn giao dự kiến ${esc(o.ngayBanGiao.slice(0, 10))}` : ''} · ${rows.length} phần việc của bộ phận
+                ${(o.inputFolderId || o.folderId) ? ` · <a href="/api/orders/${o.id}/folder/input" target="_blank" class="text-blue-600 hover:underline"><i class="fas fa-file-word mr-1"></i>Yêu cầu của khách</a>` : ''}${o.hasOutput && F ? ` · <a href="/api/orders/${o.id}/folder/${F[0]}" target="_blank" class="text-blue-600 hover:underline"><i class="fas fa-folder mr-1"></i>Thư mục kết quả ${F[1]}</a>` : ''}</p>
+            ${o.ghiChuKyThuat ? `<p class="text-xs bg-white border rounded-lg p-3 mb-3 whitespace-pre-wrap"><span class="text-gray-400">Ghi chú kỹ thuật: </span>${esc(o.ghiChuKyThuat)}</p>` : ''}
+            <div class="bg-white rounded-xl border overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+                <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr><th class="p-3">Mạch</th><th class="p-3">Hạng mục</th><th class="p-3 text-right">Số lượng</th><th class="p-3">Trạng thái</th><th class="p-3 text-right">Giá cost</th><th class="p-3">Tóm tắt</th><th class="p-3">Dữ liệu &amp; công cụ</th><th class="p-3">Nhập giá</th></tr></thead>
+                <tbody>${rows.join('')}</tbody></table></div>
+                <p class="px-4 py-2 text-xs text-gray-400 border-t">${hasBom ? 'Bấm vào một dòng để xem BOM chi tiết.' : `Không có BOM: mở thư mục ${folderLabel} trên Google Drive để lấy file, hỏi giá rồi nhập giá cost.`}</p></div>
+        </td>
+    </tr>`;
+}
+
+function renderQuotes() {
+    document.querySelectorAll('.bg-kpi').forEach(b => { const on = b.dataset.f === quoteFilter; b.classList.toggle('border-blue-500', on); b.classList.toggle('border-transparent', !on); });
+    const cur = quoteOrders.find(o => openQuotes.has(o.id)) || null;
+    if (!cur) openQuotes.clear();
+    document.getElementById('bgKpi').style.display = cur ? 'none' : '';
+    document.getElementById('bgTable').style.display = cur ? 'none' : '';
+    const det = document.getElementById('bgDetail');
+    det.style.display = cur ? '' : 'none';
+    det.innerHTML = cur ? `
+        <div class="flex flex-wrap items-center gap-3 bg-white rounded-xl shadow-sm px-5 py-3 mb-4">
+            <button onclick="closeQuote()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại danh sách</button>
+            <p class="font-black text-slate-800 text-lg">${esc(cur.maDH)} ${TYPE_CHIP[cur.loaiDV] || ''} <span class="font-normal text-sm text-gray-500">· ${esc(cur.tenMach || '')} · ${esc(cur.giaiDoan || '')}</span></p>
+            <span class="ml-auto text-sm font-bold ${cur.done === cur.total ? 'text-emerald-600' : 'text-amber-600'}">Phần của tôi: ${cur.done}/${cur.total} hạng mục</span>
+        </div>
+        <table class="w-full"><tbody>${quoteDetailRow(cur)}</tbody></table>` : '';
+    const list = visibleQuotes();
+    document.getElementById('bgInfo').textContent = `Hiển thị ${list.length} / ${quoteOrders.length} đơn. Bấm vào một dòng để nhập giá và xem chi tiết.`;
+    document.getElementById('bgList').innerHTML = list.length ? list.map(o => {
+        const pct = o.total ? Math.round(o.done / o.total * 100) : 0;
+        const late = o.pending && o.wait > QUOTE_LATE_DAYS;
+        const qty = o.loaiDV === 'rnd' ? 'Thiết kế' : o.lines.map(l => l.items.map(i => fmtVND(i.quantity)).join(' / ')).join(' · ');
+        const dueCls = o.due === null ? 'text-gray-400' : (o.due < 0 ? 'text-red-600 font-bold' : (o.due <= 7 ? 'text-orange-500 font-bold' : 'text-gray-600'));
+        const others = (o.choBaoGia || []).filter(lb => !quoteItems(o).some(i => i.label === lb));
+        return `
+        <tr onclick="toggleQuote(${o.id})" class="border-b cursor-pointer hover:bg-blue-50/40">
+            <td class="p-3 whitespace-nowrap"><span class="font-bold text-blue-700">${esc(o.maDH)}</span> ${TYPE_CHIP[o.loaiDV] || ''}</td>
+            <td class="p-3"><p class="font-semibold text-gray-700">${esc(o.customerName || o.maKH || '')}</p><p class="text-[11px] text-gray-400">${esc(o.saleName || '')}</p></td>
+            <td class="p-3"><p class="text-gray-700">${esc(o.tenMach || '')}</p><p class="text-[11px] text-gray-400">${o.lines.length > 1 ? o.lines.length + ' loại mạch · ' : ''}SL: ${qty}</p></td>
+            <td class="p-3 whitespace-nowrap ${late ? 'text-red-600 font-bold' : 'text-gray-600'}">${o.wait === null ? '—' : o.wait + ' ngày'}${late ? ' <i class="fas fa-exclamation-circle"></i>' : ''}</td>
+            <td class="p-3 whitespace-nowrap ${dueCls}">${o.ngayBanGiao ? esc(o.ngayBanGiao.slice(0, 10)) + (o.due !== null ? `<p class="text-[11px] font-normal">${o.due < 0 ? 'trễ ' + (-o.due) + ' ngày' : 'còn ' + o.due + ' ngày'}</p>` : '') : '—'}</td>
+            <td class="p-3">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full ${pct === 100 ? 'bg-emerald-500' : 'bg-amber-400'}" style="width:${pct}%"></div></div>
+                    <span class="text-[11px] font-bold ${pct === 100 ? 'text-emerald-600' : 'text-amber-600'} whitespace-nowrap">${o.done}/${o.total}</span>
+                </div>
+            </td>
+            <td class="p-3 text-right font-bold whitespace-nowrap ${o.myCost > 0 ? 'text-slate-800' : 'text-gray-300'}">${o.myCost > 0 ? fmtVND(o.myCost) + ' đ' : '—'}</td>
+            <td class="p-3 text-[11px]">${others.length ? others.map(lb => `<span class="inline-block bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-bold mr-1 mb-0.5">Chờ ${esc(lb)}</span>`).join('') : '<span class="text-emerald-600 font-semibold">Đã đủ</span>'}</td>
+            <td class="p-3 text-[11px] text-gray-600 whitespace-nowrap">${esc(o.giaiDoan || '')}</td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="9" class="p-10 text-center text-gray-400">Không có đơn hàng nào trong mục này</td></tr>';
+}
+
+// Tim loai mach + hang muc trong du lieu da tai
+function findQuoteItem(orderId, lineId, field) {
+    const o = quoteOrders.find(x => x.id === orderId);
+    const line = o && o.lines.find(l => (l.lineId || null) === (lineId || null));
+    const it = line && line.items.find(x => x.field === field);
+    return { o, line, it };
+}
+
+async function saveCost(orderId, lineId, field) {
+    const value = getRawNumber(`cost_${orderId}_${lineId || 0}_${field}`);
+    if (value <= 0) return Swal.fire({ icon: 'warning', title: 'Chưa nhập giá', text: 'Vui lòng nhập giá cost lớn hơn 0.' });
+    const res = await fetch(`/api/orders/${orderId}/cost`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lineId, [field]: value })
+    });
+    const result = await res.json();
+    if (!result.success) return Swal.fire({ icon: 'error', title: 'Lỗi', text: result.error || 'Không lưu được' });
+    Swal.fire({
+        toast: true, position: 'top-end', icon: 'success', timer: 2500, showConfirmButton: false,
+        title: result.choBaoGia.length ? `Đã lưu. Còn chờ: ${result.choBaoGia.join(', ')}` : 'Đã lưu. Đơn đã đủ báo giá, Sale có thể báo khách.'
+    });
+    loadQuotes();
+}
+
+// ================= CONG CU KIEM TRA KHO =================
+let stock = { orderId: null, field: null, orderQty: 1, rows: [] };
+let invItems = [];
+const itemLabel = i => `${i.itemCode} - ${i.itemName}`;
+// Doc so nguoi dung go: "1.000.000" (dau cham ngan) -> 1000000 ; "0.5" hoac "0,5" -> 0.5
+const num = v => {
+    let t = String(v === undefined || v === null ? '' : v).trim().replace(/\s/g, '');
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, '');
+    return parseFloat(t.replace(',', '.')) || 0;
+};
+
+async function openStockTool(orderId, lineId, field) {
+    const { o, line, it } = findQuoteItem(orderId, lineId, field);
+    if (!it) return;
+    const res = await fetch('/api/inventory/items');
+    invItems = res.ok ? await res.json() : [];
+    // Ton kha dung = ton hien tai (da tru tam xuat cua don / mach khac) + phan chinh hang muc nay dang tam xuat
+    const held = it.held || {};
+    invItems = invItems.map(i => ({ ...i, quantity: (i.quantity || 0) + (held[i.id] || 0) }));
+    document.getElementById('stItems').innerHTML = invItems.map(i => `<option value="${esc(itemLabel(i))}">Tồn ${i.quantity} ${esc(i.unit || '')}${i.unitCost > 0 ? ' · giá kho ' + fmtVND(Math.round(i.unitCost)) : ''}</option>`).join('');
+
+    // Nguon mua: goi y tu danh sach NCC linh kien; go ten moi thi NCC duoc tao khi don chot
+    fetch('/api/purchase/suppliers').then(r => r.ok ? r.json() : []).then(list => {
+        let dl = document.getElementById('stSuppliers');
+        if (!dl) { dl = document.createElement('datalist'); dl.id = 'stSuppliers'; document.body.appendChild(dl); }
+        dl.innerHTML = (Array.isArray(list) ? list : []).filter(s => !s.type || s.type === 'LinhKien' || s.type === 'Tất cả').map(s => `<option value="${esc(s.name)}">`).join('');
+    }).catch(() => {});
+    stock = { orderId, lineId, field, orderQty: it.quantity || 1, rows: [] };
+    document.getElementById('stTitle').textContent = `${o.maDH} · ${line.tenMach || ''} · ${it.label} · SL khách đặt: ${fmtVND(stock.orderQty)}`;
+    const saved = it.detail && it.detail.lines ? it.detail.lines : [];
+    stock.rows = saved.length
+        ? saved.map(l => ({ itemId: l.itemId, name: l.name, perSet: l.perSet || (l.need / stock.orderQty), need: l.need, buyPrice: l.buyPrice || 0, stockPrice: l.stockPrice || 0, supplier: l.supplier || '', khachCap: !!l.khachCap, rid: l.rid || '', buyQty: l.buyQty || 0, surplus: l.surplus || '', alt: l.alt || '', lead: l.lead || '' }))
+        : [{ itemId: null, name: '', perSet: 1, need: stock.orderQty, buyPrice: 0, stockPrice: 0 }];
+    // NCC nhom tu tro = NCC xuat hien nhieu nhat trong cac dong tu tro da luu; dong khac NCC do la dong "doi rieng"
+    const cnt = {};
+    stock.rows.forEach(r => { if (isPassiveRow(r) && r.supplier) cnt[r.supplier] = (cnt[r.supplier] || 0) + 1; });
+    stock.passiveSupplier = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || '';
+    stock.rows.forEach(r => { r.ownSupplier = isPassiveRow(r) && !!r.supplier && r.supplier !== stock.passiveSupplier; });
+    document.getElementById('stPassiveSup').value = stock.passiveSupplier;
+    // Nhap hoi gia (luu khi dang cho NCC bao gia) moi hon bao gia da luu -> mo ban nhap
+    stock.confirms = []; stock.maDH = o.maDH; stock.tenMach = line.tenMach || '';
+    document.getElementById('stRfq').innerHTML = ''; document.getElementById('stDraftInfo').textContent = '';
+    try {
+        const [dr, cf] = await Promise.all([fetch(`/api/purchase/rfq-draft/${lineId}/${field}`).then(r => r.json()), fetch(`/api/purchase/stock-confirms?orderId=${orderId}`).then(r => r.json())]);
+        stock.confirms = (Array.isArray(cf) ? cf : []).filter(c => c.lineId === lineId && c.field === field);
+        const d = dr && dr.draft;
+        if (d && d.rows && d.rows.length && (!saved.length || !it.detail.at || d.at > it.detail.at)) {
+            stock.rows = d.rows.map(r => ({ ...r })); stock.passiveSupplier = d.passiveSupplier || '';
+            stock.rows.forEach(r => { r.ownSupplier = isPassiveRow(r) && !!r.supplier && r.supplier !== stock.passiveSupplier; });
+            document.getElementById('stPassiveSup').value = stock.passiveSupplier;
+            document.getElementById('stDraftInfo').textContent = `Đang mở BẢN NHÁP hỏi giá lưu lúc ${new Date(d.at).toLocaleString('vi-VN')} bởi ${d.by || ''}. Nhập đủ giá rồi bấm lưu báo giá.`;
+        }
+    } catch (e) { /* khong co nhap */ }
+    renderStockRows();
+    document.getElementById('stockModal').style.display = 'flex';
+    stock.maKH = o.maKH;
+    resetBomTool();
+    loadDriveFiles(orderId);
+}
+function closeStockTool() { document.getElementById('stockModal').style.display = 'none'; }
+function addStockRow() {
+    stock.rows.push({ itemId: null, name: '', perSet: 1, need: stock.orderQty, buyPrice: 0, stockPrice: 0 });
+    renderStockRows();
+}
+function removeStockRow(i) { stock.rows.splice(i, 1); renderStockRows(); }
+
+// Tinh tung dong theo ton kho; 1 ma hang xuat hien nhieu dong thi ton kho bi tru dan
+function computeStock() {
+    const remaining = {};
+    invItems.forEach(i => { remaining[i.id] = Math.max(0, i.quantity || 0); });
+    let sumStock = 0, sumBuy = 0;
+    stock.rows.forEach(r => {
+        const item = invItems.find(i => i.id === r.itemId) || null;
+        r.stock = item ? (item.quantity || 0) : 0;
+        r.unit = item ? (item.unit || '') : '';
+        r.fixedStockPrice = !!(item && item.unitCost > 0);
+        if (r.fixedStockPrice) r.stockPrice = item.unitCost;
+        const avail = item ? remaining[item.id] : 0;
+        // Khach cap: khong lay kho, khong mua, khong tinh gia
+        r.fromStock = r.khachCap ? 0 : Math.min(r.need || 0, avail);
+        r.toBuy = r.khachCap ? 0 : Math.max(0, (r.need || 0) - r.fromStock);
+        if (item) remaining[item.id] = avail - r.fromStock;
+        r.costStock = r.fromStock * (r.stockPrice || 0);
+        r.buyQtyEff = r.toBuy > 0 ? Math.max(r.toBuy, r.buyQty || 0) : 0; // mua theo MOQ / mua du
+        if (r.buyQtyEff <= r.toBuy) r.surplus = ''; else if (!r.surplus) r.surplus = 'kho';
+        r.costBuy = (r.surplus === 'khach' ? r.buyQtyEff : r.toBuy) * (r.buyPrice || 0); // phan du tra khach thi tinh vao cost
+        sumStock += r.costStock; sumBuy += r.costBuy;
+    });
+    return { sumStock, sumBuy };
+}
+
+// Tu, tro mua theo nhom (cung 1 NCC); cac linh kien khac chon NCC tung ma
+const PASSIVE_RE = /(^|[^a-zà-ỹ])(tụ|trở|điện trở|resistor|capacitor|cap|res)([^a-zà-ỹ]|$)/i;
+function isPassiveRow(r) {
+    const item = invItems.find(i => i.id === r.itemId);
+    return PASSIVE_RE.test(((item && item.category) || '') + ' ' + (r.name || '')) || /^[RC]\d/i.test((item && item.itemCode) || '');
+}
+function setPassiveSupplier(v) { stock.passiveSupplier = String(v || '').trim(); renderStockRows(); }
+function setOwnSupplier(i, own) { const r = stock.rows[i]; r.ownSupplier = own; if (own && !r.supplier) r.supplier = ''; renderStockRows(); }
+const rowSupplier = r => (r.passive && !r.ownSupplier) ? (stock.passiveSupplier || '') : (r.supplier || '');
+
+function renderStockRows() {
+    const { sumStock, sumBuy } = computeStock();
+    stock.rows.forEach(r => { r.passive = isPassiveRow(r); });
+    const inp = 'border rounded px-2 py-1.5 text-sm text-right outline-none focus:ring-2 focus:ring-blue-400';
+    document.getElementById('stRows').innerHTML = stock.rows.map((r, i) => `
+        <tr class="border-b ${r.alt ? 'bg-yellow-100' : (r.khachCap ? 'bg-sky-50' : (r.toBuy > 0 ? '' : 'bg-emerald-50/40'))}">
+            <td class="px-2 py-2"><input list="stItems" value="${esc(r.name)}" onchange="setStockName(${i}, this.value)" placeholder="Mã / tên vật tư" class="border rounded px-2 py-1.5 text-sm w-72 outline-none focus:ring-2 focus:ring-blue-400">${r.name && !r.itemId ? '<span class="block text-[10px] text-amber-600">Không có trong kho → mua toàn bộ</span>' : ''}
+                ${r.toBuy > 0 || r.alt ? `<input value="${esc(r.alt || '')}" onchange="stock.rows[${i}].alt = this.value.trim(); renderStockRows()" placeholder="mã thay thế (nếu mua mã khác)" class="block mt-1 border rounded px-2 py-1 text-[11px] w-72 outline-none ${r.alt ? 'border-yellow-500 bg-yellow-50 font-bold text-yellow-800' : 'text-gray-500'}">` : ''}</td>
+            <td class="px-2 py-2 text-right"><input value="${r.perSet}" onchange="setStockField(${i}, 'perSet', this.value)" class="${inp} w-20"></td>
+            <td class="px-2 py-2 text-right"><input value="${r.need}" onchange="setStockField(${i}, 'need', this.value)" class="${inp} w-24 font-bold"></td>
+            <td class="px-2 py-2 text-right ${r.stock > 0 ? 'text-emerald-600 font-bold' : 'text-gray-400'}">${fmtVND(r.stock)} ${esc(r.unit)}</td>
+            <td class="px-2 py-2 text-right text-emerald-700">${fmtVND(r.fromStock)}${r.fromStock > 0 ? confirmBadge(r) : ''}${r.flag ? `<span class="block text-[10px] font-bold text-red-600 max-w-[170px] whitespace-normal">${esc(r.flag)}</span>` : ''}</td>
+            <td class="px-2 py-2 text-right font-bold ${r.toBuy > 0 ? 'text-red-600' : 'text-gray-400'}">${fmtVND(r.toBuy)}${r.toBuy > 0 ? `<span class="block font-normal text-[10px] text-gray-500 mt-1">mua thực tế <input value="${r.buyQtyEff > r.toBuy ? r.buyQtyEff : ''}" placeholder="${fmtVND(r.toBuy)}" onchange="setStockField(${i}, 'buyQty', this.value)" title="Mua theo MOQ / mua dư" class="border rounded px-1 py-0.5 text-[11px] text-right w-16"></span>
+                ${r.buyQtyEff > r.toBuy ? `<span class="block font-normal text-[10px] text-amber-700">dư ${fmtVND(r.buyQtyEff - r.toBuy)} → <select onchange="stock.rows[${i}].surplus = this.value; renderStockRows()" class="border rounded text-[10px] bg-white"><option value="kho" ${r.surplus === 'kho' ? 'selected' : ''}>nhập kho</option><option value="khach" ${r.surplus === 'khach' ? 'selected' : ''}>trả khách</option></select></span>` : ''}` : ''}</td>
+            <td class="px-2 py-2 text-right">${r.fixedStockPrice ? fmtVND(Math.round(r.stockPrice)) : (r.fromStock > 0 ? `<input value="${r.stockPrice || ''}" onchange="setStockField(${i}, 'stockPrice', this.value)" placeholder="nhập giá kho" class="${inp} w-28 bg-amber-50">` : '<span class="text-gray-300">—</span>')}</td>
+            <td class="px-2 py-2 text-right">${r.toBuy > 0 ? `<input value="${r.buyPrice || ''}" onchange="setStockField(${i}, 'buyPrice', this.value)" placeholder="giá mua / đv" class="${inp} w-28 ${r.buyPrice > 0 ? '' : 'bg-amber-50'}">` : '<span class="text-gray-300">đủ kho</span>'}</td>
+            <td class="px-2 py-2">${r.khachCap ? '<b class="text-sky-700 text-sm">Khách gửi sang</b>' : r.toBuy <= 0 ? '<span class="text-gray-300">—</span>'
+                : (r.passive && !r.ownSupplier
+                    ? `<span class="text-sm ${stock.passiveSupplier ? 'text-gray-700' : 'text-amber-600'}">${esc(stock.passiveSupplier || 'chưa chọn NCC nhóm')}</span> <span class="text-[10px] bg-slate-200 text-slate-600 rounded px-1 font-bold">nhóm tụ trở</span> <button onclick="setOwnSupplier(${i}, true)" class="text-[10px] text-blue-600 hover:underline" title="Nhà cung cấp của nhóm hết hàng mã này">đổi riêng</button>`
+                    : `<input list="stSuppliers" value="${esc(r.supplier || '')}" onchange="stock.rows[${i}].supplier = this.value.trim()" placeholder="Digikey, Mouser, LCSC..." class="border rounded px-2 py-1.5 text-sm w-36 outline-none focus:ring-2 focus:ring-blue-400">${r.passive ? ` <button onclick="setOwnSupplier(${i}, false)" class="text-[10px] text-blue-600 hover:underline">về nhóm</button>` : ''}`)}</td>
+            <td class="px-2 py-2 text-right font-bold">${fmtVND(Math.round(r.costStock + r.costBuy))}</td>
+            <td class="px-2 py-2 text-center"><input type="checkbox" ${r.khachCap ? 'checked' : ''} onchange="stock.rows[${i}].khachCap = this.checked; renderStockRows()" title="Khách gửi linh kiện này sang"></td>
+            <td class="px-2 py-2 text-center"><button onclick="removeStockRow(${i})" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button></td>
+        </tr>`).join('');
+    document.getElementById('stSumStock').textContent = fmtVND(Math.round(sumStock)) + ' đ';
+    document.getElementById('stSumBuy').textContent = fmtVND(Math.round(sumBuy)) + ' đ';
+    document.getElementById('stSumTotal').textContent = fmtVND(Math.round(sumStock + sumBuy)) + ' đ';
+}
+function setStockName(i, value) {
+    const r = stock.rows[i];
+    const item = invItems.find(x => itemLabel(x) === value.trim());
+    r.name = value.trim();
+    r.itemId = item ? item.id : null;
+    if (!item) r.stockPrice = 0;
+    renderStockRows();
+}
+function setStockField(i, key, value) {
+    const r = stock.rows[i];
+    r[key] = Math.max(0, num(value));
+    if (key === 'perSet') r.need = Math.round(r.perSet * stock.orderQty * 1000) / 1000; // SL can = dinh muc x SL khach dat
+    renderStockRows();
+}
+
+async function saveStockQuote() {
+    const lines = draftRows();
+    if (!lines.length) return Swal.fire({ icon: 'warning', title: 'Chưa có vật tư', text: 'Thêm ít nhất một dòng vật tư.' });
+    const res = await fetch(`/api/orders/${stock.orderId}/cost`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lineId: stock.lineId, detail: { [stock.field]: lines } })
+    });
+    const result = await res.json();
+    if (!result.success) return Swal.fire({ icon: 'error', title: 'Chưa lưu được', text: result.error || '' });
+    fetch(`/api/purchase/rfq-draft/${stock.lineId}/${stock.field}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: [] }) }).catch(() => {}); // da co bao gia chinh thuc -> bo ban nhap
+    closeStockTool();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: `Giá cost: ${fmtVND(result[stock.field])} đ` });
+    loadQuotes();
+}
+
+// ================= HOI GIA NCC + KHO XAC NHAN CON HANG =================
+const draftRows = () => { ensureRids(); return stock.rows.filter(r => r.name).map(r => ({ itemId: r.itemId, name: r.name, perSet: r.perSet, need: r.need, buyPrice: r.buyPrice, stockPrice: r.stockPrice, supplier: rowSupplier(r), khachCap: !!r.khachCap, rid: r.rid, buyQty: r.buyQty || 0, surplus: r.surplus || '', alt: r.alt || '', lead: r.lead || '' })); };
+// Ma dong co dinh cua tung dong vat tu: file BOM di mua xuat ra va file upload lai khop nhau theo ma nay
+function ensureRids() { let max = 0; stock.rows.forEach(r => { const m = /^L(\d+)$/.exec(r.rid || ''); if (m) max = Math.max(max, Number(m[1])); }); stock.rows.forEach(r => { if (!r.rid) r.rid = 'L' + (++max); }); }
+async function saveRfqDraft(silent) {
+    const rows = draftRows();
+    if (!rows.length) return Swal.fire({ icon: 'warning', title: 'Chưa có vật tư', text: 'Thêm ít nhất một dòng vật tư.' });
+    const res = await (await fetch(`/api/purchase/rfq-draft/${stock.lineId}/${stock.field}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, passiveSupplier: stock.passiveSupplier }) })).json();
+    if (!res.success) return Swal.fire({ icon: 'error', title: 'Chưa lưu được nháp', text: res.error || '' });
+    document.getElementById('stDraftInfo').textContent = `Đã lưu bản nháp lúc ${new Date(res.at).toLocaleString('vi-VN')}. Báo giá chưa gửi cho Sale cho tới khi nhập đủ giá và bấm lưu báo giá.`;
+    if (!silent) Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2500, showConfirmButton: false, title: 'Đã lưu nháp hỏi giá' });
+    return true;
+}
+// Gom cac dong CAN MUA theo NCC. Dong chua chon NCC vao nhom "Chưa chọn NCC".
+function rfqGroups() {
+    computeStock();
+    const groups = new Map();
+    stock.rows.filter(r => r.name && !r.khachCap && r.toBuy > 0).forEach(r => {
+        const sup = rowSupplier(r) || 'Chưa chọn NCC';
+        const item = invItems.find(i => i.id === r.itemId) || {};
+        if (!groups.has(sup)) groups.set(sup, []);
+        groups.get(sup).push({ name: r.name, mpn: item.mpn || '', package: item.package || '', qty: r.toBuy, unit: r.unit || item.unit || '', price: r.buyPrice || 0 });
+    });
+    return [...groups].map(([supplier, rows]) => ({ supplier, rows }));
+}
+const rfqText = g => `Nhờ báo giá và thời gian giao các linh kiện sau:\n` + g.rows.map((r, i) => `${i + 1}. ${r.name}${r.mpn ? ' (' + r.mpn + ')' : ''}${r.package ? ' - ' + r.package : ''}: ${fmtVND(r.qty)} ${r.unit}`.trim()).join('\n');
+function showRfq() {
+    const groups = rfqGroups();
+    const box = document.getElementById('stRfq');
+    if (!groups.length) { box.innerHTML = '<p class="text-xs text-gray-500 italic">Không có vật tư nào cần mua (kho đủ hoặc khách cấp).</p>'; return; }
+    const kho = stock.rows.filter(r => r.name && r.fromStock > 0).length;
+    box.innerHTML = `<div class="border border-blue-200 rounded-xl p-4 bg-blue-50/40 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2"><p class="text-sm font-bold text-slate-700"><i class="fas fa-paper-plane text-blue-600 mr-1"></i>Tổng hợp hỏi giá theo nhà cung cấp <span class="font-normal text-xs text-gray-500">· ${groups.length} NCC · ${groups.reduce((s, g) => s + g.rows.length, 0)} vật tư cần mua${kho ? ` · ${kho} vật tư lấy từ Kho (bấm "Gửi Kho xác nhận còn hàng")` : ''}</span></p>
+            <button onclick="exportRfq()" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700"><i class="fas fa-file-excel mr-1"></i>Xuất Excel (mỗi NCC một sheet)</button></div>
+        ${groups.map((g, i) => `<div class="bg-white border rounded-lg p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1"><p class="text-sm font-bold ${g.supplier === 'Chưa chọn NCC' ? 'text-amber-600' : 'text-slate-800'}">${esc(g.supplier)} <span class="font-normal text-xs text-gray-500">· ${g.rows.length} vật tư · ${g.rows.filter(r => r.price > 0).length} đã có giá</span></p>
+                <button onclick="copyRfq(${i})" class="border px-3 py-1 rounded-lg text-xs font-bold hover:bg-gray-50"><i class="fas fa-copy mr-1"></i>Copy nội dung</button></div>
+            <pre class="text-xs text-gray-700 whitespace-pre-wrap font-sans">${esc(rfqText(g))}</pre></div>`).join('')}
+        <p class="text-[11px] text-gray-500">Gửi cho NCC qua Zalo / email. Bấm "Lưu nháp" để giữ bảng này; khi NCC báo lại thì mở lại, nhập giá mua rồi lưu báo giá.</p></div>`;
+}
+async function copyRfq(i) {
+    const text = rfqText(rfqGroups()[i]);
+    try { await navigator.clipboard.writeText(text); } catch (e) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 1800, showConfirmButton: false, title: 'Đã copy nội dung hỏi giá' });
+}
+async function exportRfq() {
+    const res = await fetch('/api/purchase/rfq-export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groups: rfqGroups() }) });
+    if (!res.ok) return Swal.fire({ icon: 'error', title: 'Không xuất được', text: ((await res.json().catch(() => ({}))).error) || '' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = `Hoi_gia_${stock.maDH}_${stock.tenMach}.xlsx`.replace(/[\\/:*?"<>|]/g, '_'); a.click();
+}
+// ---------- BOM DI MUA: xuat BOM sau khi check kho -> mua hang xu ly tren Excel -> upload lai, ghep vao dung dong ----------
+const normK = v => String(v == null ? '' : v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '');
+async function exportBuyBom() {
+    computeStock(); ensureRids();
+    const rows = stock.rows.filter(r => r.name && !r.khachCap).map(r => { const item = invItems.find(i => i.id === r.itemId) || {};
+        return { rid: r.rid, itemCode: item.itemCode || '', mpn: item.mpn || '', package: item.package || '', name: r.name, need: r.need, fromStock: r.fromStock, toBuy: r.toBuy, supplier: rowSupplier(r), buyPrice: r.buyPrice || '', buyQty: r.buyQtyEff > r.toBuy ? r.buyQtyEff : '', surplus: r.surplus || '', alt: r.alt || '', lead: r.lead || '' }; });
+    if (!rows.length) return Swal.fire({ icon: 'info', title: 'Chưa có vật tư' });
+    if (!(await saveRfqDraft(true))) return; // giu ma dong de file upload lai khop duoc
+    const res = await fetch('/api/purchase/buy-bom-export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) });
+    if (!res.ok) return Swal.fire({ icon: 'error', title: 'Không xuất được' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = `BOM_di_mua_${stock.maDH}_${stock.tenMach}.xlsx`.replace(/[\\/:*?"<>|]/g, '_'); a.click();
+}
+let buyUp = null; // { file, res }
+async function buyBomChoose(file, mapping) {
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    if (mapping) { fd.append('mapping', JSON.stringify(mapping)); fd.append('headerRow', buyUp.res.headerRow); }
+    const res = await (await fetch('/api/purchase/buy-bom-parse', { method: 'POST', body: fd })).json();
+    if (!res.success) return Swal.fire({ icon: 'error', title: 'Không đọc được file', text: res.error || '' });
+    buyUp = { file, res }; showBuyUp();
+}
+function showBuyUp() {
+    const r = buyUp.res, first = r.sample[0] || [];
+    document.getElementById('stRfq').innerHTML = `<div class="border border-emerald-300 rounded-xl p-4 bg-emerald-50/40 space-y-3">
+        <p class="text-sm font-bold text-slate-700"><i class="fas fa-file-upload text-emerald-600 mr-1"></i>${esc(buyUp.file.name)} <span class="font-normal text-xs text-gray-500">· ${r.records.length} dòng · tiêu đề ở dòng ${r.headerRow + 1} · kiểm tra cột tương ứng (đã gợi ý sẵn)</span></p>
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-2">${r.fields.map(f => `<label class="text-[11px] font-bold text-gray-600">${esc(f.label)}<select onchange="buyUpMap('${f.key}', this.value)" class="w-full border rounded px-2 py-1 text-xs bg-white mt-1"><option value="">-- không dùng --</option>${r.headers.map((h, i) => `<option value="${i}" ${r.mapping[f.key] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
+            <span class="block font-normal text-gray-400 truncate">${r.mapping[f.key] === undefined ? '&nbsp;' : 'vd: ' + esc(first[r.mapping[f.key]] ?? '')}</span></label>`).join('')}</div>
+        <div class="flex flex-wrap items-center gap-2"><button onclick="applyBuyBom()" class="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700"><i class="fas fa-check mr-1"></i>Ghép vào bảng vật tư</button>
+            <button onclick="buyUp = null; document.getElementById('stRfq').innerHTML = ''" class="border bg-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50">Bỏ qua</button>
+            <span class="text-[11px] text-gray-500">Chỉ ghép giá, NCC, SL mua, phần dư, mã thay thế, thời gian giao. KHÔNG ghi đè số lượng cần và phần lấy kho.</span></div></div>`;
+}
+function buyUpMap(key, value) {
+    const m = { ...buyUp.res.mapping };
+    if (value === '') delete m[key]; else { for (const k of Object.keys(m)) if (m[k] === Number(value)) delete m[k]; m[key] = Number(value); }
+    buyBomChoose(buyUp.file, m);
+}
+async function applyBuyBom() {
+    computeStock(); ensureRids();
+    const used = new Set(), unknown = [], diffs = [];
+    let matched = 0;
+    stock.rows.forEach(r => { r.flag = ''; });
+    for (const rec of buyUp.res.records) {
+        const has = k => rec[k] !== undefined && String(rec[k]).trim() !== '';
+        if (!['rid', 'itemCode', 'mpn', 'name'].some(has)) continue; // dong trong
+        const item = r => invItems.find(i => i.id === r.itemId) || {};
+        const free = stock.rows.filter(r => r.name && !used.has(r));
+        const row = (has('rid') && free.find(r => r.rid === String(rec.rid).trim()))
+            || (has('itemCode') && free.find(r => normK(item(r).itemCode) === normK(rec.itemCode)))
+            || (has('mpn') && free.find(r => item(r).mpn && normK(item(r).mpn) === normK(rec.mpn)))
+            || (has('name') && free.find(r => normK(r.name) === normK(rec.name)));
+        if (!row) { unknown.push(`Dòng ${rec._row}: ${rec.name || rec.itemCode || rec.mpn || rec.rid}`); continue; }
+        used.add(row); matched += 1;
+        if (has('supplier')) { row.supplier = String(rec.supplier).trim(); if (isPassiveRow(row)) row.ownSupplier = row.supplier !== stock.passiveSupplier; }
+        if (has('buyPrice')) row.buyPrice = Math.max(0, num(rec.buyPrice));
+        if (has('buyQty')) row.buyQty = Math.max(0, num(rec.buyQty));
+        if (has('surplus')) row.surplus = /khach/.test(normK(rec.surplus)) ? 'khach' : 'kho';
+        if (has('alt')) row.alt = String(rec.alt).trim();
+        if (has('lead')) row.lead = String(rec.lead).trim();
+        // So luong can mua trong file khac hien tai = ton kho da doi tu luc xuat file -> KHONG ghi de, bao de kiem tra cheo voi Kho
+        if (has('toBuy') && Math.abs(num(rec.toBuy) - row.toBuy) > 1e-6) { row.flag = `File ghi cần mua ${fmtVND(num(rec.toBuy))}, hiện tại ${fmtVND(row.toBuy)}: tồn kho đã đổi, cần Kho xác nhận`; diffs.push(`${row.name}: file ${fmtVND(num(rec.toBuy))} ≠ hiện tại ${fmtVND(row.toBuy)}`); }
+    }
+    computeStock();
+    const noPrice = stock.rows.filter(r => r.name && !r.khachCap && r.toBuy > 0 && !(r.buyPrice > 0));
+    const missing = stock.rows.filter(r => r.name && !r.khachCap && r.toBuy > 0 && !used.has(r));
+    const alts = stock.rows.filter(r => r.alt).length;
+    buyUp = null; renderStockRows();
+    await saveRfqDraft(true);
+    if (diffs.length) await askStock(); // lech ton kho -> gui Kho xac nhan lai cac dong lay kho
+    const li = (title, arr, cls) => arr.length ? `<p class="font-bold ${cls} mt-2">${title} (${arr.length})</p><p class="text-gray-700">${arr.slice(0, 15).map(esc).join('<br>')}${arr.length > 15 ? '<br>…' : ''}</p>` : '';
+    document.getElementById('stRfq').innerHTML = `<div class="border ${diffs.length || unknown.length || noPrice.length ? 'border-amber-300 bg-amber-50/50' : 'border-emerald-300 bg-emerald-50/50'} rounded-xl p-4 text-xs">
+        <p class="text-sm font-bold text-slate-700"><i class="fas fa-clipboard-check mr-1"></i>Đã ghép ${matched} dòng từ file vào bảng vật tư <span class="font-normal text-gray-500">· ${alts} dòng có mã thay thế (tô vàng) · đã lưu nháp, chưa gửi giá cho Sale</span></p>
+        ${li('Lệch tồn kho so với lúc xuất file — không ghi đè, đã gửi Kho xác nhận', diffs, 'text-red-600')}
+        ${li('Dòng trong file không khớp vật tư nào của bảng — bỏ qua', unknown, 'text-amber-700')}
+        ${li('Vật tư cần mua không có trong file', missing.map(r => r.name), 'text-amber-700')}
+        ${li('Còn thiếu giá mua', noPrice.map(r => r.name), 'text-amber-700')}
+        ${!diffs.length && !unknown.length && !noPrice.length ? '<p class="text-emerald-700 font-bold mt-2">Đủ giá. Kiểm tra lại rồi bấm lưu báo giá để ra giá cost gửi Sale.</p>' : ''}</div>`;
+}
+
+// Kho la 1 nguon hang: nho Kho kiem thuc te con du so "lay kho" khong. Chua xac nhan chi canh bao, khong chan bao gia.
+function confirmBadge(r) {
+    const c = (stock.confirms || []).find(x => x.itemId === r.itemId);
+    if (!c) return '<span class="block text-[10px] font-bold text-amber-600" title="Chưa nhờ Kho xác nhận">kho chưa xác nhận</span>';
+    if (c.status === 'Còn đủ' && c.qty >= r.fromStock) return `<span class="block text-[10px] font-bold text-emerald-600" title="${esc((c.confirmedBy || '') + ' · ' + new Date(c.confirmedAt).toLocaleString('vi-VN'))}">kho đã xác nhận đủ</span>`;
+    if (c.status === 'Không đủ') return `<span class="block text-[10px] font-bold text-red-600" title="${esc((c.confirmedBy || '') + ' · ' + (c.note || ''))}">KHO BÁO KHÔNG ĐỦ: thực còn ${fmtVND(c.qtyOk)}</span>`;
+    return `<span class="block text-[10px] font-bold text-amber-600">${c.status === 'Còn đủ' ? 'số lượng đã đổi, cần hỏi lại' : 'đang chờ Kho xác nhận'}</span>`;
+}
+async function askStock() {
+    computeStock();
+    const items = stock.rows.filter(r => r.itemId && r.fromStock > 0).map(r => ({ itemId: r.itemId, qty: r.fromStock }));
+    if (!items.length) return Swal.fire({ icon: 'info', title: 'Không có dòng nào lấy từ kho' });
+    if (!(await saveRfqDraft(true))) return; // giu bang dang lap de Kho va nguoi bao gia cung nhin 1 so
+    const res = await (await fetch('/api/purchase/stock-confirms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: stock.orderId, lineId: stock.lineId, field: stock.field, items }) })).json();
+    if (!res.success) return Swal.fire({ icon: 'error', title: 'Chưa gửi được', text: res.error || '' });
+    const cf = await fetch(`/api/purchase/stock-confirms?orderId=${stock.orderId}`).then(r => r.json());
+    stock.confirms = cf.filter(c => c.lineId === stock.lineId && c.field === stock.field);
+    renderStockRows();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: res.asked ? `Đã gửi Kho ${res.asked} mã cần xác nhận` : 'Các mã này đã gửi Kho trước đó' });
+}
+
+// ================= SO KHOP BOM CUA KHACH VOI KHO =================
+let bom = { table: null, matches: [], rows: [] };
+const BOM_FIELDS = ['name', 'desc', 'qty', 'mpn', 'package'];
+
+function resetBomTool() {
+    bom = { table: null, matches: [], rows: [] };
+    document.getElementById('bomMapping').classList.add('hidden');
+    document.getElementById('bomResult').classList.add('hidden');
+    document.getElementById('bomUpload').value = '';
+    document.getElementById('bomHint').textContent = '';
+}
+
+async function loadDriveFiles(orderId) {
+    const sel = document.getElementById('bomDriveFile');
+    sel.innerHTML = '<option value="">Đang tìm file trong Google Drive...</option>';
+    try {
+        const data = await (await fetch(`/api/inventory/bom/drive-files?orderId=${orderId}&lineId=${(stock && stock.lineId) || ''}`)).json();
+        const files = data.files || [];
+        sel.innerHTML = files.length
+            ? files.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('')
+            : '<option value="">Không có file Excel / Sheets trong thư mục đơn hàng</option>';
+        document.getElementById('bomHint').textContent = data.error || data.message || (files.length ? '' : 'Khách chưa gửi BOM lên thư mục INPUT của đơn. Bạn có thể tải file từ máy.');
+    } catch (e) {
+        sel.innerHTML = '<option value="">Không đọc được Google Drive</option>';
+    }
+}
+
+async function loadBomFromDrive(sheet) {
+    const fileId = document.getElementById('bomDriveFile').value;
+    if (!fileId) return Swal.fire({ icon: 'info', title: 'Chưa có file', text: 'Chọn một file trong danh sách hoặc tải file từ máy.' });
+    bom.source = { fileId };
+    const res = await fetch('/api/inventory/bom/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: stock.orderId, fileId, sheet }) });
+    showBomTable(await res.json());
+}
+async function loadBomFromUpload(input, sheet) {
+    const file = input.files[0];
+    if (!file) return;
+    bom.source = { file };
+    const fd = new FormData();
+    fd.append('file', file);
+    if (sheet) fd.append('sheet', sheet);
+    showBomTable(await (await fetch('/api/inventory/bom/parse', { method: 'POST', body: fd })).json());
+}
+function reparseBomSheet() {
+    const sheet = document.getElementById('bomSheet').value;
+    if (bom.source && bom.source.fileId) loadBomFromDrive(sheet);
+    else if (bom.source && bom.source.file) loadBomFromUpload({ files: [bom.source.file] }, sheet);
+}
+
+function showBomTable(data) {
+    if (!data.success) return Swal.fire({ icon: 'error', title: 'Không đọc được BOM', text: data.error || '' });
+    bom.table = data;
+    document.getElementById('bomFileName').textContent = data.name || '';
+    document.getElementById('bomRowCount').textContent = data.rows.length;
+    document.getElementById('bomSheet').innerHTML = data.sheets.map(s => `<option ${s === data.sheet ? 'selected' : ''}>${esc(s)}</option>`).join('');
+    const options = '<option value="">— không có —</option>' + data.headers.map((h, i) => `<option value="${i}">${esc(h)}</option>`).join('');
+    BOM_FIELDS.forEach(f => {
+        const sel = document.getElementById('map_' + f);
+        sel.innerHTML = options;
+        sel.value = data.mapping[f] !== undefined ? String(data.mapping[f]) : '';
+    });
+    document.getElementById('bomMapping').classList.remove('hidden');
+    document.getElementById('bomResult').classList.add('hidden');
+}
+
+async function runBomMatch() {
+    const col = f => { const v = document.getElementById('map_' + f).value; return v === '' ? null : Number(v); };
+    const map = {}; BOM_FIELDS.forEach(f => { map[f] = col(f); });
+    if (map.name === null) return Swal.fire({ icon: 'warning', title: 'Thiếu cột', text: 'Chọn cột Tên / giá trị của linh kiện.' });
+    const cell = (r, f) => map[f] === null ? '' : String(r[map[f]] === undefined ? '' : r[map[f]]).trim();
+    bom.rows = bom.table.rows
+        .map(r => ({ name: cell(r, 'name'), desc: cell(r, 'desc'), mpn: cell(r, 'mpn'), package: cell(r, 'package'), qty: map.qty === null ? 1 : (num(cell(r, 'qty')) || 0) }))
+        .filter(r => (r.name || r.mpn) && r.qty > 0);
+    if (!bom.rows.length) return Swal.fire({ icon: 'warning', title: 'Không có dòng hợp lệ', text: 'Kiểm tra lại cột Tên và cột Số lượng.' });
+    bom.rows.forEach(r => { if (!r.name) r.name = r.mpn; });
+
+    const res = await fetch('/api/inventory/bom/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ maKH: stock.maKH, rows: bom.rows }) });
+    const data = await res.json();
+    if (!data.success) return Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || '' });
+    bom.matches = data.matches;
+    // Tu chon ung vien dau tien khi do khop tu 90 tro len; thap hon thi de nguoi bao gia tu quyet dinh
+    bom.rows.forEach((r, i) => {
+        const top = data.matches[i].candidates[0];
+        r.itemId = top && top.score >= 90 ? top.itemId : null;
+    });
+    renderBomRows();
+    document.getElementById('bomResult').classList.remove('hidden');
+}
+
+function renderBomRows() {
+    const badge = s => s >= 90 ? 'bg-emerald-100 text-emerald-700' : s >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600';
+    const byId = id => invItems.find(x => x.id === id);
+    let matched = 0;
+    document.getElementById('bomRows').innerHTML = bom.rows.map((r, i) => {
+        const m = bom.matches[i];
+        const chosen = r.itemId ? byId(r.itemId) : null;
+        if (chosen) matched += 1;
+        const used = m.candidates.find(c => c.itemId === r.itemId);
+        const others = m.candidates.filter(c => c.itemId !== r.itemId);
+        return `<tr class="border-b ${chosen ? '' : 'bg-amber-50/60'}">
+            <td class="px-2 py-1.5"><b>${esc(r.name)}</b>${r.desc ? `<span class="block text-gray-400 max-w-xs truncate">${esc(r.desc)}</span>` : ''}${m.spec ? `<span class="text-indigo-500">= ${esc(m.spec)}${m.package ? ' · ' + esc(m.package) : ''}</span>` : ''}</td>
+            <td class="px-2 py-1.5 text-right">${fmtVND(r.qty)}</td>
+            <td class="px-2 py-1.5"><input list="stItems" value="${chosen ? esc(itemLabel(chosen)) : ''}" onchange="setBomItem(${i}, this.value)" placeholder="Không có trong kho → mua toàn bộ" class="border rounded px-2 py-1 w-72 outline-none focus:ring-2 focus:ring-indigo-400">${chosen ? `<span class="block text-gray-400">Tồn ${fmtVND(chosen.quantity)} ${esc(chosen.unit || '')}</span>` : ''}</td>
+            <td class="px-2 py-1.5">${used ? `<span class="px-1.5 py-0.5 rounded font-bold ${badge(used.score)}">${used.score}%</span> <span class="text-gray-500">${esc(used.reason)}</span>` : (chosen ? '<span class="text-gray-500">Chọn tay</span>' : '<span class="text-amber-600">Chưa khớp</span>')}</td>
+            <td class="px-2 py-1.5">${others.map(c => { const it = byId(c.itemId); return it ? `<button onclick="setBomItemId(${i}, ${c.itemId})" title="${esc(c.reason)}" class="border rounded px-1.5 py-0.5 mr-1 hover:bg-indigo-50">${esc(it.itemCode)} <span class="${c.score >= 70 ? 'text-amber-600' : 'text-red-500'}">${c.score}%</span></button>` : ''; }).join('')}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('bomSummary').textContent = `Khớp ${matched}/${bom.rows.length} dòng với kho. Dòng nền vàng là chưa khớp (sẽ tính mua toàn bộ).`;
+}
+function setBomItem(i, value) {
+    const item = invItems.find(x => itemLabel(x) === value.trim());
+    bom.rows[i].itemId = item ? item.id : null;
+    renderBomRows();
+}
+function setBomItemId(i, itemId) { bom.rows[i].itemId = itemId; renderBomRows(); }
+
+// Dua ket qua so khop vao bang bao gia: SL can = SL trong BOM x SL khach dat
+async function applyBomToQuote() {
+    const newRows = bom.rows.map(r => {
+        const item = r.itemId ? invItems.find(x => x.id === r.itemId) : null;
+        return { itemId: item ? item.id : null, name: item ? itemLabel(item) : r.name, perSet: r.qty, need: Math.round(r.qty * stock.orderQty * 1000) / 1000, buyPrice: 0, stockPrice: 0 };
+    });
+    const hasData = stock.rows.some(r => r.name);
+    if (hasData) {
+        const answer = await Swal.fire({ icon: 'question', title: 'Bảng báo giá đang có dữ liệu', text: 'Thay toàn bộ bằng BOM vừa so khớp, hay thêm vào cuối?', showDenyButton: true, showCancelButton: true, confirmButtonText: 'Thay toàn bộ', denyButtonText: 'Thêm vào cuối', cancelButtonText: 'Hủy' });
+        if (answer.isDismissed) return;
+        stock.rows = answer.isConfirmed ? newRows : stock.rows.filter(r => r.name).concat(newRows);
+    } else {
+        stock.rows = newRows;
+    }
+    renderStockRows();
+
+    if (document.getElementById('bomRemember').checked) {
+        const aliases = bom.rows.filter(r => r.itemId && r.name).map(r => ({ itemId: r.itemId, alias: r.name }));
+        if (aliases.length) {
+            const saved = await (await fetch('/api/inventory/aliases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ maKH: stock.maKH, aliases }) })).json();
+            if (saved.success && saved.added) Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: `Đã ghi nhớ ${saved.added} tên gọi mới` });
+        }
+    }
+    document.getElementById('bomResult').classList.add('hidden');
+    document.getElementById('bomMapping').classList.add('hidden');
+}
+
+// ================= DANH SACH CAN MUA CUA CA DON =================
+async function showBuyList(orderId) {
+    const data = await (await fetch(`/api/orders/${orderId}/buy-list`)).json();
+    if (!data.success) return Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || '' });
+    // Theo tung BOM (loai mach): hang ve phai chia lai theo tung mach nen khong cong gop cac mach voi nhau
+    const boards = (data.boards || []).filter(b => b.rows.length);
+    const head = '<thead class="bg-gray-50 text-gray-500 uppercase"><tr><th class="p-2 text-left">Vật tư</th><th class="p-2 text-right">Cần</th><th class="p-2 text-right">Lấy kho</th><th class="p-2 text-right">Cần mua</th><th class="p-2 text-left">Nguồn</th><th class="p-2 text-right">Giá mua</th><th class="p-2 text-right">Thành tiền</th></tr></thead>';
+    const html = boards.length ? boards.map(b => `
+        <p class="text-left text-sm font-bold text-slate-700 mt-4 mb-1"><i class="fas fa-microchip mr-1 text-slate-400"></i>${esc(b.tenMach || '')} <span class="font-normal text-xs text-gray-400">· ${fmtVND(b.soLuong)} bộ · mua ${fmtVND(b.total)} đ</span></p>
+        <table class="w-full text-xs border">${head}<tbody>${b.rows.map(l => `<tr class="border-b ${l.khachCap ? 'bg-sky-50' : (l.toBuy > 0 ? '' : 'text-gray-400')}">
+            <td class="p-2 text-left">${esc(l.name)}</td><td class="p-2 text-right">${fmtVND(l.need)}</td><td class="p-2 text-right text-emerald-600">${l.fromStock ? fmtVND(l.fromStock) : '—'}</td>
+            <td class="p-2 text-right font-bold ${l.toBuy > 0 ? 'text-red-600' : ''}">${l.toBuy ? fmtVND(l.toBuy) : '—'}</td>
+            <td class="p-2 text-left">${l.khachCap ? '<b class="text-sky-700">Khách cấp</b>' : esc(l.toBuy > 0 ? (l.supplier || 'chưa chọn') : 'kho')}</td>
+            <td class="p-2 text-right">${l.toBuy ? fmtVND(l.buyPrice) : '—'}</td><td class="p-2 text-right font-bold">${l.amount ? fmtVND(l.amount) : '—'}</td></tr>`).join('')}</tbody></table>`).join('')
+        : '<p class="p-4 text-gray-400 italic text-sm">Chưa loại mạch nào lập bảng vật tư.</p>';
+    Swal.fire({ title: 'Vật tư theo BOM — đơn ' + data.maDH, width: 920, confirmButtonText: 'Đóng',
+        html: `<p class="text-xs text-gray-500">Mỗi loại mạch một bảng riêng, không gộp giữa các mạch.</p>${html}<p class="text-right text-sm mt-3">Tổng tiền mua cả đơn: <b class="text-red-600">${fmtVND(data.total)} đ</b></p>` });
+}
+
+// ================= CONG CU BAO GIA GIA CONG =================
+let asm = { orderId: null, lineId: null, qty: 0, bomTable: null, source: [] };
+const ASM_RATES = ['smdPad', 'thtPad', 'ic', 'test', 'setup', 'lossPercent'];
+const ASM_COUNTS = ['smdPads', 'thtPads', 'icCount'];
+const asmVal = id => num(document.getElementById(id).value);
+
+async function openAssemblyTool(orderId, lineId) {
+    const { o, line, it } = findQuoteItem(orderId, lineId, 'giaCostGiaCong');
+    if (!it) return;
+    asm = { orderId, lineId, qty: it.quantity || 0, bomTable: null, source: [] };
+    document.getElementById('asmTitle').textContent = `${o.maDH} · ${line.tenMach || ''}`;
+    document.getElementById('asmQty').textContent = fmtVND(asm.qty);
+    ['asmBomResult', 'asmGerberResult', 'asmBomMap'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('asmBomUpload').value = '';
+    document.getElementById('asmGerberUpload').value = '';
+
+    // Don gia: lay tu lan bao gia truoc cua mach nay, neu chua co thi lay don gia mac dinh cua xuong
+    const saved = it.detail && it.detail.assembly;
+    let rates = saved ? saved.rates : null;
+    if (!rates) {
+        const r = await (await fetch('/api/orders/production-rates')).json();
+        rates = r.success ? r.rates : {};
+    }
+    ASM_RATES.forEach(k => { document.getElementById('asm_r_' + k).value = rates[k] || ''; });
+    document.getElementById('asmRateHint').classList.toggle('hidden', ASM_RATES.some(k => rates[k] > 0));
+    ASM_COUNTS.forEach(k => { document.getElementById('asm_' + k).value = saved ? saved.counts[k] : ''; });
+    asmRecalc();
+    document.getElementById('asmModal').style.display = 'flex';
+
+    // File trong thu muc Drive cua don hang
+    const fill = async (selId, kind) => {
+        const sel = document.getElementById(selId);
+        sel.innerHTML = '<option value="">Đang tìm file...</option>';
+        try {
+            const d = await (await fetch(`/api/inventory/bom/drive-files?orderId=${orderId}${kind ? '&kind=' + kind : ''}`)).json();
+            sel.innerHTML = (d.files || []).length ? d.files.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('') : '<option value="">Không có file phù hợp trên Drive</option>';
+        } catch (e) { sel.innerHTML = '<option value="">Không đọc được Drive</option>'; }
+    };
+    fill('asmBomFile', ''); fill('asmGerberFile', 'gerber');
+}
+function closeAssemblyTool() { document.getElementById('asmModal').style.display = 'none'; }
+
+function asmRecalc() {
+    const perBoard = asmVal('asm_smdPads') * asmVal('asm_r_smdPad') + asmVal('asm_thtPads') * asmVal('asm_r_thtPad') + asmVal('asm_icCount') * asmVal('asm_r_ic') + asmVal('asm_r_test');
+    const total = Math.round(perBoard * asm.qty * (1 + asmVal('asm_r_lossPercent') / 100) + asmVal('asm_r_setup'));
+    document.getElementById('asmPerBoard').textContent = fmtVND(Math.round(perBoard)) + ' đ';
+    document.getElementById('asmTotal').textContent = fmtVND(total) + ' đ';
+}
+function asmUse(counts, source) {
+    Object.keys(counts).forEach(k => { if (counts[k] !== null && counts[k] !== undefined) document.getElementById('asm_' + k).value = counts[k]; });
+    if (!asm.source.includes(source)) asm.source.push(source);
+    asmRecalc();
+}
+const asmRatesObj = () => { const r = {}; ASM_RATES.forEach(k => { r[k] = asmVal('asm_r_' + k); }); return r; };
+
+async function asmSaveRates() {
+    const r = await (await fetch('/api/orders/production-rates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(asmRatesObj()) })).json();
+    if (r.success) { document.getElementById('asmRateHint').classList.add('hidden'); Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2000, showConfirmButton: false, title: 'Đã lưu đơn giá mặc định' }); }
+    else Swal.fire({ icon: 'error', title: 'Lỗi', text: r.error || '' });
+}
+
+// --- Nguon 1: BOM ---
+async function asmLoadBom(from) {
+    let res;
+    if (from === 'drive') {
+        const fileId = document.getElementById('asmBomFile').value;
+        if (!fileId) return Swal.fire({ icon: 'info', title: 'Chưa có file', text: 'Chọn file trong danh sách hoặc tải file BOM từ máy.' });
+        res = await fetch('/api/inventory/bom/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: asm.orderId, fileId }) });
+    } else {
+        const file = document.getElementById('asmBomUpload').files[0];
+        if (!file) return;
+        const fd = new FormData(); fd.append('file', file);
+        res = await fetch('/api/inventory/bom/parse', { method: 'POST', body: fd });
+    }
+    const data = await res.json();
+    if (!data.success) return Swal.fire({ icon: 'error', title: 'Không đọc được BOM', text: data.error || '' });
+    asm.bomTable = data;
+    const options = '<option value="">—</option>' + data.headers.map((h, i) => `<option value="${i}">${esc(h)}</option>`).join('');
+    ['name', 'package', 'ref', 'qty'].forEach(f => {
+        const sel = document.getElementById('asm_map_' + f);
+        sel.innerHTML = options;
+        sel.value = data.mapping[f] !== undefined ? String(data.mapping[f]) : '';
+    });
+    document.getElementById('asmBomMap').classList.remove('hidden');
+    if (data.mapping.package !== undefined) asmEstimate();
+}
+async function asmEstimate() {
+    const col = f => { const v = document.getElementById('asm_map_' + f).value; return v === '' ? null : Number(v); };
+    const map = { name: col('name'), package: col('package'), ref: col('ref'), qty: col('qty') };
+    if (map.package === null) return Swal.fire({ icon: 'warning', title: 'Thiếu cột', text: 'Chọn cột Kiểu chân (footprint) của BOM.' });
+    const cell = (r, f) => map[f] === null ? '' : String(r[map[f]] === undefined ? '' : r[map[f]]).trim();
+    const rows = asm.bomTable.rows.map(r => ({ name: cell(r, 'name'), package: cell(r, 'package'), ref: cell(r, 'ref'), qty: cell(r, 'qty') })).filter(r => r.name || r.package || r.ref);
+    const data = await (await fetch('/api/inventory/bom/assembly-estimate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) })).json();
+    if (!data.success) return Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || '' });
+    asm.bomEstimate = data.totals;
+    const t = data.totals;
+    const unknown = data.lines.filter(l => l.pins === null || !l.mount);
+    const box = document.getElementById('asmBomResult');
+    box.innerHTML = `
+        <p><b>${fmtVND(t.smdPads)}</b> điểm dán (${fmtVND(t.smdParts)} linh kiện) · <b>${fmtVND(t.thtPads)}</b> điểm cắm (${fmtVND(t.thtParts)} linh kiện) · <b>${fmtVND(t.icCount)}</b> IC</p>
+        ${unknown.length ? `<p class="text-amber-600 mt-1">${unknown.length} dòng chưa nhận ra kiểu chân, CHƯA được tính — hãy cộng thêm tay:</p>
+        <div class="max-h-28 overflow-y-auto border rounded mt-1"><table class="w-full">${unknown.map(l => `<tr class="border-b"><td class="px-2 py-1">${esc(l.name || '')}</td><td class="px-2 py-1 text-gray-500">${esc(l.package || '(trống)')}</td><td class="px-2 py-1 text-right">SL ${fmtVND(l.qty)}</td></tr>`).join('')}</table></div>` : '<p class="text-emerald-600 mt-1">Đã nhận ra kiểu chân của tất cả các dòng.</p>'}
+        <button onclick="asmUse({ smdPads: ${t.smdPads}, thtPads: ${t.thtPads}, icCount: ${t.icCount} }, 'BOM')" class="mt-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold">Dùng số liệu BOM</button>`;
+    box.classList.remove('hidden');
+}
+
+// --- Nguon 2: gerber / file khoan ---
+async function asmLoadGerber(from) {
+    let res;
+    if (from === 'drive') {
+        const fileId = document.getElementById('asmGerberFile').value;
+        if (!fileId) return Swal.fire({ icon: 'info', title: 'Chưa có file', text: 'Chọn file trong danh sách hoặc tải file gerber từ máy.' });
+        res = await fetch('/api/inventory/bom/gerber-count', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: asm.orderId, fileId }) });
+    } else {
+        const files = document.getElementById('asmGerberUpload').files;
+        if (!files.length) return;
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        res = await fetch('/api/inventory/bom/gerber-count', { method: 'POST', body: fd });
+    }
+    const data = await res.json();
+    if (!data.success) return Swal.fire({ icon: 'error', title: 'Không đọc được gerber', text: data.error || '' });
+    asm.gerber = data;
+    renderGerberResult();
+}
+function renderGerberResult() {
+    const g = asm.gerber;
+    const thrEl = document.getElementById('asmHoleMin');
+    const thr = thrEl ? num(thrEl.value) : 0.6;
+    const tht = g.holes.filter(h => h.diameter >= thr).reduce((s, h) => s + h.count, 0);
+    const via = g.holes.filter(h => h.diameter < thr).reduce((s, h) => s + h.count, 0);
+    const smd = g.smdTop + g.smdBottom;
+    const box = document.getElementById('asmGerberResult');
+    box.innerHTML = `
+        ${g.pasteFiles.length ? `<p>Pad dán: <b>${fmtVND(smd)}</b> (mặt trên ${fmtVND(g.smdTop)}, mặt dưới ${fmtVND(g.smdBottom)})</p>` : '<p class="text-amber-600">Không có lớp kem hàn (paste) → chưa đếm được pad dán.</p>'}
+        ${g.drillFiles.length ? `<p class="mt-1">Lỗ khoan có mạ: ${g.holes.map(h => `${h.diameter}mm × ${fmtVND(h.count)}`).join(' · ')}</p>
+        <p class="mt-1">Coi lỗ từ <input id="asmHoleMin" value="${thr}" onchange="renderGerberResult()" class="border rounded px-1 py-0.5 w-12 text-right"> mm trở lên là chân cắm → <b>${fmtVND(tht)}</b> điểm cắm (bỏ ${fmtVND(via)} lỗ via)</p>` : '<p class="text-amber-600 mt-1">Không có file khoan → chưa đếm được điểm cắm.</p>'}
+        <p class="text-gray-400 mt-1">Đã đọc: ${esc([...g.pasteFiles, ...g.drillFiles].map(f => f.name).join(', '))}</p>
+        ${asm.bomEstimate ? `<p class="mt-1 text-slate-600">So với BOM: dán ${fmtVND(asm.bomEstimate.smdPads)}, cắm ${fmtVND(asm.bomEstimate.thtPads)}</p>` : ''}
+        <button onclick="asmUse({ smdPads: ${g.pasteFiles.length ? smd : null}, thtPads: ${g.drillFiles.length ? tht : null} }, 'Gerber')" class="mt-2 bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold">Dùng số liệu gerber</button>`;
+    box.classList.remove('hidden');
+}
+
+async function saveAssemblyQuote() {
+    const counts = {}; ASM_COUNTS.forEach(k => { counts[k] = asmVal('asm_' + k); });
+    const res = await fetch(`/api/orders/${asm.orderId}/cost`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineId: asm.lineId, assembly: { counts, rates: asmRatesObj(), source: asm.source.join(' + ') || 'Nhập tay' } })
+    });
+    const result = await res.json();
+    if (!result.success) return Swal.fire({ icon: 'error', title: 'Chưa lưu được', text: result.error || '' });
+    closeAssemblyTool();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: `Giá gia công: ${fmtVND(result.giaCostGiaCong)} đ` });
+    loadQuotes();
+}
+
+window.addEventListener('DOMContentLoaded', loadQuotes);
+</script>
+</main>
+<%- include('../partials/footer') %>

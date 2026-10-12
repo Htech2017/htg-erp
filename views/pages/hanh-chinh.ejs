@@ -1,0 +1,114 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight"><i class="fas fa-file-signature text-rose-500 mr-2"></i>Hành chính · chứng từ đơn hàng</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Đơn đã chốt · hợp đồng, PO khách, hóa đơn, biên bản bàn giao · đơn VAT 0% không cần hợp đồng, đơn có VAT dưới <span id="hMin"></span> đ chỉ cần PO khách</p>
+    </div>
+    <input id="hSearch" oninput="render()" placeholder="Tìm mã đơn, khách, số hợp đồng, số hóa đơn..." class="border rounded-xl px-3 py-2 text-sm w-80">
+</div>
+
+<div id="hSummary" class="space-y-4">
+    <div id="hKpi" class="grid grid-cols-2 md:grid-cols-6 gap-3"></div>
+    <div id="hBody"></div>
+</div>
+<div id="hDetail" class="space-y-4" style="display:none">
+    <div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+        <button onclick="closeDetail()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại</button>
+        <h2 id="hTitle" class="font-black text-slate-800 text-lg"></h2>
+    </div>
+    <div id="hDetailBody" class="space-y-4"></div>
+</div>
+</div>
+</main>
+
+<script>
+let H = { orders: [], types: {}, contractMin: 0 };
+let filter = 'thieu', detailId = null;
+const n = v => (Number(v) || 0).toLocaleString('vi-VN');
+const LOAI = ['hopdong', 'po', 'hoadon', 'bienban'];
+const SHORT = { hopdong: 'Hợp đồng', po: 'PO khách', hoadon: 'Hóa đơn', bienban: 'Biên bản' };
+const skipped = d => d.trangThai === 'Không cần' || d.trangThai === 'Không xuất';
+// Bien ban chi den han khi da giao hang xong
+const due = (o, loai) => loai !== 'bienban' || o.daGiao || o.giaiDoan === 'Hoàn thành';
+const lacking = (o, loai) => !o.chungTu[loai].done && due(o, loai);
+const badge = (o, loai) => { const d = o.chungTu[loai]; const cls = skipped(d) ? 'bg-gray-100 text-gray-400' : d.done ? 'bg-emerald-100 text-emerald-700' : !due(o, loai) ? 'bg-slate-100 text-slate-500' : /Đã/.test(d.trangThai) ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600';
+    return `<span class="px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap ${cls}" title="${esc(d.label)}">${esc(d.trangThai)}${d.so ? ' · ' + esc(d.so) : ''}</span>`; };
+
+async function loadData() { const r = await fetch('/api/hanh-chinh'); H = r.ok ? await r.json() : H; document.getElementById('hMin').textContent = n(H.contractMin); render(); }
+function setFilter(f) { filter = f; render(); }
+function openDetail(id) { detailId = id; render(); document.querySelector('main').scrollTop = 0; }
+function closeDetail() { detailId = null; render(); }
+
+function render() {
+    const o = detailId ? H.orders.find(x => x.id === detailId) : null;
+    if (detailId && !o) detailId = null;
+    document.getElementById('hSummary').style.display = o ? 'none' : '';
+    document.getElementById('hDetail').style.display = o ? '' : 'none';
+    if (o) return renderDetail(o);
+    const inF = (x, f) => f === 'all' ? true : f === 'thieu' ? LOAI.some(l => lacking(x, l)) : f === 'du' ? !LOAI.some(l => lacking(x, l)) : lacking(x, f);
+    const F = [['thieu', 'Còn thiếu chứng từ', 'text-red-600'], ['hopdong', 'Thiếu hợp đồng', 'text-amber-600'], ['po', 'Thiếu PO khách', 'text-amber-600'], ['hoadon', 'Chưa xuất hóa đơn', 'text-amber-600'], ['bienban', 'Thiếu biên bản', 'text-amber-600'], ['du', 'Đủ chứng từ', 'text-emerald-600']];
+    document.getElementById('hKpi').innerHTML = F.map(([k, label, cls]) => `<button onclick="setFilter('${k}')" class="text-left bg-white rounded-2xl p-4 shadow-sm border-2 ${filter === k ? 'border-slate-700' : 'border-transparent'}">
+        <p class="text-[9px] font-black text-gray-400 uppercase">${label}</p><p class="text-3xl font-black ${cls} mt-1">${H.orders.filter(x => inF(x, k)).length}</p></button>`).join('');
+    const q = document.getElementById('hSearch').value.trim().toLowerCase();
+    const list = H.orders.filter(x => q ? [x.maDH, x.tenKH, x.tenMach, ...LOAI.map(l => x.chungTu[l].so)].join(' ').toLowerCase().includes(q) : inF(x, filter));
+    document.getElementById('hBody').innerHTML = list.length ? `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+        <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr><th class="p-3">Đơn hàng</th><th class="p-3">Khách hàng</th><th class="p-3">Ngày chốt</th><th class="p-3 text-right">Giá trị</th><th class="p-3 text-center">VAT</th><th class="p-3">Hợp đồng</th><th class="p-3">PO khách</th><th class="p-3">Hóa đơn</th><th class="p-3">Biên bản</th><th class="p-3">Giai đoạn</th></tr></thead>
+        <tbody>${list.map(x => `<tr onclick="openDetail(${x.id})" class="border-t cursor-pointer hover:bg-blue-50/50">
+            <td class="p-3 font-bold text-blue-700 whitespace-nowrap">${esc(x.maDH)}<span class="block text-[11px] font-normal text-gray-500 max-w-[220px] truncate">${esc(x.tenMach || '')}</span></td>
+            <td class="p-3 text-gray-700">${esc(x.tenKH)}</td><td class="p-3 text-xs text-gray-500">${esc((x.ngayChot || '').slice(0, 10))}</td>
+            <td class="p-3 text-right font-bold whitespace-nowrap">${n(x.tongCong)} đ</td><td class="p-3 text-center text-xs">${x.vat}%</td>
+            ${LOAI.map(l => `<td class="p-3">${badge(x, l)}</td>`).join('')}<td class="p-3 text-xs text-gray-600 whitespace-nowrap">${esc(x.giaiDoan)}${x.daGiao ? ' · đã giao' : ''}</td></tr>`).join('')}</tbody></table></div>
+        <p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một đơn để cập nhật chứng từ, soạn hợp đồng / biên bản và mở thư mục Documents.</p></div>`
+        : '<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">Không có đơn nào ở mục này.</div>';
+}
+
+function renderDetail(o) {
+    const cell = (a, b) => `<div><p class="text-[10px] font-black text-gray-400 uppercase">${a}</p><p class="font-semibold text-gray-800 mt-0.5">${b}</p></div>`;
+    const inp = 'mt-1 w-full border rounded-lg px-2.5 py-1.5 text-sm font-normal outline-none focus:ring-2 focus:ring-blue-400';
+    const btn = 'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap';
+    document.getElementById('hTitle').innerHTML = `${esc(o.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(o.tenKH)} · ${esc(o.giaiDoan)}</span>`;
+    document.getElementById('hDetailBody').innerHTML = `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+            ${cell('Sản phẩm', esc(o.tenMach || ''))}${cell('Giá trị (gồm VAT ' + o.vat + '%)', n(o.tongCong) + ' đ')}${cell('Đã thu · còn phải thu', n(o.daThu) + ' · ' + n(o.conNo) + ' đ')}${cell('Ngày chốt · hẹn giao', esc((o.ngayChot || '—').slice(0, 10)) + ' · ' + esc(o.ngayBanGiao || '—'))}${cell('Giao hàng', o.soChuyen ? `${o.soChuyen} chuyến${o.daGiao ? ' · đã giao xong' : ''}` : 'chưa có chuyến')}${cell('Sale', esc(o.saleName || '—'))}
+            <div class="col-span-2 md:col-span-6">${cell('Khách hàng', esc(o.tenKH) + ' <span class="font-normal text-gray-500">· ' + esc(o.sdt) + ' · ' + esc(o.diaChi) + '</span>')}</div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="/api/hanh-chinh/${o.id}/draft/hopdong" class="${btn} bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-file-word mr-1"></i>Soạn hợp đồng (Word)</a>
+            <a href="/api/hanh-chinh/${o.id}/draft/bienban" class="${btn} bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-file-word mr-1"></i>Soạn biên bản bàn giao (Word)</a>
+            ${o.hasFolder ? `<a href="/api/orders/${o.id}/folder/documents" target="_blank" class="${btn} bg-white border text-blue-700 hover:bg-blue-50"><i class="fas fa-folder-open mr-1"></i>Mở thư mục Documents</a>` : '<span class="text-xs text-gray-400 self-center">Đơn chưa có thư mục Drive</span>'}
+            <a href="/giao-hang" class="${btn} bg-white border hover:bg-gray-50"><i class="fas fa-shipping-fast mr-1"></i>Giao hàng</a>
+        </div>
+        <p class="text-[11px] text-gray-500">File Word soạn sẵn từ dữ liệu đơn; chỗ tô vàng là phần cần điền / kiểm tra lại. Soạn xong lưu vào thư mục Documents rồi dán link vào chứng từ bên dưới.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${LOAI.map(l => { const d = o.chungTu[l]; return `<div class="bg-white rounded-2xl border ${lacking(o, l) ? 'border-red-200' : 'border-gray-100'} shadow-sm p-4">
+            <div class="flex items-center justify-between mb-2"><p class="font-bold text-slate-800">${esc(d.label)}</p>${badge(o, l)}</div>
+            <div class="grid grid-cols-12 gap-2">
+                <label class="text-xs font-bold text-gray-600 col-span-5">Trạng thái<select id="d_${l}_tt" class="${inp} bg-white font-bold">${H.types[l].statuses.map(s => `<option ${s === d.trangThai ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+                <label class="text-xs font-bold text-gray-600 col-span-4">Số ${esc(SHORT[l].toLowerCase())}<input id="d_${l}_so" value="${esc(d.so)}" class="${inp}"></label>
+                <label class="text-xs font-bold text-gray-600 col-span-3">Ngày<input id="d_${l}_ngay" type="date" value="${esc(d.ngay)}" class="${inp}"></label>
+                ${l === 'hoadon' ? `<label class="text-xs font-bold text-gray-600 col-span-4">Giá trị hóa đơn (đ)<input id="d_${l}_gt" value="${d.giaTri ? n(d.giaTri) : ''}" placeholder="${n(o.tongCong)}" class="${inp} text-right"></label>` : ''}
+                <label class="text-xs font-bold text-gray-600 ${l === 'hoadon' ? 'col-span-8' : 'col-span-12'}">Link file (Google Drive...)<input id="d_${l}_link" value="${esc(d.link)}" placeholder="https://..." class="${inp}"></label>
+                <label class="text-xs font-bold text-gray-600 col-span-12">Ghi chú<input id="d_${l}_gc" value="${esc(d.ghiChu)}" class="${inp}"></label>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 mt-3"><button onclick="saveDoc(${o.id}, '${l}')" class="${btn} bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-save mr-1"></i>Lưu</button>
+                ${d.link ? `<a href="${esc(d.link)}" target="_blank" class="${btn} bg-white border text-blue-700 hover:bg-blue-50"><i class="fas fa-external-link-alt mr-1"></i>Mở file</a>` : ''}
+                ${d.updatedBy ? `<span class="text-[11px] text-gray-400">Cập nhật: ${esc(d.updatedBy)} · ${esc(String(d.updatedAt || '').slice(0, 10))}</span>` : ''}
+                ${l === 'bienban' && !due(o, l) ? '<span class="text-[11px] text-slate-500">Chưa đến hạn: đơn chưa giao xong</span>' : ''}</div></div>`; }).join('')}</div>`;
+}
+async function saveDoc(orderId, loai) {
+    const v = k => { const el = document.getElementById(`d_${loai}_${k}`); return el ? el.value.trim() : undefined; };
+    const gt = v('gt');
+    const body = { trangThai: v('tt'), so: v('so'), ngay: v('ngay'), link: v('link'), ghiChu: v('gc'), giaTri: gt === undefined ? undefined : gt.replace(/[^\d]/g, '') };
+    const res = await (await fetch(`/api/orders/${orderId}/documents/${loai}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    if (!res.success) return Swal.fire('Lỗi', res.error || 'Không lưu được', 'error');
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2000, showConfirmButton: false, title: 'Đã cập nhật ' + SHORT[loai].toLowerCase() });
+    loadData();
+}
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

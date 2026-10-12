@@ -1,0 +1,22 @@
+HTG ERP - MO THU MUC GOOGLE DRIVE TREN MAY (Windows)
+
+Dung khi may da cai Google Drive cho may tinh (Drive for desktop) va muon cac nut
+"mo thu muc" trong phan mem mo thang File Explorer thay vi mo tren web.
+
+CAI DAT (moi may lam 1 lan)
+1. Giai nen thu muc nay, chay install.bat.
+2. Nhap duong dan thu muc GOC cua he thong tren may (thu muc ben trong co "Orders"),
+   vi du  G:\Shared drives\HTG\ERP
+   Duong dan nay phai giong duong dan Admin da nhap o trang Cai dat he thong.
+3. Mo phan mem, bam mot nut mo thu muc bat ky, chon "Mo tren may" (chi hoi 1 lan).
+
+SU DUNG
+- Bam nut mo thu muc bat ky: File Explorer mo dung thu muc cua don.
+- Thu muc chua dong bo ve may thi mo thu muc cha gan nhat.
+- Khong thay cua so mo: bam "Mo tren web" trong thong bao o goc man hinh.
+
+AN TOAN
+- Cong cu chi mo THU MUC nam trong thu muc goc da khai bao, khong chay chuong trinh nao.
+- Go bo: chay uninstall.bat.
+
+May khong cai cong cu nay (hoac Mac) van dung binh thuong: nut mo thu muc se mo tren web.

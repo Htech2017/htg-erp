@@ -84,7 +84,7 @@
 // --- HÀM LOAD DATA TỪ SERVER ---
 async function loadDashboardData() {
     try {
-        const response = await fetch('/api/dashboard-stats');
+        const response = await fetch('/api/dashboard/stats');
         
         // Nếu Server lỗi 500, response.ok sẽ là false
         if (!response.ok) throw new Error("Server trả về lỗi 500");
@@ -94,7 +94,10 @@ async function loadDashboardData() {
         // 1. Cập nhật các con số thống kê (Dùng || 0 để an toàn)
         document.getElementById('dash-total-kh').innerText = data.countKH || 0;
         document.getElementById('dash-active-orders').innerText = data.activeOrders || 0;
-        document.getElementById('dash-total-debt').innerText = new Intl.NumberFormat('vi-VN').format(data.totalDebt || 0) + ' đ';
+        document.getElementById('dash-total-debt').innerText = (data.totalDebt === null || data.totalDebt === undefined) ? '—' : new Intl.NumberFormat('vi-VN').format(data.totalDebt) + ' đ';
+
+        // 1b. Canh bao don qua han chua chot (kho dang tam xuat cho cac don nay)
+        renderOverdue(data);
 
         // 2. Cập nhật Trạng thái Hệ thống (Kiểm tra tồn tại trước khi xử lý)
         if (data.systemStatus) {
@@ -118,7 +121,7 @@ async function loadDashboardData() {
                             </span>
                         </td>
                         <td class="px-8 py-5 font-black text-slate-800 text-xs text-right">
-                            ${new Intl.NumberFormat('vi-VN').format(order.giaBao || 0)} đ
+                            ${order.giaBao === null ? '—' : new Intl.NumberFormat('vi-VN').format(order.giaBao || 0) + ' đ'}
                         </td>
                     </tr>
                 `).join('');
@@ -130,6 +133,30 @@ async function loadDashboardData() {
     } catch (e) {
         console.error("Lỗi Dashboard Frontend:", e);
     }
+}
+
+function renderOverdue(data) {
+    let box = document.getElementById('dash-overdue');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'dash-overdue';
+        const main = document.querySelector('main');
+        (main.firstElementChild || main).prepend(box);
+    }
+    const list = data.overdueOrders || [];
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `
+        <div class="bg-amber-50 border border-amber-300 rounded-2xl p-5 mb-6">
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <p class="font-bold text-amber-800"><i class="fas fa-exclamation-triangle mr-2"></i>${data.overdueCount} đơn đã quá ${data.warnDays} ngày chưa chốt</p>
+                <a href="/don-hang?quaHan=1" class="text-xs font-bold text-blue-600 hover:underline">Mở danh sách để kiểm tra →</a>
+            </div>
+            <p class="text-xs text-amber-700 mt-1">Hãy kiểm tra với khách và chuyển đơn sang "Đã chốt" hoặc "Không chốt". Vật tư tạm xuất chỉ được trả lại kho khi đơn Không chốt hoặc Hủy.</p>
+            <div class="flex flex-wrap gap-2 mt-3">
+                ${list.slice(0, 8).map(o => `<span class="bg-white border border-amber-200 rounded-lg px-2 py-1 text-xs"><b class="text-blue-700">${esc(o.maDH)}</b> · ${o.soNgayCho} ngày${o.tamXuat ? ` · <span class="text-indigo-600">giữ ${o.tamXuat} mã kho</span>` : ''}</span>`).join('')}
+                ${list.length > 8 ? `<span class="text-xs text-amber-700 self-center">… và ${data.overdueCount - 8} đơn khác</span>` : ''}
+            </div>
+        </div>`;
 }
 
 // Hàm bổ trợ cập nhật màu sắc Trạng thái
@@ -150,27 +177,15 @@ function updateStatusUI(type, status) {
     }
 }
 
-// Màu sắc cho trạng thái đơn hàng
+// Màu sắc cho trạng thái quản lý của đơn hàng (ttQuyTrinh)
 function getStatusClass(status) {
     const colors = {
-        'Đã chốt': 'bg-emerald-100 text-emerald-600',
-        'Chờ chốt': 'bg-amber-100 text-amber-600',
         'Đang xử lý': 'bg-blue-100 text-blue-600',
-        'Hoàn thành': 'bg-slate-100 text-slate-600',
-        'Hủy': 'bg-red-100 text-red-600'
+        'Đã báo giá': 'bg-amber-100 text-amber-600',
+        'Hoàn thành': 'bg-emerald-100 text-emerald-600',
+        'Hủy đơn': 'bg-red-100 text-red-600'
     };
     return colors[status] || 'bg-gray-100 text-gray-400';
-}
-
-// Helper: Màu sắc trạng thái
-function getStatusClass(status) {
-    const map = {
-        'Đã chốt': 'bg-emerald-100 text-emerald-600',
-        'Chờ chốt': 'bg-amber-100 text-amber-600',
-        'Đang xử lý': 'bg-blue-100 text-blue-600',
-        'Hoàn thành': 'bg-slate-100 text-slate-600'
-    };
-    return map[status] || 'bg-gray-100 text-gray-400';
 }
 
 function formatVND(num) { return new Intl.NumberFormat('vi-VN').format(num); }

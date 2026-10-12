@@ -15,8 +15,9 @@
         
         .sidebar-active { background-color: #2563eb; border-left: 4px solid #fff; }
     </style>
-    <script src="/js/auth-db.js"></script>
+    <script>window.HTG_DRIVE_ROOT = <%- JSON.stringify((typeof driveLocalRoot !== 'undefined' && driveLocalRoot) || '').replace(/</g, '\\u003c') %>;</script>
+    <script src="/js/auth-db.js?v=20261007a"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-gray-100 flex h-screen overflow-hidden">
-    ```
+    

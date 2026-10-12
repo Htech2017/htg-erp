@@ -1,0 +1,529 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1600px] mx-auto space-y-5">
+
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Quản lý Kho</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Tồn kho linh kiện, vật tư — nhập/xuất theo phiếu</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="/nhap-xuat-du-lieu?e=inventory" class="bg-white border text-emerald-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-50 transition flex items-center gap-2"><i class="fas fa-file-excel"></i> Nhập / xuất Excel</a>
+        <button onclick="openTransModal('Nhap')" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2"><i class="fas fa-arrow-down"></i> Nhập kho</button>
+        <button onclick="openTransModal('Xuat')" class="bg-orange-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-orange-600 transition flex items-center gap-2"><i class="fas fa-arrow-up"></i> Xuất kho</button>
+        <button onclick="openItemModal()" class="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-900 transition flex items-center gap-2"><i class="fas fa-plus"></i> Thêm mặt hàng</button>
+    </div>
+</div>
+
+<!-- KPI -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <p class="text-[9px] font-black text-gray-400 uppercase">Tổng mặt hàng</p>
+        <p id="kpi-total" class="text-3xl font-black text-gray-800 mt-1">0</p>
+    </div>
+    <div class="bg-red-50 rounded-2xl p-4 border border-red-100 shadow-sm">
+        <p class="text-[9px] font-black text-red-400 uppercase">Sắp hết / hết hàng</p>
+        <p id="kpi-low" class="text-3xl font-black text-red-500 mt-1">0</p>
+    </div>
+    <div class="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm">
+        <p class="text-[9px] font-black text-emerald-500 uppercase">Phiếu nhập hôm nay</p>
+        <p id="kpi-in" class="text-3xl font-black text-emerald-600 mt-1">0</p>
+    </div>
+    <div class="bg-orange-50 rounded-2xl p-4 border border-orange-100 shadow-sm">
+        <p class="text-[9px] font-black text-orange-500 uppercase">Phiếu xuất hôm nay</p>
+        <p id="kpi-out" class="text-3xl font-black text-orange-500 mt-1">0</p>
+    </div>
+</div>
+
+<!-- TABS -->
+<div class="flex gap-2">
+    <button onclick="switchTab('inventory')" id="tabBtn-inventory" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-900 text-white transition">Tồn kho</button>
+    <button onclick="switchTab('transactions')" id="tabBtn-transactions" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-white text-gray-500 hover:bg-gray-200 transition border border-gray-200">Lịch sử nhập/xuất</button>
+</div>
+
+<!-- Mua hang nho Kho xac nhan con hang cho bao gia -->
+<div id="khoConfirms"></div>
+
+<!-- Thanh quet ma vach / camera: tim mat hang de nhap - xuat kho -->
+<div id="khoScan"></div>
+
+<!-- INVENTORY TABLE -->
+<div id="tab-inventory">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+            <input type="text" id="searchItem" oninput="renderInventory()" placeholder="Mã, tên mặt hàng..." class="flex-1 min-w-[200px] border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-slate-500">
+            <select id="filterCategory" onchange="renderInventory()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+                <option value="">Tất cả danh mục</option>
+                <option>PCB</option><option>Linh kiện</option><option>Vật tư</option><option>Khác</option>
+            </select>
+            <label class="flex items-center gap-2 text-sm font-bold text-red-500 cursor-pointer">
+                <input type="checkbox" id="filterLow" onchange="renderInventory()"> Sắp hết hàng
+            </label>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Mã</th>
+                        <th class="p-4">Tên mặt hàng</th>
+                        <th class="p-4">Danh mục</th>
+                        <th class="p-4">Tồn kho</th>
+                        <th class="p-4">Đơn vị</th>
+                        <th class="p-4">Giá kho (đ)</th>
+                        <th class="p-4">Vị trí</th>
+                        <th class="p-4 text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="inventory-tbody" class="divide-y divide-gray-50"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- TRANSACTIONS TABLE -->
+<div id="tab-transactions" class="hidden">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+            <input type="text" id="searchTrans" oninput="renderTransactions()" placeholder="Mã phiếu, mặt hàng..." class="flex-1 min-w-[200px] border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-slate-500">
+            <select id="filterTransType" onchange="renderTransactions()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+                <option value="">Tất cả</option>
+                <option value="Nhap">Nhập kho</option>
+                <option value="Xuat">Xuất kho</option>
+            </select>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Mã phiếu</th>
+                        <th class="p-4">Loại</th>
+                        <th class="p-4">Mặt hàng</th>
+                        <th class="p-4">Số lượng</th>
+                        <th class="p-4">Lý do</th>
+                        <th class="p-4">Người thực hiện</th>
+                        <th class="p-4">Thời gian</th>
+                    </tr>
+                </thead>
+                <tbody id="transactions-tbody" class="divide-y divide-gray-50"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NHẬP/XUẤT -->
+<div id="modalTrans" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden">
+    <div id="modalTransHeader" class="p-5 text-white flex justify-between items-center shrink-0">
+        <div><h2 id="modalTransTitle" class="font-black text-sm uppercase">Phiếu nhập kho</h2><p class="text-[9px] font-bold uppercase tracking-widest opacity-60">Cập nhật tồn kho</p></div>
+        <button type="button" onclick="closeTransModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/20 text-white"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="formTrans" onsubmit="handleSaveTrans(event)" class="p-6 space-y-4">
+        <input type="hidden" id="trans_type">
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Mặt hàng</label>
+            <select id="trans_itemId" onchange="onItemSelect()" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-blue-500" required>
+                <option value="">-- Chọn mặt hàng --</option>
+            </select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Số lượng</label>
+                <input type="number" id="trans_qty" min="0.001" step="any" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500" required placeholder="0">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Đơn giá (nếu có)</label>
+                <input type="number" id="trans_unitPrice" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="0">
+            </div>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Lý do / Mô tả</label>
+            <input type="text" id="trans_reason" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="Nhập từ PO / Xuất cho sản xuất..." required>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Mã tham chiếu (PO / WO)</label>
+            <input type="text" id="trans_refCode" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="PO-PCB-123456">
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+            <button type="button" onclick="closeTransModal()" class="px-5 py-2.5 text-gray-400 font-bold hover:text-red-500 uppercase text-[10px]">Hủy</button>
+            <button type="submit" id="btnSaveTrans" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-black hover:bg-emerald-700 transition active:scale-95 uppercase text-[10px] flex items-center gap-2">
+                <i class="fas fa-save"></i> Xác nhận
+            </button>
+        </div>
+    </form>
+</div>
+</div>
+
+<!-- MODAL THÊM MẶT HÀNG -->
+<div id="modalItem" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-y-auto max-h-[92vh]">
+    <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+        <div><h2 class="font-black text-sm uppercase">Thêm/Sửa mặt hàng</h2><p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Danh mục kho</p></div>
+        <button onclick="closeItemModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="formItem" onsubmit="handleSaveItem(event)" class="p-6 space-y-4">
+        <input type="hidden" id="item_id">
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Mã hàng</label>
+                <input type="text" id="item_code" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500 uppercase" placeholder="LK-001">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Danh mục</label>
+                <select id="item_category" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-blue-500">
+                    <option>PCB</option><option>Linh kiện</option><option>Vật tư</option><option>Khác</option>
+                </select>
+            </div>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tên mặt hàng *</label>
+            <input type="text" id="item_name" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-500" placeholder="Tụ điện 100uF 16V..." required>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Đơn vị</label>
+                <input type="text" id="item_unit" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" value="cái">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tồn ban đầu</label>
+                <input type="number" id="item_qty" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" value="0" min="0">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Cảnh báo tối thiểu</label>
+                <input type="number" id="item_min" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-red-400" value="0" min="0">
+            </div>
+            <div class="col-span-2">
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Giá kho / đơn vị (đ) — dùng khi báo giá cost; tự cập nhật bình quân khi nhập kho có đơn giá</label>
+                <input type="number" id="item_cost" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" value="0" min="0" step="any">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Mã nhà sản xuất (MPN)</label>
+                <input type="text" id="item_mpn" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="VD: CL10B104KB8NNNC">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Kiểu chân (footprint)</label>
+                <input type="text" id="item_package" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="VD: 0603, SOT-23">
+            </div>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tên gọi khác — mỗi dòng một tên (dùng để so khớp BOM của khách)</label>
+            <textarea id="item_aliases" rows="2" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="0.1uF&#10;tụ 104"></textarea>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Ảnh vật tư (không bắt buộc, tối đa 3MB)</label>
+            <div class="flex items-center gap-3">
+                <img id="item_image_preview" src="" alt="" class="hidden w-14 h-14 rounded-lg object-cover border border-gray-200">
+                <input type="file" id="item_image" accept="image/png,image/jpeg,image/webp,image/gif" class="text-xs">
+                <button type="button" id="item_image_remove" onclick="removeItemImage()" class="hidden text-[10px] font-bold text-red-500 hover:underline">Xóa ảnh</button>
+            </div>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Vị trí kho</label>
+            <input type="text" id="item_location" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-blue-400" placeholder="Kệ A-1, Ngăn B2...">
+        </div>
+        <div class="flex justify-end gap-3">
+            <button type="button" onclick="closeItemModal()" class="px-5 py-2.5 text-gray-400 font-bold hover:text-red-500 uppercase text-[10px]">Hủy</button>
+            <button type="submit" class="bg-slate-900 text-white px-8 py-3 rounded-xl font-black hover:bg-black transition active:scale-95 uppercase text-[10px] flex items-center gap-2">
+                <i class="fas fa-save"></i> Lưu
+            </button>
+        </div>
+    </form>
+</div>
+</div>
+
+</div>
+</main>
+
+<script src="/js/scan.js?v=20261006a"></script>
+<script>
+let allItems = [], allTrans = [];
+// ---------- Quet ma vach / camera (thu vien dung chung /js/scan.js) ----------
+let scanIds = null, lastScan = null, transScan = null;
+let scanAction = 'filter';
+try { scanAction = localStorage.getItem('htg_kho_scan_action') || 'filter'; } catch (e) { /* bo qua */ }
+function drawScanBar() {
+    const o = (v, label) => `<option value="${v}" ${scanAction === v ? 'selected' : ''}>${label}</option>`;
+    document.getElementById('khoScan').innerHTML = HtgScan.barHtml({ placeholder: 'Quét mã vạch / nhãn, hoặc gõ mã hàng, mã NSX, tên rồi Enter',
+        extra: `<select onchange="scanAction = this.value; try { localStorage.setItem('htg_kho_scan_action', this.value); } catch (e) {}" class="border rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700" title="Việc làm ngay sau khi quét ra đúng 1 mặt hàng">${o('filter', 'Quét xong: chỉ lọc danh sách')}${o('Nhap', 'Quét xong: mở phiếu NHẬP')}${o('Xuat', 'Quét xong: mở phiếu XUẤT')}</select>` });
+    HtgScan.mount();
+}
+HtgScan.onChange = drawScanBar;
+HtgScan.onClear = () => { scanIds = null; lastScan = null; renderInventory(); };
+HtgScan.onScan = (text, method) => {
+    const m = HtgScan.match(text, allItems.map(i => ({ id: i.id, keys: [i.itemCode, i.mpn, ...(i.aliases || []), i.itemName] })));
+    lastScan = { text: String(text).trim().slice(0, 300), method, qty: HtgScan.qty(text) };
+    scanIds = m.ids;
+    switchTab('inventory'); renderInventory();
+    const shown = `"${esc(lastScan.text.slice(0, 60))}" · ${esc(method)}`;
+    if (!m.ids.length) { scanIds = null; renderInventory(); return HtgScan.info(`<b class="text-red-600"><i class="fas fa-exclamation-triangle mr-1"></i>Không có mặt hàng nào khớp ${shown}</b> — mã này chưa khai báo trong kho (hoặc chưa ghi mã NSX / tên gọi khác).`); }
+    if (m.ids.length > 1) return HtgScan.info(`<b class="text-blue-700">${m.ids.length} mặt hàng khớp</b> ${shown} — bấm mũi tên nhập / xuất ở đúng dòng.`);
+    const it = allItems.find(i => i.id === m.ids[0]);
+    if (scanAction !== 'filter') { HtgScan.info(''); return openTransModal(scanAction, it.id, lastScan.qty); }
+    HtgScan.info(`<b class="text-blue-700">${esc(it.itemCode)}</b> · tồn ${it.quantity} ${esc(it.unit || '')}${it.location ? ' · vị trí ' + esc(it.location) : ''}${lastScan.qty ? ' · nhãn ghi SL ' + lastScan.qty : ''}
+        <button onclick="openTransModal('Nhap', ${it.id}, ${lastScan.qty || 0})" class="ml-2 px-2 py-1 rounded bg-emerald-600 text-white font-bold">Nhập kho</button>
+        <button onclick="openTransModal('Xuat', ${it.id}, ${lastScan.qty || 0})" class="ml-1 px-2 py-1 rounded bg-orange-500 text-white font-bold">Xuất kho</button>`);
+};
+const today = new Date().toISOString().slice(0,10);
+
+async function loadData() {
+    const [iRes, tRes] = await Promise.all([
+        fetch('/api/inventory/items'),
+        fetch('/api/inventory/transactions')
+    ]);
+    allItems = await iRes.json();
+    allTrans = await tRes.json();
+    updateKPIs(); renderInventory(); renderTransactions();
+    populateItemSelect();
+}
+
+function updateKPIs() {
+    document.getElementById('kpi-total').innerText = allItems.length;
+    document.getElementById('kpi-low').innerText = allItems.filter(i => i.quantity <= i.minQuantity).length;
+    document.getElementById('kpi-in').innerText = allTrans.filter(t => t.type === 'Nhap' && t.createdAt?.startsWith(today)).length;
+    document.getElementById('kpi-out').innerText = allTrans.filter(t => t.type === 'Xuat' && t.createdAt?.startsWith(today)).length;
+}
+
+function populateItemSelect() {
+    document.getElementById('trans_itemId').innerHTML = '<option value="">-- Chọn mặt hàng --</option>' +
+        allItems.map(i => `<option value="${i.id}" data-code="${i.itemCode}" data-name="${i.itemName}" data-unit="${i.unit}">${i.itemCode} — ${i.itemName} (Tồn: ${i.quantity} ${i.unit})</option>`).join('');
+}
+
+function onItemSelect() {}
+
+function switchTab(tab) {
+    ['inventory','transactions'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById(`tabBtn-${t}`);
+        if (t === tab) { btn.className = 'px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-900 text-white transition'; }
+        else { btn.className = 'px-5 py-2.5 rounded-xl font-bold text-sm bg-white text-gray-500 hover:bg-gray-200 transition border border-gray-200'; }
+    });
+}
+
+function renderInventory() {
+    const search = document.getElementById('searchItem').value.toLowerCase();
+    const cat = document.getElementById('filterCategory').value;
+    const low = document.getElementById('filterLow').checked;
+    const filtered = allItems.filter(i =>
+        (!scanIds || scanIds.includes(i.id)) &&
+        (!search || i.itemCode?.toLowerCase().includes(search) || i.itemName?.toLowerCase().includes(search)) &&
+        (!cat || i.category === cat) &&
+        (!low || i.quantity <= i.minQuantity)
+    );
+    document.getElementById('inventory-tbody').innerHTML = filtered.length ? filtered.map(i => {
+        const isLow = i.quantity <= i.minQuantity;
+        const qtyClass = i.quantity === 0 ? 'text-red-600 font-black' : isLow ? 'text-amber-600 font-bold' : 'text-emerald-600 font-bold';
+        const badge = i.quantity === 0 ? '<span class="ml-1 text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-black">HẾT</span>' :
+                      isLow ? '<span class="ml-1 text-[9px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded font-black">THẤP</span>' : '';
+        const catCls = {'PCB':'bg-blue-100 text-blue-700','Linh kiện':'bg-green-100 text-green-700','Vật tư':'bg-purple-100 text-purple-700','Khác':'bg-gray-100 text-gray-600'}[i.category]||'bg-gray-100 text-gray-600';
+        return `
+        <tr class="hover:bg-slate-50 border-b border-gray-50 ${i.quantity === 0 ? 'bg-red-50/30' : ''}">
+            <td class="p-4 font-mono text-xs font-bold text-slate-700">${i.itemCode||'-'}</td>
+            <td class="p-4 text-sm font-bold text-slate-800">
+                <div class="flex items-center gap-3">
+                    ${i.image ? `<a href="${esc(i.image)}" target="_blank"><img src="${esc(i.image)}" alt="" class="w-10 h-10 rounded-lg object-cover border border-gray-200"></a>` : ''}
+                    <div>
+                        <div>${esc(i.itemName)}</div>
+                        ${(i.mpn || i.package) ? `<div class="text-[10px] font-normal text-gray-500">${esc([i.mpn, i.package].filter(Boolean).join(' · '))}</div>` : ''}
+                        ${(i.aliases || []).length ? `<div class="text-[10px] font-normal text-indigo-500" title="Tên gọi khác">≈ ${esc(i.aliases.slice(0, 4).join(', '))}${i.aliases.length > 4 ? ' …' : ''}</div>` : ''}
+                    </div>
+                </div>
+            </td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${catCls}">${i.category||'Khác'}</span></td>
+            <td class="p-4 text-sm ${qtyClass}">${i.quantity}${badge}${i.held > 0 ? `<span class="block text-[10px] font-bold text-indigo-500" title="Đang tạm xuất cho ${i.heldOrders} đơn đang báo giá. Tự tái nhập nếu khách không chốt.">+ ${i.held} tạm xuất</span>` : ''}</td>
+            <td class="p-4 text-xs text-gray-500">${i.unit||'cái'}</td>
+            <td class="p-4 text-xs font-bold text-slate-700" title="Giá vốn bình quân, tự cập nhật khi nhập kho có đơn giá">${i.unitCost > 0 ? Math.round(i.unitCost).toLocaleString('vi-VN') : '<span class="text-gray-300">chưa có</span>'}</td>
+            <td class="p-4 text-xs text-gray-500">${i.location||'--'}</td>
+            <td class="p-4">
+                <div class="flex justify-center gap-2">
+                    <button onclick="openTransModal('Nhap', ${i.id})" title="Nhập kho mã này" class="text-emerald-500 hover:text-emerald-700 p-1.5 transition text-xs"><i class="fas fa-arrow-down"></i></button>
+                    <button onclick="openTransModal('Xuat', ${i.id})" title="Xuất kho mã này" class="text-orange-400 hover:text-orange-600 p-1.5 transition text-xs"><i class="fas fa-arrow-up"></i></button>
+                    <button onclick="editItem(${i.id})" class="text-blue-400 hover:text-blue-600 p-1.5 transition text-xs"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteItem(${i.id})" class="text-red-300 hover:text-red-500 p-1.5 transition text-xs"><i class="fas fa-trash-alt"></i></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="8" class="text-center py-12 text-gray-300 italic text-sm">Không có dữ liệu</td></tr>`;
+}
+
+function renderTransactions() {
+    const search = document.getElementById('searchTrans').value.toLowerCase();
+    const type = document.getElementById('filterTransType').value;
+    const filtered = allTrans.filter(t =>
+        (!search || t.transCode?.toLowerCase().includes(search) || t.itemName?.toLowerCase().includes(search)) &&
+        (!type || t.type === type)
+    );
+    document.getElementById('transactions-tbody').innerHTML = filtered.slice(0, 100).map(t => {
+        const cls = t.type === 'Nhap' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700';
+        const sign = t.type === 'Nhap' ? '+' : '-';
+        return `
+        <tr class="hover:bg-slate-50 border-b border-gray-50">
+            <td class="p-4 font-mono text-xs font-bold text-slate-700">${t.transCode}</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black ${cls}">${t.type === 'Nhap' ? 'Nhập kho' : 'Xuất kho'}</span></td>
+            <td class="p-4 text-sm text-slate-700">${t.itemName}</td>
+            <td class="p-4 text-sm font-bold ${t.type==='Nhap'?'text-emerald-600':'text-orange-500'}">${sign}${t.quantity}</td>
+            <td class="p-4 text-xs text-gray-500">${t.reason||'--'} ${t.refCode?'<span class="text-blue-400 font-bold">('+t.refCode+')</span>':''}${t.note ? `<span class="block text-[10px] text-gray-400">${esc(t.note)}</span>` : ''}</td>
+            <td class="p-4 text-xs text-gray-500">${t.createdBy||'--'}</td>
+            <td class="p-4 text-xs text-gray-400">${t.createdAt?new Date(t.createdAt).toLocaleString('vi-VN'):'--'}</td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="7" class="text-center py-12 text-gray-300 italic text-sm">Chưa có giao dịch</td></tr>`;
+}
+
+function openTransModal(type, itemId, qty) {
+    document.getElementById('trans_type').value = type;
+    document.getElementById('modalTransTitle').innerText = type === 'Nhap' ? 'Phiếu nhập kho' : 'Phiếu xuất kho';
+    const hdr = document.getElementById('modalTransHeader');
+    hdr.className = `p-5 text-white flex justify-between items-center shrink-0 ${type==='Nhap'?'bg-emerald-700':'bg-orange-500'}`;
+    const btn = document.getElementById('btnSaveTrans');
+    btn.className = `${type==='Nhap'?'bg-emerald-600 hover:bg-emerald-700':'bg-orange-500 hover:bg-orange-600'} text-white px-8 py-3 rounded-xl font-black transition active:scale-95 uppercase text-[10px] flex items-center gap-2`;
+    document.getElementById('formTrans').reset();
+    // Mo tu ket qua quet: chon san mat hang, dien san so luong tren nhan, ghi lai cach nhan dien vao phieu
+    transScan = itemId && lastScan && scanIds && scanIds.includes(itemId) ? lastScan : null;
+    if (itemId) document.getElementById('trans_itemId').value = itemId;
+    if (qty) document.getElementById('trans_qty').value = qty;
+    const m = document.getElementById('modalTrans');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    if (itemId) setTimeout(() => document.getElementById('trans_qty').focus(), 50);
+}
+function closeTransModal() { const m=document.getElementById('modalTrans'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+async function handleSaveTrans(e) {
+    e.preventDefault();
+    const sel = document.getElementById('trans_itemId');
+    const opt = sel.options[sel.selectedIndex];
+    const data = {
+        itemId: sel.value,
+        itemCode: opt?.getAttribute('data-code') || '',
+        itemName: opt?.getAttribute('data-name') || '',
+        type: document.getElementById('trans_type').value,
+        quantity: parseFloat(document.getElementById('trans_qty').value),
+        unitPrice: parseFloat(document.getElementById('trans_unitPrice').value) || 0,
+        reason: document.getElementById('trans_reason').value,
+        refCode: document.getElementById('trans_refCode').value,
+        note: transScan ? `Nhận diện: ${transScan.method} · "${transScan.text.slice(0, 80)}"` : ''
+    };
+    const r = await (await fetch('/api/inventory/transactions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) })).json();
+    if (r.success) {
+        closeTransModal();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: `${data.type === 'Nhap' ? 'Đã nhập' : 'Đã xuất'} ${data.quantity} · ${data.itemCode} · phiếu ${r.transCode} lúc ${new Date().toLocaleTimeString('vi-VN')}` });
+        scanIds = null; lastScan = null; transScan = null; HtgScan.info(''); await loadData(); HtgScan.focus(); // san sang quet ma tiep theo
+    } else Swal.fire('Lỗi', r.error || 'Không ghi được phiếu', 'error');
+}
+
+function openItemModal(id) {
+    document.getElementById('item_id').value = id || '';
+    if (!id) {
+        document.getElementById('formItem').reset();
+        document.getElementById('item_qty').value = 0;
+        document.getElementById('item_min').value = 0;
+        document.getElementById('item_cost').value = 0;
+        document.getElementById('item_unit').value = 'cái';
+        showItemImage(null);
+    }
+    const m = document.getElementById('modalItem');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeItemModal() { const m=document.getElementById('modalItem'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+function editItem(id) {
+    const item = allItems.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('item_id').value = item.id;
+    document.getElementById('item_code').value = item.itemCode || '';
+    document.getElementById('item_name').value = item.itemName;
+    document.getElementById('item_category').value = item.category || 'Khác';
+    document.getElementById('item_unit').value = item.unit || 'cái';
+    document.getElementById('item_qty').value = item.quantity || 0;
+    document.getElementById('item_min').value = item.minQuantity || 0;
+    document.getElementById('item_cost').value = item.unitCost ? Math.round(item.unitCost * 100) / 100 : 0;
+    document.getElementById('item_location').value = item.location || '';
+    document.getElementById('item_mpn').value = item.mpn || '';
+    document.getElementById('item_package').value = item.package || '';
+    document.getElementById('item_aliases').value = (item.aliases || []).join('\n');
+    document.getElementById('item_image').value = '';
+    showItemImage(item.image);
+    const m = document.getElementById('modalItem');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+
+async function handleSaveItem(e) {
+    e.preventDefault();
+    const data = {
+        id: document.getElementById('item_id').value || null,
+        itemCode: document.getElementById('item_code').value.toUpperCase(),
+        itemName: document.getElementById('item_name').value,
+        category: document.getElementById('item_category').value,
+        unit: document.getElementById('item_unit').value,
+        quantity: parseFloat(document.getElementById('item_qty').value) || 0,
+        minQuantity: parseFloat(document.getElementById('item_min').value) || 0,
+        unitCost: parseFloat(document.getElementById('item_cost').value) || 0,
+        location: document.getElementById('item_location').value,
+        mpn: document.getElementById('item_mpn').value,
+        package: document.getElementById('item_package').value,
+        aliases: document.getElementById('item_aliases').value.split('\n').map(s => s.trim()).filter(Boolean)
+    };
+    const r = await (await fetch('/api/inventory/items/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) })).json();
+    if (!r.success) return alert('Lỗi: ' + (r.error||'Mã hàng đã tồn tại?'));
+
+    // Anh la tuy chon: chi tai len khi nguoi dung co chon file
+    const file = document.getElementById('item_image').files[0];
+    if (file && r.id) {
+        const fd = new FormData();
+        fd.append('image', file);
+        const up = await (await fetch(`/api/inventory/items/${r.id}/image`, { method: 'POST', body: fd })).json();
+        if (!up.success) alert('Đã lưu mặt hàng nhưng chưa tải được ảnh: ' + (up.error || ''));
+    }
+    closeItemModal(); loadData();
+}
+
+function showItemImage(src) {
+    const img = document.getElementById('item_image_preview');
+    img.src = src || '';
+    img.classList.toggle('hidden', !src);
+    document.getElementById('item_image_remove').classList.toggle('hidden', !src);
+}
+async function removeItemImage() {
+    const id = document.getElementById('item_id').value;
+    if (!id || !confirm('Xóa ảnh của mặt hàng này?')) return;
+    const r = await (await fetch(`/api/inventory/items/${id}/image`, { method: 'DELETE' })).json();
+    if (r.success) { showItemImage(null); loadData(); }
+}
+
+async function deleteItem(id) {
+    if (!confirm('Xóa mặt hàng này khỏi danh mục kho?')) return;
+    await fetch(`/api/inventory/items/${id}`, { method: 'DELETE' });
+    loadData();
+}
+
+// ---------- Xac nhan con hang cho bao gia (Kho la 1 nguon hang cua phong Mua hang) ----------
+async function loadConfirms() {
+    const r = await fetch('/api/purchase/stock-confirms'); const list = r.ok ? await r.json() : [];
+    const pending = list.filter(c => c.status === 'Chờ xác nhận');
+    const box = document.getElementById('khoConfirms');
+    if (!pending.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="bg-white rounded-2xl border-2 border-amber-300 shadow-sm overflow-hidden">
+        <p class="px-5 py-3 bg-amber-50 text-sm font-bold text-amber-800 border-b border-amber-200"><i class="fas fa-question-circle mr-1"></i>Mua hàng nhờ xác nhận còn hàng để báo giá <span class="font-normal text-xs">· ${pending.length} mã · đếm thực tế rồi trả lời</span></p>
+        <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-3">Mặt hàng</th><th class="p-3">Vị trí</th><th class="p-3 text-right">Cần lấy</th><th class="p-3 text-right">Tồn trên phần mềm</th><th class="p-3">Cho đơn · mạch</th><th class="p-3">Người hỏi</th><th class="p-3"></th></tr></thead>
+        <tbody>${pending.map(c => `<tr class="border-b last:border-0"><td class="p-3 font-bold text-slate-700">${esc(c.itemCode || '')} <span class="font-normal text-gray-500">${esc(c.itemName || '')}</span></td><td class="p-3 text-xs text-gray-500">${esc(c.location || '--')}</td>
+            <td class="p-3 text-right font-black">${c.qty} ${esc(c.unit || '')}</td><td class="p-3 text-right text-gray-500">${c.stockNow}</td><td class="p-3 text-xs text-gray-600">${esc(c.maDH || '')} · ${esc(c.tenMach || '')}</td>
+            <td class="p-3 text-xs text-gray-500">${esc(c.requestedBy || '')}<span class="block text-gray-400">${new Date(c.requestedAt).toLocaleString('vi-VN')}</span></td>
+            <td class="p-3 whitespace-nowrap"><button onclick="answerConfirm(${c.id}, true)" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700">Còn đủ</button>
+                <button onclick="answerConfirm(${c.id}, false, ${c.qty})" class="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-white border text-red-600 hover:bg-red-50">Không đủ</button></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+async function answerConfirm(id, ok, qty) {
+    let body = { ok: true };
+    if (!ok) {
+        const r = await Swal.fire({ title: 'Thực tế còn dùng được bao nhiêu?', input: 'number', inputAttributes: { min: 0, step: 'any' }, inputLabel: `Mua hàng cần ${qty}. Nếu tồn trên phần mềm sai, hãy điều chỉnh tồn kho sau khi trả lời.`, showCancelButton: true, confirmButtonText: 'Trả lời', cancelButtonText: 'Đóng' });
+        if (!r.isConfirmed) return;
+        body = { ok: false, qtyOk: parseFloat(r.value) || 0 };
+    }
+    const res = await (await fetch(`/api/purchase/stock-confirms/${id}/answer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    if (!res.success) return Swal.fire('Lỗi', res.error || 'Không trả lời được', 'error');
+    loadConfirms();
+}
+window.onload = () => { drawScanBar(); loadData(); loadConfirms(); };
+</script>
+
+<%- include('../partials/footer') %>

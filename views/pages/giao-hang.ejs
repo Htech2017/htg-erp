@@ -1,0 +1,143 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight"><i class="fas fa-shipping-fast text-teal-600 mr-2"></i>Giao hàng &amp; vận chuyển</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Đơn đã chốt · hàng về đủ / sản xuất xong thì tạo chuyến giao · theo dõi tới khi khách nhận · một đơn có thể giao nhiều chuyến</p>
+    </div>
+    <input id="gSearch" oninput="render()" placeholder="Tìm mã đơn, khách, mã vận đơn..." class="border rounded-xl px-3 py-2 text-sm w-72">
+</div>
+
+<div id="gSummary" class="space-y-4">
+    <div id="gKpi" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
+    <div id="gBody"></div>
+</div>
+<div id="gDetail" class="space-y-4" style="display:none">
+    <div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+        <button onclick="closeDetail()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại</button>
+        <h2 id="gTitle" class="font-black text-slate-800 text-lg"></h2>
+    </div>
+    <div id="gDetailBody" class="space-y-4"></div>
+</div>
+</div>
+</main>
+
+<script>
+let G = { orders: [], statuses: [], canWrite: false };
+let filter = 'open', detailId = null, editing = null; // editing: { id (0 = chuyen moi), ...truong }
+const n = v => (Number(v) || 0).toLocaleString('vi-VN');
+const STATES = [['open', 'Tất cả đang xử lý', 'text-slate-700'], ['Sẵn sàng giao', 'Sẵn sàng giao', 'text-emerald-600'], ['Chưa đủ hàng', 'Chưa đủ hàng', 'text-amber-600'], ['Đang giao', 'Đang giao', 'text-blue-600'], ['Đã giao, chờ đóng đơn', 'Đã giao, chờ đóng đơn', 'text-gray-500']];
+const ST_CLS = { 'Sẵn sàng giao': 'bg-emerald-100 text-emerald-700', 'Chưa đủ hàng': 'bg-amber-100 text-amber-700', 'Đang chuẩn bị hàng': 'bg-sky-100 text-sky-700', 'Đang giao': 'bg-blue-100 text-blue-700', 'Đã giao, chờ đóng đơn': 'bg-gray-200 text-gray-600', 'Hoàn thành': 'bg-gray-100 text-gray-400' };
+const SH_CLS = { 'Chuẩn bị hàng': 'bg-sky-100 text-sky-700', 'Đã gửi': 'bg-blue-100 text-blue-700', 'Đang vận chuyển': 'bg-indigo-100 text-indigo-700', 'Đã giao': 'bg-emerald-100 text-emerald-700', 'Giao không thành công': 'bg-red-100 text-red-700' };
+const chip = (t, map) => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${map[t] || 'bg-gray-100 text-gray-500'}">${esc(t)}</span>`;
+const ready = (x, label) => x.total ? `<span class="font-bold ${x.ready ? 'text-emerald-600' : 'text-amber-600'}">${x.done}/${x.total}</span> <span class="text-gray-400">${label}</span>` : '<span class="text-gray-300">—</span>';
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+async function loadData() { const r = await fetch('/api/delivery'); G = r.ok ? await r.json() : G; render(); }
+function setFilter(f) { filter = f; render(); }
+function openDetail(id) { detailId = id; editing = null; render(); document.querySelector('main').scrollTop = 0; }
+function closeDetail() { detailId = null; editing = null; render(); }
+
+function render() {
+    const o = detailId ? G.orders.find(x => x.id === detailId) : null;
+    if (detailId && !o) detailId = null;
+    document.getElementById('gSummary').style.display = o ? 'none' : '';
+    document.getElementById('gDetail').style.display = o ? '' : 'none';
+    if (o) return renderDetail(o);
+    const inF = (x, f) => (f === 'open' ? x.state !== 'Hoàn thành' : (x.state === f || (f === 'Đang giao' && x.state === 'Đang chuẩn bị hàng')));
+    document.getElementById('gKpi').innerHTML = STATES.map(([key, label, cls]) => `<button onclick="setFilter('${key}')" class="text-left bg-white rounded-2xl p-4 shadow-sm border-2 ${filter === key ? 'border-slate-700' : 'border-transparent'}">
+        <p class="text-[9px] font-black text-gray-400 uppercase">${label}</p><p class="text-3xl font-black ${cls} mt-1">${G.orders.filter(x => inF(x, key)).length}</p></button>`).join('');
+    const q = document.getElementById('gSearch').value.trim().toLowerCase();
+    const list = G.orders.filter(x => (q ? true : inF(x, filter)) && (!q || [x.maDH, x.tenKH, x.tenMach, ...x.shipments.map(s => s.trackingNo + ' ' + s.carrier)].join(' ').toLowerCase().includes(q)));
+    document.getElementById('gBody').innerHTML = list.length ? `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+        <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr><th class="p-3">Đơn hàng</th><th class="p-3">Khách hàng</th><th class="p-3">Sản phẩm</th><th class="p-3">Hẹn giao</th><th class="p-3">Vật tư về</th><th class="p-3">Sản xuất</th><th class="p-3">Chuyến giao</th><th class="p-3">Tình trạng</th></tr></thead>
+        <tbody>${list.map(x => { const last = x.shipments[x.shipments.length - 1]; const late = x.ngayBanGiao && x.ngayBanGiao < today() && !['Hoàn thành', 'Đã giao, chờ đóng đơn'].includes(x.state);
+            return `<tr onclick="openDetail(${x.id})" class="border-t cursor-pointer hover:bg-blue-50/50">
+            <td class="p-3 font-bold text-blue-700 whitespace-nowrap">${esc(x.maDH)}${x.vip ? ' <i class="fas fa-crown text-yellow-500 text-xs"></i>' : ''}</td><td class="p-3 text-gray-700">${esc(x.tenKH || x.maKH)}</td>
+            <td class="p-3 text-xs text-gray-600 max-w-[260px] truncate">${esc(x.tenMach || '')}</td><td class="p-3 text-xs whitespace-nowrap ${late ? 'text-red-600 font-bold' : 'text-gray-600'}">${esc(x.ngayBanGiao || '—')}${late ? ' · trễ' : ''}</td>
+            <td class="p-3 text-xs">${ready(x.mat, 'dòng / PO')}</td><td class="p-3 text-xs">${ready(x.sx, 'mạch')}</td>
+            <td class="p-3 text-xs">${last ? `${x.shipments.length} chuyến · ${chip(last.status, SH_CLS)}${last.trackingNo ? `<span class="block text-gray-500 mt-0.5">${esc(last.carrier || '')} ${esc(last.trackingNo)}</span>` : ''}` : '<span class="text-gray-300">chưa có</span>'}</td>
+            <td class="p-3">${chip(x.state, ST_CLS)}</td></tr>`; }).join('')}</tbody></table></div>
+        <p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một đơn để tạo chuyến giao hoặc cập nhật tình trạng vận chuyển.</p></div>`
+        : '<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">Không có đơn nào ở mục này.</div>';
+}
+
+function renderDetail(o) {
+    const cell = (a, b) => `<div><p class="text-[10px] font-black text-gray-400 uppercase">${a}</p><p class="font-semibold text-gray-800 mt-0.5">${b}</p></div>`;
+    document.getElementById('gTitle').innerHTML = `${esc(o.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(o.tenKH || o.maKH)}</span> ${chip(o.state, ST_CLS)}`;
+    const notReady = !(o.mat.ready && o.sx.ready);
+    document.getElementById('gDetailBody').innerHTML = `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+            ${cell('Sản phẩm', esc(o.tenMach || ''))}${cell('Hẹn giao', esc(o.ngayBanGiao || '—'))}${cell('Vật tư về', ready(o.mat, 'dòng / PO'))}${cell('Sản xuất', ready(o.sx, 'mạch xong'))}${cell('Điện thoại khách', esc(o.sdt || '—'))}${cell('Sale', esc(o.saleName || '—'))}
+            <div class="col-span-2 md:col-span-6">${cell('Địa chỉ nhận hàng của khách', o.addresses.length ? o.addresses.map(a => `${a.isDefault ? '<i class="fas fa-star text-amber-400 text-xs mr-1"></i>' : ''}${esc((a.label ? a.label + ': ' : '') + a.address)}${a.receiver ? ` <span class="font-normal text-gray-500">· ${esc(a.receiver)} ${esc(a.phone || '')}</span>` : ''}`).join('<br>') : '<span class="font-normal text-amber-600">Chưa khai báo. Sale thêm ở trang Quản lý khách hàng → sửa khách → Địa chỉ nhận hàng.</span>')}</div>
+        </div>
+        ${notReady ? '<p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2"><i class="fas fa-exclamation-triangle mr-1"></i>Vật tư chưa về đủ hoặc sản xuất chưa xong. Vẫn tạo được chuyến giao (giao từng phần), hãy ghi rõ nội dung giao.</p>' : ''}
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-xs font-black text-gray-400 uppercase">Các chuyến giao</p>
+                ${G.canWrite && !editing ? `<button onclick="startEdit(0)" class="px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-plus mr-1"></i>Thêm chuyến giao</button>` : ''}</div>
+            ${editing && !editing.id ? formHtml() : ''}
+            ${o.shipments.length ? o.shipments.map((s, i) => editing && editing.id === s.id ? formHtml() : `<div class="border rounded-xl p-3 mb-2 ${s.status === 'Giao không thành công' ? 'border-red-200 bg-red-50/40' : ''}">
+                <div class="flex flex-wrap items-center justify-between gap-2"><p class="text-sm font-bold text-slate-700">Chuyến ${i + 1} ${chip(s.status, SH_CLS)} <span class="font-normal text-xs text-gray-500">${esc(s.carrier || '')}${s.trackingNo ? ' · mã vận đơn <b>' + esc(s.trackingNo) + '</b>' : ''}</span></p>
+                    ${G.canWrite ? `<span class="flex gap-2">${nextBtn(s)}<button onclick="startEdit(${s.id})" class="px-3 py-1 rounded-lg text-xs font-bold bg-white border hover:bg-gray-50">Sửa</button>${s.status === 'Chuẩn bị hàng' ? `<button onclick="removeShip(${s.id})" class="px-2 py-1 text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>` : ''}</span>` : ''}</div>
+                <p class="text-sm text-gray-700 mt-1">${esc(s.contents || '')}</p>
+                <p class="text-[11px] text-gray-500 mt-1">${s.shipDate ? 'Gửi ' + esc(s.shipDate) : 'Chưa gửi'}${s.deliveredDate ? ' · khách nhận ' + esc(s.deliveredDate) : ''}${s.address ? ' · nơi nhận: ' + esc(s.address) : ''}${s.receiver ? ' · người nhận: ' + esc(s.receiver) + (s.receiverPhone ? ' (' + esc(s.receiverPhone) + ')' : '') : ''}${s.fee ? ' · phí ' + n(s.fee) + ' đ' : ''}${s.note ? ' · ' + esc(s.note) : ''}
+                    <span class="text-gray-400">· cập nhật ${new Date(s.updatedAt).toLocaleString('vi-VN')} bởi ${esc(s.updatedBy || '')}</span></p></div>`).join('') : (editing ? '' : '<p class="text-sm text-gray-400 italic">Chưa có chuyến giao nào.</p>')}
+        </div>
+        ${o.state === 'Đã giao, chờ đóng đơn' ? '<p class="text-xs text-gray-500">Tất cả chuyến đã giao. Sale xác nhận hoàn thành đơn ở trang đơn hàng.</p>' : ''}`;
+}
+const NEXT = { 'Chuẩn bị hàng': 'Đã gửi', 'Đã gửi': 'Đang vận chuyển', 'Đang vận chuyển': 'Đã giao' };
+const nextBtn = s => NEXT[s.status] ? `<button onclick="advance(${s.id})" class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700">→ ${NEXT[s.status]}</button>` : '';
+function startEdit(id) {
+    const o = G.orders.find(x => x.id === detailId), s = o.shipments.find(x => x.id === id);
+    editing = s ? { ...s } : { id: 0, status: 'Chuẩn bị hàng', carrier: '', trackingNo: '', shipDate: '', deliveredDate: '', receiver: '', receiverPhone: '', address: '', contents: o.tenMach || '', fee: 0, note: '' };
+    if (!s && o.addresses[0]) pickAddr(0, true); // mac dinh: dia chi nhan hang mac dinh cua khach
+    render();
+}
+function pickAddr(i, quiet) {
+    const o = G.orders.find(x => x.id === detailId), a = o.addresses[i];
+    if (a) { editing.receiver = a.receiver || ''; editing.receiverPhone = a.phone || ''; editing.address = a.address || ''; }
+    if (!quiet) render();
+}
+function formHtml() {
+    const addrs = G.orders.find(x => x.id === detailId).addresses;
+    const e = editing, inp = 'mt-1 w-full border rounded-lg px-2.5 py-1.5 text-sm font-normal outline-none focus:ring-2 focus:ring-blue-400';
+    const f = (key, label, cls, type) => `<label class="text-xs font-bold text-gray-600 ${cls}">${label}<input ${type ? `type="${type}"` : ''} value="${esc(e[key] == null || e[key] === 0 ? '' : e[key])}" onchange="editing['${key}'] = this.value" class="${inp}"></label>`;
+    return `<div class="border-2 border-blue-200 rounded-xl p-4 mb-3 bg-blue-50/30"><div class="grid grid-cols-12 gap-3">
+        <label class="text-xs font-bold text-gray-600 col-span-6 md:col-span-2">Tình trạng<select onchange="editing.status = this.value" class="${inp} bg-white font-bold">${G.statuses.map(x => `<option ${x === e.status ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+        ${f('carrier', 'Đơn vị vận chuyển', 'col-span-6 md:col-span-3')}${f('trackingNo', 'Mã vận đơn', 'col-span-6 md:col-span-3')}${f('shipDate', 'Ngày gửi', 'col-span-6 md:col-span-2', 'date')}${f('deliveredDate', 'Ngày khách nhận', 'col-span-6 md:col-span-2', 'date')}
+        <label class="text-xs font-bold text-gray-600 col-span-12 md:col-span-4">Nơi nhận (địa chỉ nhận hàng của khách)<select onchange="if (this.value !== '') pickAddr(Number(this.value))" class="${inp} bg-white"><option value="">${addrs.length ? '-- chọn địa chỉ đã khai báo --' : 'Khách chưa khai báo địa chỉ nhận hàng'}</option>${addrs.map((a, i) => `<option value="${i}" ${a.address === e.address ? 'selected' : ''}>${esc((a.label ? a.label + ': ' : '') + a.address)}</option>`).join('')}</select></label>
+        ${f('address', 'Địa chỉ nhận *', 'col-span-12 md:col-span-4')}${f('receiver', 'Người nhận', 'col-span-6 md:col-span-2')}${f('receiverPhone', 'SĐT người nhận', 'col-span-6 md:col-span-2')}
+        ${f('contents', 'Nội dung giao (giao gì, số lượng) *', 'col-span-12 md:col-span-9')}${f('fee', 'Phí vận chuyển (đ)', 'col-span-6 md:col-span-3')}
+        ${f('note', 'Ghi chú', 'col-span-12')}</div>
+        <div class="flex gap-2 mt-3"><button onclick="saveShip()" class="px-5 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-save mr-1"></i>Lưu chuyến giao</button>
+            <button onclick="editing = null; render()" class="px-4 py-2 rounded-lg text-sm font-bold bg-white border hover:bg-gray-50">Bỏ qua</button></div></div>`;
+}
+async function send(url, method, body) {
+    const res = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+    if (!res.success) { Swal.fire('Lỗi', res.error || 'Không thực hiện được', 'error'); return null; }
+    return res;
+}
+async function saveShip() {
+    const e = editing;
+    const res = e.id ? await send('/api/delivery/shipments/' + e.id, 'PATCH', e) : await send('/api/delivery/' + detailId, 'POST', e);
+    if (res) { editing = null; loadData(); }
+}
+async function advance(id) {
+    const o = G.orders.find(x => x.id === detailId), s = o.shipments.find(x => x.id === id), next = NEXT[s.status];
+    const body = { status: next };
+    if (!s.shipDate) body.shipDate = today();
+    if (next === 'Đã giao' && !s.deliveredDate) body.deliveredDate = today();
+    if (await send('/api/delivery/shipments/' + id, 'PATCH', body)) loadData();
+}
+async function removeShip(id) {
+    const r = await Swal.fire({ title: 'Xóa chuyến giao này?', icon: 'question', showCancelButton: true, confirmButtonText: 'Xóa', cancelButtonText: 'Đóng' });
+    if (r.isConfirmed && await send('/api/delivery/shipments/' + id, 'DELETE')) loadData();
+}
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

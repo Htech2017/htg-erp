@@ -1,0 +1,146 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-50 custom-scrollbar">
+    <div class="max-w-3xl mx-auto space-y-6">
+        
+        <div class="mb-6">
+            <h1 class="text-2xl font-black text-slate-800 tracking-tight">Cài đặt hệ thống</h1>
+            <p class="text-sm text-slate-500 font-medium mt-1">Cấu hình kết nối Google Drive và Webhook thông báo</p>
+        </div>
+
+        <div id="drive-config-box" class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="p-6 border-b bg-blue-50/50 flex items-center justify-between">
+                <h2 class="font-black text-blue-800 flex items-center text-sm uppercase tracking-wide">
+                    <i class="fab fa-google-drive mr-2 text-xl text-blue-500"></i> Google Drive & Kết nối
+                </h2>
+                <span id="drive-lock-status" class="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-lg uppercase tracking-wider">Đang kiểm tra...</span>
+            </div>
+            
+            <div class="p-8 space-y-6">
+                <div>
+                    <label class="block text-[11px] font-black text-slate-400 uppercase mb-2">ID Thư mục gốc (Root Folder ID)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="drive_root_id" class="flex-1 border border-slate-200 rounded-xl p-3 text-sm font-mono bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition" value="1z9X_rYm7aBvC3dE4fG5hI6jK7lM8nO9p">
+                        <button onclick="testDriveConnection(event)" class="bg-blue-600 text-white px-5 rounded-xl hover:bg-blue-700 transition shadow-sm" title="Kiểm tra kết nối"><i class="fas fa-link"></i></button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-black text-slate-400 uppercase mb-2">Google Chat Webhook (Nội bộ)</label>
+                    <div class="flex gap-2">
+                        <input type="password" id="ext_webhook_url" class="flex-1 border border-slate-200 rounded-xl p-3 text-sm font-mono bg-slate-50 outline-none focus:ring-2 focus:ring-amber-500 transition" placeholder="https://chat.googleapis.com/v1/spaces/...">
+                        <button onclick="testWebhook()" class="bg-amber-500 text-white px-5 rounded-xl hover:bg-amber-600 transition shadow-sm" title="Gửi thử tin nhắn"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-dashed border-slate-200">
+                    <button id="btn-save-api" onclick="saveFullConfig()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-black transition uppercase text-xs tracking-widest active:scale-[0.98]">
+                        Lưu cấu hình hệ thống
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mo thu muc Google Drive tren may tinh -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden mt-6">
+            <div class="px-6 py-4 bg-emerald-50 border-b border-emerald-100">
+                <h2 class="font-black text-emerald-800 flex items-center text-sm uppercase tracking-wide"><i class="fas fa-hdd mr-2"></i>Mở thư mục Google Drive trên máy tính</h2>
+            </div>
+            <div class="p-6 space-y-4 text-sm text-slate-600">
+                <p>Khi máy đã cài <b>Google Drive cho máy tính</b>, các nút mở thư mục trong phần mềm có thể mở thẳng File Explorer thay vì mở trên web.</p>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Đường dẫn thư mục gốc của hệ thống trên máy (thư mục bên trong có "Orders")</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="drive_local_root" placeholder="Ví dụ: G:\Shared drives\HTG\ERP" class="flex-1 border border-slate-200 rounded-xl p-3 text-sm font-mono bg-slate-50 outline-none focus:ring-2 focus:ring-emerald-400">
+                        <button onclick="saveDriveLocal()" class="bg-emerald-600 text-white px-5 rounded-xl font-black text-xs uppercase hover:bg-emerald-700">Lưu</button>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Dùng chung cho mọi máy, nên các máy cần gắn Google Drive ở cùng một đường dẫn. Để trống = mọi nút thư mục mở trên web.</p>
+                </div>
+                <ol class="list-decimal ml-5 space-y-1 text-xs">
+                    <li>Mỗi máy Windows muốn mở trên máy: tải <a href="/tools/htg-open-folder.zip" class="text-blue-600 font-bold hover:underline">htg-open-folder.zip</a>, giải nén, chạy <b>install.bat</b> và nhập đúng đường dẫn ở trên.</li>
+                    <li>Lần đầu bấm một nút thư mục trên máy đó, phần mềm hỏi "mở trên máy" hay "mở trên web" và nhớ lựa chọn.</li>
+                    <li>Máy không cài công cụ (hoặc máy Mac, tài khoản xưởng) chọn "mở trên web".</li>
+                </ol>
+                <div class="flex flex-wrap items-center gap-3 pt-3 border-t border-dashed border-slate-200">
+                    <span class="text-xs font-bold text-slate-500">Máy đang dùng (trình duyệt này):</span>
+                    <select id="drive_mode_here" onchange="setDriveMode(this.value)" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold">
+                        <option value="">Chưa chọn (sẽ hỏi khi bấm nút thư mục)</option><option value="local">Mở trên máy</option><option value="web">Mở trên web</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</main>
+<script>
+document.getElementById('drive_local_root').value = window.HTG_DRIVE_ROOT || '';
+document.getElementById('drive_mode_here').value = driveMode();
+async function saveDriveLocal() {
+    const res = await fetch('/api/settings/save-drive-local', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: document.getElementById('drive_local_root').value }) });
+    const result = await res.json();
+    if (!result.success) return Swal.fire('Lỗi', result.error || 'Không lưu được', 'error');
+    window.HTG_DRIVE_ROOT = result.path;
+    document.getElementById('drive_local_root').value = result.path;
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: result.path ? 'Đã lưu đường dẫn thư mục trên máy' : 'Đã tắt: mọi nút thư mục mở trên web' });
+}
+</script>
+
+<script>
+async function testDriveConnection(event) {
+    const input = document.getElementById('drive_root_id');
+    const folderId = input ? input.value.trim() : null;
+
+    if (!folderId || folderId === "1z9X_rYm7aBvC3dE4fG5hI6jK7lM8nO9p") { 
+        return Swal.fire('Lỗi', 'Vui lòng nhập ID thư mục Shared Drive thật của bạn!', 'error');
+    }
+
+    const btn = event.currentTarget;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    try {
+        const res = await fetch('/api/settings/test-drive', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ folderId })
+        });
+        const result = await res.json();
+        if (result.success) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Kết nối Drive thành công!', showConfirmButton: false, timer: 3000 });
+        } else {
+            Swal.fire('Thất bại', result.message, 'error');
+        }
+    } catch (e) {
+        Swal.fire('Lỗi', 'Lỗi kết nối Server!', 'error');
+    } finally {
+        btn.innerHTML = '<i class="fas fa-link"></i>';
+    }
+}
+
+async function saveFullConfig() {
+    const folderId = document.getElementById('drive_root_id').value;
+    const webhookUrl = document.getElementById('ext_webhook_url').value;
+
+    try {
+        Swal.fire({ title: 'Đang lưu...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        await fetch('/api/settings/save-drive', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ folderId })
+        });
+        await fetch('/api/settings/save-webhook', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ url: webhookUrl })
+        });
+        Swal.fire('Thành công', 'Hệ thống đã cập nhật toàn bộ cấu hình!', 'success').then(() => location.reload());
+    } catch (e) { Swal.fire('Lỗi', 'Lỗi khi lưu cấu hình', 'error'); }
+}
+
+async function testWebhook() {
+    const url = document.getElementById('ext_webhook_url').value;
+    if(!url) return Swal.fire('Cảnh báo', 'Vui lòng nhập URL Webhook!', 'warning');
+    try {
+        await fetch(url, { method: 'POST', body: JSON.stringify({ text: "🔔 Test Webhook OK!" })});
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã gửi tin nhắn test!', showConfirmButton: false, timer: 3000 });
+    } catch (e) { Swal.fire('Lỗi', 'Gửi thất bại', 'error'); }
+}
+</script>
+
+<%- include('../partials/footer') %>

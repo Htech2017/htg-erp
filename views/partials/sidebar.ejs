@@ -3,61 +3,184 @@
         MANAGEMENT
     </div>
 
-    <nav class="flex-1 mt-5 px-2 space-y-1 overflow-y-auto custom-scrollbar">
-        <a href="/" data-role="Admin, Sale, Trưởng BP Thiết kế, Nhân viên Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+    <nav class="flex-1 mt-4 px-2 space-y-0.5 overflow-y-auto custom-scrollbar">
+
+        <!-- DASHBOARD -->
+        <a href="/" data-role="Admin,Sale,Trưởng BP Thiết kế,Nhân viên Thiết kế,Kế toán,Mua hàng PCB,Mua hàng linh kiện,Quản lý sản xuất,Quản lý kho,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
             <i class="fas fa-home w-6"></i> Dashboard
         </a>
-        <a href="/khach-hang" data-role="Admin, Sale" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
-            <i class="fas fa-user-friends w-6"></i> Quản lý khách hàng
+
+        <!-- SECTION: SALE & KINH DOANH -->
+        <div class="pt-3 pb-1 px-3">
+            <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Kinh doanh</p>
+        </div>
+        <a href="/khach-hang" data-role="Admin,Sale"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-user-friends w-6 text-sky-400"></i> Quản lý khách hàng
         </a>
-        <a href="/don-hang" data-role="Admin, Sale, Trưởng BP Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
-            <i class="fas fa-file-invoice-dollar w-6"></i> Quản lý đơn hàng
+        <a href="/don-hang/san-xuat" data-role="Admin,Sale"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-file-invoice-dollar w-6 text-blue-400"></i> Đơn hàng PCB / LK / SX
         </a>
-        <a href="/reports" data-role="Admin, Sale" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
+        <a href="/don-hang/vip" data-role="Admin,Sale,Quản lý sản xuất,Mua hàng linh kiện,Quản lý kho,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-crown w-6 text-yellow-400"></i> Đơn hàng khách VIP
+        </a>
+        <a href="/don-hang/rnd" data-role="Admin,Sale,Trưởng BP Thiết kế"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-flask w-6 text-violet-400"></i> Đơn hàng R&amp;D
+        </a>
+        <a href="/giao-hang" data-role="Admin,Quản lý kho,Sale,Quản lý sản xuất,Mua hàng linh kiện,Mua hàng PCB,Kế toán,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-shipping-fast w-6 text-teal-400"></i> Giao hàng &amp; vận chuyển
+        </a>
+        <a href="/hanh-chinh" data-role="Admin,Hành chính,Kế toán,Sale"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-file-signature w-6 text-rose-400"></i> Hành chính · chứng từ
+        </a>
+        <a href="/reports" data-role="Admin,Sale,Kế toán"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
             <i class="fas fa-chart-line w-6 text-emerald-400"></i> Báo cáo kinh doanh
         </a>
 
-        <div class="my-4 border-t border-slate-800/50"></div>
+        <!-- SECTION: BÁO GIÁ COST (moi bo phan 1 trang) -->
+        <div class="pt-3 pb-1 px-3">
+            <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Báo giá cost</p>
+        </div>
+        <a href="/bao-gia/pcb" data-role="Admin,Mua hàng PCB,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-tags w-6 text-blue-400"></i> Báo giá PCB
+        </a>
+        <a href="/bao-gia/linh-kien" data-role="Admin,Mua hàng linh kiện,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-tags w-6 text-green-400"></i> Báo giá linh kiện
+        </a>
+        <a href="/bao-gia/san-xuat" data-role="Admin,Quản lý sản xuất"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-tags w-6 text-orange-400"></i> Báo giá sản xuất
+        </a>
+        <a href="/bao-gia/rnd" data-role="Admin,Trưởng BP Thiết kế"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-tags w-6 text-violet-400"></i> Báo giá R&amp;D
+        </a>
 
-        <a href="/thiet-ke" data-role="Admin, Trưởng BP Thiết kế, Nhân viên Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
-            <i class="fas fa-palette w-6"></i> Quản lý thiết kế
+        <!-- SECTION: THIẾT KẾ & R&D -->
+        <div class="pt-3 pb-1 px-3">
+            <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Thiết kế & R&D</p>
+        </div>
+        <a href="/thiet-ke" data-role="Admin,Trưởng BP Thiết kế,Nhân viên Thiết kế"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-palette w-6 text-violet-400"></i> Điều hành thiết kế
         </a>
-        <a href="/quan-ly-quy" data-role="Admin, Trưởng BP Thiết kế, Nhân viên Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
-            <i class="fas fa-wallet w-6"></i> Quản lý quỹ
+        <a href="/du-an" data-role="Admin,Trưởng BP Thiết kế,Project Manager"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-tasks w-6 text-purple-400"></i> Quản lý dự án
         </a>
-        <a href="/du-an" data-role="Admin, Trưởng BP Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
-            <i class="fas fa-tasks w-6"></i> Quản lý dự án
+
+        <!-- SECTION: MUA HÀNG -->
+        <div class="pt-3 pb-1 px-3">
+            <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Mua hàng</p>
+        </div>
+        <a href="/mua-hang-pcb" data-role="Admin,Mua hàng PCB,Quản lý sản xuất,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-microchip w-6 text-blue-400"></i> Mua hàng PCB
         </a>
-        <a href="/du-an-ngoai" data-role="Admin, Trưởng BP Thiết kế" class="nav-item flex items-center p-3 rounded-md hover:bg-slate-800 transition">
-            <i class="fas fa-handshake w-6 text-indigo-400"></i> Dự án Ngoài Cty
+        <a href="/mua-hang-linh-kien" data-role="Admin,Mua hàng linh kiện,Quản lý sản xuất,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-memory w-6 text-green-400"></i> Mua hàng linh kiện
         </a>
+
+        <a href="/dieu-hanh-mua-linh-kien" data-role="Admin,Mua hàng linh kiện,Quản lý sản xuất,Quản lý kho,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-tasks w-6 text-lime-400"></i> Điều hành mua linh kiện
+        </a>
+
+        <!-- SECTION: KHO & SẢN XUẤT -->
+        <div class="pt-3 pb-1 px-3">
+            <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Kho & Sản xuất</p>
+        </div>
+        <a href="/soan-linh-kien" data-role="Admin,Quản lý kho,Quản lý sản xuất,Mua hàng PCB,Mua hàng linh kiện,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-dolly w-6 text-amber-400"></i> Kho soạn linh kiện
+        </a>
+        <a href="/quan-ly-kho" data-role="Admin,Quản lý kho,Quản lý sản xuất,Mua hàng PCB,Mua hàng linh kiện,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-warehouse w-6 text-amber-400"></i> Quản lý kho
+        </a>
+        <a href="/quan-ly-san-xuat" data-role="Admin,Quản lý sản xuất"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-industry w-6 text-orange-400"></i> Quản lý sản xuất
+        </a>
+        <a href="/dieu-phoi-san-xuat" data-role="Admin,Quản lý sản xuất"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-project-diagram w-6 text-rose-400"></i> Điều phối sản xuất
+        </a>
+        <a href="/xuong" data-role="Admin,Quản lý sản xuất,Xưởng sản xuất"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-hammer w-6 text-yellow-400"></i> Việc của xưởng
+        </a>
+
+        <!-- SECTION: TÀI CHÍNH -->
+        <div class="pt-3 pb-1 px-3">
+            <p class="text-[8px] font-black text-slate-600 uppercase tracking-widest">Tài chính</p>
+        </div>
+        <a href="/ke-toan" data-role="Admin,Kế toán"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-calculator w-6 text-pink-400"></i> Kế toán & Tài chính
+        </a>
+        <a href="/quan-ly-quy" data-role="Admin,Kế toán,Trưởng BP Thiết kế,Mua hàng PCB,Mua hàng linh kiện,Quản lý sản xuất,Trưởng BP Mua hàng"
+            class="nav-item flex items-center p-3 rounded-lg hover:bg-slate-800 transition text-sm">
+            <i class="fas fa-wallet w-6 text-teal-400"></i> Quản lý quỹ
+        </a>
+
     </nav>
 
+    <!-- FOOTER: Settings + User -->
     <div class="bg-[#020617]/50 border-t border-slate-800">
-        <div class="p-4 space-y-1">
-            <a href="/cai-dat" data-role="Admin"class="nav-item flex items-center p-2 text-sm text-gray-400 hover:text-white transition">
-                <i class="fas fa-cog w-5 text-center"></i> 
-                <span class="ml-2">Cài đặt hệ thống</span>
+        <div class="p-3 space-y-0.5">
+            <a href="/nhap-xuat-du-lieu" data-role="Admin,Sale,Trưởng BP Thiết kế,Kế toán,Mua hàng PCB,Mua hàng linh kiện,Quản lý sản xuất,Quản lý kho,Trưởng BP Mua hàng" class="nav-item flex items-center p-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition text-sm">
+                <i class="fas fa-file-excel w-6"></i>
+                <span class="text-xs font-medium">Nhập / xuất dữ liệu</span>
             </a>
-            <a href="/tai-khoan" data-role="Admin, Sale" class="nav-item flex items-center p-2 text-sm text-gray-400 hover:text-white transition">
-                <i class="fas fa-users-cog w-5 text-center"></i> 
-                <span class="ml-2">Quản lý tài khoản</span>
+            <a href="/settings/system" data-role="Admin" class="nav-item flex items-center p-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition text-sm">
+                <i class="fas fa-server w-6"></i>
+                <span class="text-xs font-medium">Cài đặt Hệ thống</span>
+            </a>
+            <a href="/settings/brand" data-role="Admin" class="nav-item flex items-center p-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition text-sm">
+                <i class="fas fa-copyright w-6"></i>
+                <span class="text-xs font-medium">Cài đặt Thương hiệu</span>
+            </a>
+            <a href="/tai-khoan" data-role="Admin" class="nav-item flex items-center p-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition text-sm">
+                <i class="fas fa-users-cog w-6"></i>
+                <span class="text-xs font-medium">Quản lý tài khoản</span>
             </a>
         </div>
 
+        <% if (typeof demoAccounts !== 'undefined' && demoAccounts) { %>
+        <div class="px-4 py-3 bg-amber-500/10 border-t border-amber-500/30">
+            <p class="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1"><i class="fas fa-flask mr-1"></i>Demo · xem với vai trò</p>
+            <select onchange="if (this.value) location.href = '/demo/as/' + this.value" class="w-full bg-slate-900 text-amber-100 text-xs font-bold rounded-lg p-2 border border-amber-500/40">
+                <% demoAccounts.forEach(function (a) { %>
+                <option value="<%= a.username %>" <%= (typeof user !== 'undefined' && user && user.username === a.username) ? 'selected' : '' %>><%= a.label %></option>
+                <% }) %>
+            </select>
+        </div>
+        <% } %>
+
         <div class="p-4 bg-[#020617] flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shrink-0">
+            <div class="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-white shrink-0 text-sm">
                 <%= (typeof user !== 'undefined' && user) ? user.name.substring(0,2).toUpperCase() : 'AD' %>
             </div>
             <div class="flex-1 min-w-0">
                 <p class="text-[11px] font-black truncate text-white uppercase">
                     <%= (typeof user !== 'undefined' && user) ? user.name : 'Administrator' %>
                 </p>
-                <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-widest">
+                <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-widest truncate">
                     <%= (typeof user !== 'undefined' && user) ? user.role : 'Admin' %>
                 </p>
             </div>
-            <a href="/logout" title="Đăng xuất" class="text-red-400 hover:text-red-300 transition-colors">
+            <a href="/logout" title="Đăng xuất" class="text-red-400 hover:text-red-300 transition-colors shrink-0">
                 <i class="fas fa-sign-out-alt"></i>
             </a>
         </div>
@@ -65,29 +188,48 @@
 </aside>
 
 <style>
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar { width: 3px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Ưu tiên Role từ Session (Server), nếu không có mới dùng LocalStorage
-        const activeRole = "<%= (typeof user !== 'undefined' && user) ? user.role : '' %>" || localStorage.getItem('active_role') || 'Admin';
-        const currentPath = window.location.pathname;
+document.addEventListener('DOMContentLoaded', () => {
+    // Chi de an/hien menu. Quyen thuc su duoc kiem tra o server (src/config.js).
+    const myRoles = <%- JSON.stringify((typeof user !== 'undefined' && user && user.allRoles) || []).replace(/</g, '\\u003c') %>;
+    const isAdmin = myRoles.includes('Admin');
+    const currentPath = window.location.pathname;
 
-        document.querySelectorAll('.nav-item').forEach(link => {
-            const allowedRoles = link.getAttribute('data-role');
-            
-            if (allowedRoles && !allowedRoles.includes(activeRole)) {
-                link.style.opacity = "0.2";
-                link.style.pointerEvents = "none";
-                link.style.filter = "grayscale(1)";
-            }
+    document.querySelectorAll('.nav-item').forEach(link => {
+        const allowedRoles = link.getAttribute('data-role');
 
-            if (link.getAttribute('href') === currentPath) {
-                link.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+        // Kiểm tra quyền
+        if (allowedRoles) {
+            const roles = allowedRoles.split(',').map(r => r.trim());
+            if (!isAdmin && !roles.some(r => myRoles.includes(r))) {
+                link.style.display = 'none';
             }
-        });
+        }
+
+        // Active state
+        const href = link.getAttribute('href');
+        if (href && href === currentPath) {
+            link.classList.add('bg-indigo-600', 'text-white');
+        }
     });
+
+    // Ẩn section headers nếu không có menu nào trong section đó
+    document.querySelectorAll('nav > div.pt-3').forEach(section => {
+        let next = section.nextElementSibling;
+        let hasVisible = false;
+        while (next && !next.classList.contains('pt-3')) {
+            if (next.tagName === 'A' && next.style.display !== 'none') {
+                hasVisible = true;
+                break;
+            }
+            next = next.nextElementSibling;
+        }
+        if (!hasVisible) section.style.display = 'none';
+    });
+});
 </script>

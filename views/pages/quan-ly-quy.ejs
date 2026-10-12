@@ -9,19 +9,51 @@
         <p class="text-sm text-gray-500">Theo dõi dòng tiền và phê duyệt chi tự động</p>
     </div>
     <div class="flex gap-2">
-    <% if (user && (user.role === 'Trưởng BP Thiết kế' || user.role === 'Admin')) { %>
-        <button onclick="openModalQuy('modal-thu-chi')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-green-700 transition">
-            <i class="fas fa-plus-circle mr-2"></i>Thu/Chi thủ công
+        <input type="file" id="excelInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleImportExcel(event)">
+
+        <%
+            const _roles = (user && user.allRoles) || [];
+            const isAdminUser = _roles.includes('Admin');
+            const canManageFund = true; // ai vao duoc trang deu ghi so duoc cho quy cua phong minh (server kiem tra theo tung quy)
+            const canApproveFund = isAdminUser || _roles.includes('Trưởng BP Thiết kế');
+        %>
+        <% if (isAdminUser) { %>
+            <button onclick="resetQuy()" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-red-700 transition flex items-center">
+                <i class="fas fa-trash-restore mr-2"></i>Reset
+            </button>
+        <% } %>
+
+        <% if (canManageFund) { %>
+            <a href="/api/fund/template" class="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-700 transition flex items-center">
+                <i class="fas fa-download mr-2"></i>Tải Template
+            </a>
+
+            <button onclick="document.getElementById('excelInput').click()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-emerald-700 transition flex items-center">
+                <i class="fas fa-file-excel mr-2"></i>Import Excel
+            </button>
+
+            <button id="btnTonDau" onclick="openOpening()" class="hidden bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-800 transition items-center">
+                <i class="fas fa-flag-checkered mr-2"></i> Tồn đầu
+            </button>
+            <button id="btnCapQuy" onclick="openTransfer()" class="hidden bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-violet-700 transition items-center">
+                <i class="fas fa-exchange-alt mr-2"></i>Cấp quỹ
+            </button>
+
+            <button onclick="openModalQuy('modal-thu-chi')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition flex items-center">
+                <i class="fas fa-plus-circle mr-2"></i>Thủ công
+            </button>
+        <% } %>
+        
+        <button onclick="openModalQuy('modal-de-nghi')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition flex items-center">
+            <i class="fas fa-paper-plane mr-2"></i>Đề nghị chi
         </button>
-    <% } %>
-    
-    <button onclick="openModalQuy('modal-de-nghi')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-700 transition">
-        <i class="fas fa-paper-plane mr-2"></i>Gửi Đề nghị chi
-    </button>
-</div>
+    </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+<!-- Chon quy: Quy cong ty / Quy Nghien cuu PT (moi quy co so du rieng) -->
+<div id="fundSwitcher" class="flex flex-wrap gap-2 mb-4"></div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
     <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
         <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tổng Thu</p>
         <p id="tongThu" class="text-2xl font-black text-green-600">0 đ</p>
@@ -38,6 +70,8 @@
         <i class="fas fa-wallet absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
     </div>
 </div>
+
+<!-- So du cua quy dang chon, tach theo noi giu tien -->
 
 <div class="flex space-x-1 bg-gray-200 p-1 rounded-xl mb-6 w-fit">
     <button onclick="switchTab(event, 'tab-so-quy')" class="tab-btn px-6 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600">SỔ QUỸ</button>
@@ -101,8 +135,11 @@
                 </div>
             </div>
             <div>
+                <p class="text-[10px] text-gray-400 mt-1">Ghi vào: <b id="trans_fund_label"></b></p>
+            </div>
+            <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Số tiền</label>
-                <input type="number" id="trans_amount" class="w-full border rounded-lg p-2 font-black text-lg text-blue-600" required>
+                <input type="text" id="trans_amount" oninput="formatCurrency(this)" class="w-full border rounded-lg p-2 font-black text-lg text-blue-600" required>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Diễn giải</label>
@@ -118,42 +155,105 @@
 <div id="modal-de-nghi" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div class="p-4 bg-indigo-600 text-white font-bold flex justify-between text-sm">
-            <span>GỬI ĐỀ NGHỊ THANH TOÁN (DÀNH CHO NV)</span>
+            <span id="de_nghi_title">GỬI ĐỀ NGHỊ THANH TOÁN</span>
             <button onclick="closeModalQuy('modal-de-nghi')"><i class="fas fa-times"></i></button>
         </div>
-        <form class="p-6 space-y-4" onsubmit="handleCreateRequest(event)">
+        <form class="p-6 space-y-4" onsubmit="handleSaveRequest(event)">
+            <input type="hidden" id="req_id">
+            <p class="text-[10px] text-gray-400">Đề nghị chi từ: <b id="req_fund_label"></b></p>
             <div>
                 <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nội dung đề nghị chi</label>
-                <textarea id="req_content" class="w-full border rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="VD: Mua linh kiện test đơn hàng..." required></textarea>
+                <textarea id="req_content" class="w-full border rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" rows="3" required></textarea>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Số tiền yêu cầu</label>
-                    <input type="number" id="req_amount" class="w-full border rounded-lg p-2 font-bold text-indigo-600" required>
+                    <input type="text" id="req_amount" oninput="formatCurrency(this)" class="w-full border rounded-lg p-2 font-bold text-indigo-600" required>
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ngày yêu cầu</label>
                     <input type="date" id="req_date" class="w-full border rounded-lg p-2 text-sm">
                 </div>
             </div>
-            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition">GỬI YÊU CẦU</button>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition">XÁC NHẬN LƯU</button>
         </form>
     </div>
 </div>
 </div><main>
-<script>
-    // --- 1. KẾT NỐI DATABASE ---
-let currentUser = { name: "Người dùng", roles: ["Admin"] }; // Giả định user hiện tại
 
-// --- 1. TẢI DỮ LIỆU ---
+    <script>
+let tempDsDeNghi = []; // Lưu danh sách từ API để tìm kiếm nhanh khi Sửa
+
+// --- 0. HAI QUY (cong ty / Nghien cuu PT) VA HAI TAI KHOAN (cong ty / ca nhan) ---
+let fundData = { funds: [], summary: {}, canApprove: [] };
+let currentFund = 'chung';
+const vnd = v => new Intl.NumberFormat('vi-VN').format(v || 0) + ' đ';
+const fundLabel = () => ((fundData.funds || []).find(f => f.key === currentFund) || {}).label || '';
+
+function renderFundSwitcher() {
+    document.getElementById('fundSwitcher').innerHTML = (fundData.funds || []).map(f => {
+        const ton = ((fundData.summary || {})[f.key] || {}).ton || 0;
+        const on = f.key === currentFund;
+        return `<button onclick="selectFund('${f.key}')" class="px-5 py-3 rounded-xl text-left border-2 transition ${on ? 'border-blue-600 bg-blue-50' : 'border-transparent bg-white hover:bg-gray-50'}">
+            <span class="block text-xs font-black uppercase ${on ? 'text-blue-700' : 'text-gray-500'}">${f.label}</span>
+            <span class="block text-sm font-bold ${ton < 0 ? 'text-red-600' : 'text-slate-800'}">Tồn: ${vnd(ton)}</span>
+        </button>`;
+    }).join('');
+    document.getElementById('trans_fund_label').textContent = fundLabel();
+    document.getElementById('req_fund_label').textContent = fundLabel();
+}
+function selectFund(key) { currentFund = key; updateUI(); }
+
+// Cap quy: Quy chung chi cho quy cac phong (hoac phong hoan ve Quy chung). Ghi 1 dong CHI o quy nguon, 1 dong THU o quy nhan.
+async function openTransfer() {
+    const general = fundData.generalFund || 'chung';
+    const depts = (fundData.funds || []).filter(f => f.key !== general);
+    const generalLabel = ((fundData.funds || []).find(f => f.key === general) || {}).label || 'Quỹ chung';
+    const ton = key => vnd(((fundData.summary || {})[key] || {}).ton || 0);
+    const { value: form } = await Swal.fire({
+        title: 'Cấp quỹ',
+        html: `<p class="text-xs text-gray-500 mb-2">${generalLabel} hiện còn <b>${ton(general)}</b></p>
+               <select id="tf_dir" class="swal2-select" style="display:flex;width:80%">
+                   ${depts.map(f => `<option value="${general}|${f.key}">${generalLabel} → ${f.label} (còn ${ton(f.key)})</option>`).join('')}
+                   ${depts.map(f => `<option value="${f.key}|${general}">Hoàn: ${f.label} → ${generalLabel}</option>`).join('')}
+               </select>
+               <input id="tf_amount" class="swal2-input" inputmode="numeric" placeholder="Số tiền (đ)" oninput="formatCurrency(this)">
+               <input id="tf_date" type="date" class="swal2-input" value="${new Date().toLocaleDateString('en-CA')}">
+               <input id="tf_note" class="swal2-input" placeholder="Ghi chú (lý do cấp quỹ)">`,
+        showCancelButton: true, confirmButtonText: 'Chuyển', cancelButtonText: 'Hủy',
+        preConfirm: () => {
+            const [from, to] = document.getElementById('tf_dir').value.split('|');
+            return { from, to, tien: getRawAmount('tf_amount'), ngay: document.getElementById('tf_date').value, note: document.getElementById('tf_note').value };
+        }
+    });
+    if (!form) return;
+    const result = await (await fetch('/api/fund/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })).json();
+    if (!result.success) return Swal.fire('Lỗi', result.error || 'Không chuyển được', 'error');
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã cấp quỹ', showConfirmButton: false, timer: 2000 });
+    updateUI();
+}
+
+
+// --- 1. TẢI VÀ HIỂN THỊ DỮ LIỆU ---
 async function updateUI() {
     try {
         const response = await fetch('/api/fund');
         const data = await response.json();
         
-        renderQuy(data.soQuy);
-        renderDeNghi(data.dsDeNghi);
-        calculateStats(data.soQuy);
+        fundData = data;
+        if (!(data.funds || []).some(f => f.key === currentFund)) currentFund = data.funds && data.funds.length ? data.funds[0].key : 'rnd';
+        renderFundSwitcher();
+        const btnCap = document.getElementById('btnCapQuy');
+        const btnTd = document.getElementById('btnTonDau');
+        if (btnTd) { btnTd.classList.toggle('hidden', !data.canTransfer); btnTd.classList.toggle('flex', !!data.canTransfer); }
+        if (btnCap) { btnCap.classList.toggle('hidden', !data.canTransfer); btnCap.classList.toggle('flex', !!data.canTransfer); }
+        // Chi hien so lieu cua quy dang chon
+        const soQuy = (data.soQuy || []).filter(i => i.quy === currentFund);
+        const dsDeNghi = (data.dsDeNghi || []).filter(i => i.quy === currentFund);
+        tempDsDeNghi = dsDeNghi; // Gán dữ liệu để dùng cho hàm Sửa
+        renderQuy(soQuy);
+        renderDeNghi(dsDeNghi);
+        calculateStats(soQuy);
     } catch (e) { console.error("Lỗi tải dữ liệu quỹ:", e); }
 }
 
@@ -164,6 +264,25 @@ function calculateStats(soQuy) {
     document.getElementById('tongThu').innerText = new Intl.NumberFormat('vi-VN').format(thu) + ' đ';
     document.getElementById('tongChi').innerText = new Intl.NumberFormat('vi-VN').format(chi) + ' đ';
     document.getElementById('tonQuy').innerText = new Intl.NumberFormat('vi-VN').format(thu - chi) + ' đ';
+}
+
+// Khoi tao quy bang ton dau: ghi 1 dong THU "TỒN ĐẦU" vao quy dang chon
+async function openOpening() {
+    const { value: form } = await Swal.fire({
+        title: 'Tồn đầu ' + fundLabel(),
+        html: `<input id="od_amount" class="swal2-input" inputmode="numeric" placeholder="Số tiền tồn đầu (đ)" oninput="formatCurrency(this)">
+               <input id="od_date" type="date" class="swal2-input" value="${new Date().toLocaleDateString('en-CA')}">`,
+        showCancelButton: true, confirmButtonText: 'Ghi tồn đầu', cancelButtonText: 'Hủy',
+        preConfirm: () => {
+            const tien = getRawAmount('od_amount');
+            if (!(tien > 0)) return Swal.showValidationMessage('Nhập số tiền tồn đầu');
+            return { loai: 'THU', hangMuc: 'TỒN ĐẦU', tien, ngay: document.getElementById('od_date').value, note: 'Khởi tạo quỹ', quy: currentFund };
+        }
+    });
+    if (!form) return;
+    const result = await (await fetch('/api/fund/transaction', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })).json();
+    if (!result.success) return Swal.fire('Lỗi', result.error || 'Không ghi được', 'error');
+    updateUI();
 }
 
 function renderQuy(soQuy) {
@@ -183,34 +302,58 @@ function renderQuy(soQuy) {
 
 function renderDeNghi(dsDeNghi) {
     const tbody = document.getElementById('dntt-tbody');
-    // Lấy role từ biến user mà Server đã render ra (EJS pass sang JS)
-    const currentUserRole = "<%= user.role %>"; 
+    const canApproveRole = <%= canApproveFund ? 'true' : 'false' %>;
+    const currentUserName = "<%= user ? user.name : '' %>"; 
 
     tbody.innerHTML = dsDeNghi.map(dn => {
         const isPending = dn.status === 'Chờ duyệt';
-        
-        // Điều kiện hiển thị nút duyệt: Đang chờ duyệt VÀ (là Trưởng BP hoặc Admin)
-        const canApprove = isPending && (currentUserRole === 'Trưởng BP Thiết kế' || currentUserRole === 'Admin');
+        const isOwner = dn.nguoi === currentUserName; // Kiểm tra xem có phải Đề nghị của mình tạo không
+        const canApprove = isPending && (fundData.canApprove || []).includes(dn.quy);
 
         return `
             <tr class="border-b hover:bg-gray-50">
                 <td class="p-4 font-mono text-[10px] text-indigo-600 font-bold">${dn.id}</td>
                 <td class="p-4 text-xs">${dn.ngay}</td>
-                <td class="p-4 text-xs font-medium">${dn.noiDung}</td>
+                <td class="p-4 text-xs font-medium">
+                    <div class="font-bold">${dn.noiDung}</div>
+                    <div class="text-[9px] text-gray-400">Người tạo: ${dn.nguoi}</div>
+                </td>
                 <td class="p-4 font-bold text-gray-800">${new Intl.NumberFormat('vi-VN').format(dn.tien)}</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${isPending ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-700'}">${dn.status}</span></td>
-                <td class="p-4 text-center">
-                    ${canApprove ? 
-                        `<button onclick="approveDN('${dn.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-indigo-700 transition">DUYỆT CHI</button>` 
-                        : (isPending ? '<span class="text-[10px] text-gray-400 italic">Chờ sếp duyệt</span>' : '<i class="fas fa-check-circle text-green-500 text-lg"></i>')
-                    }
+                <td class="p-4">
+                    <div class="flex items-center justify-center gap-2">
+                        ${canApprove ? `<button onclick="approveDN('${dn.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-indigo-700 transition shadow-sm">DUYỆT</button>` : ''}
+                        
+                        ${(isOwner && isPending) ? `
+                            <button onclick="editDN('${dn.id}')" class="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition" title="Sửa Đề nghị"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteDN('${dn.id}')" class="text-red-400 hover:bg-red-50 p-1.5 rounded transition" title="Xóa Đề nghị"><i class="fas fa-trash-alt"></i></button>
+                        ` : ''}
+
+                        ${!isPending ? '<i class="fas fa-check-circle text-green-500 text-lg"></i>' : ''}
+                    </div>
                 </td>
             </tr>`;
     }).join('');
 }
 
-// --- 2. XỬ LÝ GIAO DỊCH ---
+// --- 2. XỬ LÝ FORMAT TIỀN TỆ DẤU CHẤM ---
+function formatCurrency(input) {
+    let val = input.value.replace(/\D/g, ""); // Xóa bỏ mọi ký tự không phải số
+    if (val) {
+        input.value = new Intl.NumberFormat('vi-VN').format(val); // Thêm dấu chấm
+    } else {
+        input.value = '';
+    }
+}
 
+function getRawAmount(id) {
+    let val = document.getElementById(id).value || "0";
+    return parseInt(val.replace(/\./g, "")) || 0; // Tẩy dấu chấm đi để lưu vào DB
+}
+
+// --- 3. XỬ LÝ GIAO DỊCH (THÊM / SỬA / XÓA) ---
+
+// 3.1. Nhập quỹ thủ công
 async function handleManualTransaction(e) {
     e.preventDefault();
     const data = {
@@ -218,8 +361,8 @@ async function handleManualTransaction(e) {
         ngay: document.getElementById('trans_date').value,
         loai: document.getElementById('trans_type').value,
         hangMuc: document.getElementById('trans_note').value,
-        tien: parseFloat(document.getElementById('trans_amount').value),
-        nguoi: "Quản trị viên", // Sau này lấy từ session
+        tien: getRawAmount('trans_amount'), // Đã dùng getRawAmount thay cho parseFloat
+        quy: currentFund,
         note: 'Ghi sổ thủ công'
     };
 
@@ -229,21 +372,25 @@ async function handleManualTransaction(e) {
         body: JSON.stringify(data)
     });
 
-    if((await res.json()).success) {
-        alert("Đã ghi sổ!");
+    const result = await res.json();
+    if(result.success) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã ghi sổ thành công!', showConfirmButton: false, timer: 2000 });
         closeModalQuy('modal-thu-chi');
         updateUI();
+    } else {
+        Swal.fire('Lỗi', result.error || 'Không ghi sổ được', 'error');
     }
 }
 
-async function handleCreateRequest(e) {
+// 3.2. Lưu Đề nghị chi (Chạy cho cả Tạo Mới và Cập Nhật)
+async function handleSaveRequest(e) {
     e.preventDefault();
     const data = {
-        id: 'DN' + Date.now().toString().slice(-4),
+        id: document.getElementById('req_id').value || null,
         ngay: document.getElementById('req_date').value,
         noiDung: document.getElementById('req_content').value,
-        tien: parseFloat(document.getElementById('req_amount').value),
-        nguoi: "Nhân viên A" // Sau này lấy từ session
+        tien: getRawAmount('req_amount'), // Đã dùng getRawAmount
+        quy: currentFund
     };
 
     const res = await fetch('/api/fund/request', {
@@ -252,27 +399,121 @@ async function handleCreateRequest(e) {
         body: JSON.stringify(data)
     });
 
-    if((await res.json()).success) {
-        alert("Đã gửi đề nghị chi!");
+    const result = await res.json();
+    if(result.success) {
+        Swal.fire('Thành công', 'Đề nghị chi đã được lưu!', 'success');
         closeModalQuy('modal-de-nghi');
         updateUI();
+    } else {
+        Swal.fire('Lỗi', result.error, 'error');
     }
 }
 
+// 3.3. Sửa Đề nghị
+function editDN(id) {
+    const dn = tempDsDeNghi.find(x => x.id === id);
+    if (!dn) return;
+
+    document.getElementById('req_id').value = dn.id;
+    document.getElementById('req_content').value = dn.noiDung;
+    document.getElementById('req_amount').value = new Intl.NumberFormat('vi-VN').format(dn.tien);
+    document.getElementById('req_date').value = dn.ngay;
+    document.getElementById('de_nghi_title').innerText = "CẬP NHẬT ĐỀ NGHỊ CHI";
+    
+    openModalQuy('modal-de-nghi');
+}
+
+// 3.4. Xóa Đề nghị
+async function deleteDN(id) {
+    if(!confirm("Bạn chắc chắn muốn xóa đề nghị này?")) return;
+    try {
+        const res = await fetch(`/api/fund/request/${id}`, { method: 'DELETE' });
+        const result = await res.json();
+        if(result.success) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa đề nghị', showConfirmButton: false, timer: 2000 });
+            updateUI();
+        } else {
+            Swal.fire('Lỗi', result.error, 'error');
+        }
+    } catch(e) {
+        Swal.fire('Lỗi', 'Không thể kết nối', 'error');
+    }
+}
+
+// 3.5. Phê duyệt (Dành cho Sếp)
 async function approveDN(id) {
-    if(!confirm("Duyệt chi? Tiền sẽ tự động trừ khỏi quỹ.")) return;
+    // Nguoi duyet chon chi tu tai khoan nao; tien tru vao quy cua phieu
+    const ok = await Swal.fire({
+        title: 'Duyệt chi', text: 'Tiền sẽ tự động trừ khỏi ' + fundLabel() + '.', icon: 'question',
+        showCancelButton: true, confirmButtonText: 'Duyệt chi', cancelButtonText: 'Hủy'
+    });
+    if (!ok.isConfirmed) return;
     const res = await fetch('/api/fund/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, approver: "Sếp Tổng" })
+        body: JSON.stringify({ id })
     });
-    if((await res.json()).success) {
-        alert("Phê duyệt thành công!");
-        updateUI();
+    const result = await res.json();
+    if(result.success) {
+        Swal.fire('Thành công!', 'Phê duyệt thành công', 'success');
+    } else {
+        Swal.fire('Lỗi', result.error || 'Không duyệt được phiếu', 'error');
+    }
+    updateUI();
+}
+
+// --- 4. IMPORT & RESET ---
+async function handleImportExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = ''; 
+
+    Swal.fire({ title: 'Đang xử lý...', html: 'Hệ thống đang nạp dữ liệu từ file Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const formData = new FormData();
+    formData.append('quy', currentFund); // import vao quy dang chon
+    formData.append('excelFile', file); 
+
+    try {
+        const res = await fetch('/api/fund/import-excel', { method: 'POST', body: formData });
+        const result = await res.json();
+
+        if (result.success) {
+            Swal.fire('Hoàn tất!', `Đã Import thành công ${result.count} giao dịch Thu/Chi.`, 'success');
+            updateUI();
+        } else {
+            Swal.fire('Thất bại', result.error, 'error');
+        }
+    } catch (err) {
+        Swal.fire('Lỗi', 'Không thể kết nối đến máy chủ. Hãy thử F5 lại trang.', 'error');
     }
 }
 
-// --- 3. UI HELPER ---
+async function resetQuy() {
+    const { value: password } = await Swal.fire({
+        title: 'Xác nhận Reset Quỹ',
+        html: '<p class="text-sm text-red-500 mb-2">Cảnh báo: Toàn bộ dữ liệu thu/chi và đề nghị sẽ bị xóa vĩnh viễn!</p>',
+        input: 'password',
+        inputPlaceholder: 'Nhập mật khẩu quản trị viên...',
+        showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Xác nhận Xóa'
+    });
+
+    if (password) {
+        Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            const res = await fetch('/api/fund/reset', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: password })
+            });
+            const result = await res.json();
+            if (result.success) {
+                Swal.fire('Thành công!', 'Sổ quỹ đã được dọn sạch.', 'success');
+                updateUI();
+            } else { Swal.fire('Thất bại', result.error, 'error'); }
+        } catch (error) { Swal.fire('Lỗi', 'Không thể kết nối đến server', 'error'); }
+    }
+}
+
+// --- 5. TIỆN ÍCH GIAO DIỆN (UI HELPER) ---
 function switchTab(e, tabId) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
     document.getElementById(tabId).classList.remove('hidden');
@@ -285,10 +526,22 @@ function switchTab(e, tabId) {
 
 function openModalQuy(id) { 
     document.getElementById(id).classList.remove('hidden'); 
+    
+    // Nếu mở modal mới (không có data), reset form và title
+    if (id === 'modal-de-nghi' && !document.getElementById('req_id').value) {
+        document.getElementById('req_content').value = '';
+        document.getElementById('req_amount').value = '';
+        document.getElementById('de_nghi_title').innerText = "GỬI ĐỀ NGHỊ THANH TOÁN";
+    }
     document.querySelector(`#${id} input[type="date"]`).value = new Date().toISOString().split('T')[0];
 }
-function closeModalQuy(id) { document.getElementById(id).classList.add('hidden'); }
 
+function closeModalQuy(id) { 
+    document.getElementById(id).classList.add('hidden');
+    if (id === 'modal-de-nghi') document.getElementById('req_id').value = ''; // Reset ID ẩn khi đóng
+}
+
+// Khởi chạy khi load trang
 window.onload = updateUI;
 </script>
 

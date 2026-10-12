@@ -1,0 +1,171 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1400px] mx-auto space-y-5">
+
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Xuất linh kiện theo đơn hàng</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Soạn linh kiện có sẵn trong kho cho đơn đã chốt, in phiếu và xuất kho</p>
+    </div>
+    <div class="flex gap-2 items-center">
+        <input id="pk-search" oninput="render()" placeholder="Tìm mã đơn, khách, mã linh kiện..." class="border rounded-xl px-3 py-2 text-sm w-64">
+        <select id="pk-filter" onchange="render()" class="border rounded-xl px-3 py-2 text-sm font-bold">
+            <option value="todo">Cần soạn / chờ xuất</option>
+            <option value="done">Đã xuất kho (60 ngày)</option>
+            <option value="all">Tất cả</option>
+        </select>
+    </div>
+</div>
+
+<div id="pk-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Đơn chưa soạn</p><p id="k-new" class="text-3xl font-black text-red-500 mt-1">0</p></div>
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Đơn đang soạn</p><p id="k-doing" class="text-3xl font-black text-amber-500 mt-1">0</p></div>
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Soạn đủ, chờ xuất</p><p id="k-ready" class="text-3xl font-black text-blue-600 mt-1">0</p></div>
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Mã còn phải soạn</p><p id="k-lines" class="text-3xl font-black text-gray-800 mt-1">0</p></div>
+</div>
+
+<p class="text-[11px] text-gray-500 bg-white border border-gray-100 rounded-xl px-4 py-2">
+    <i class="fas fa-info-circle text-blue-400 mr-1"></i>Số lượng dưới đây đã được <b>tạm xuất</b> (trừ khỏi tồn kho) từ lúc báo giá. Bấm <b>Xuất kho</b> để cấp số phiếu và xác nhận xuất thật — tồn kho không bị trừ thêm lần nữa.
+</p>
+
+<div id="pk-list" class="space-y-4"></div>
+</div>
+</main>
+
+<script>
+let pickOrders = [];
+let pickDetail = null; // don dang mo trang chi tiet
+const STATUS_STYLE = { 'Chưa soạn': 'bg-red-100 text-red-700', 'Đang soạn': 'bg-amber-100 text-amber-700', 'Đã soạn đủ': 'bg-blue-100 text-blue-700', 'Đã xuất kho': 'bg-emerald-100 text-emerald-700' };
+const qty = v => (v || 0).toLocaleString('vi-VN');
+const dmy = iso => iso ? new Date(iso).toLocaleDateString('vi-VN') : '';
+
+async function loadData() {
+    const data = await (await fetch('/api/purchase/picking')).json();
+    pickOrders = Array.isArray(data) ? data : [];
+    render();
+}
+
+function render() {
+    const count = st => pickOrders.filter(o => o.status === st).length;
+    document.getElementById('k-new').innerText = count('Chưa soạn');
+    document.getElementById('k-doing').innerText = count('Đang soạn');
+    document.getElementById('k-ready').innerText = count('Đã soạn đủ');
+    document.getElementById('k-lines').innerText = pickOrders.reduce((s, o) => s + (o.pending - o.picked), 0);
+
+    const q = document.getElementById('pk-search').value.trim().toLowerCase();
+    const mode = document.getElementById('pk-filter').value;
+    const list = pickOrders.filter(o => {
+        if (mode === 'todo' && !o.pending) return false;
+        if (mode === 'done' && !o.lines.some(l => l.shipped)) return false;
+        if (!q) return true;
+        return [o.maDH, o.maKH, o.tenKH, ...o.lines.map(l => l.itemCode + ' ' + l.itemName)].join(' ').toLowerCase().includes(q);
+    });
+    const box = document.getElementById('pk-list');
+    const card = o => {
+        const codes = [...new Set(o.lines.filter(l => l.shipCode).map(l => l.shipCode))];
+        return `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-slate-50 border-b">
+                <div>
+                    <span class="font-black text-gray-800">${esc(o.maDH)}</span>
+                    <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black ${STATUS_STYLE[o.status] || ''}">${o.status}</span>
+                    <p class="text-[11px] text-gray-500 mt-0.5">${esc(o.tenKH || o.maKH || '')} · Chốt ${esc(o.ngayChot || '—')}${o.ngayBanGiao ? ' · Giao ' + esc(o.ngayBanGiao) : ''} · ${o.pending ? `Đã soạn ${o.picked}/${o.pending} mã` : `${o.total} mã`}${codes.length ? ' · Phiếu ' + esc(codes.join(', ')) : ''}</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="printSlip(${o.orderId})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border hover:bg-gray-100"><i class="fas fa-print mr-1"></i>In phiếu</button>
+                    ${o.pending && o.picked < o.pending ? `<button onclick="pickAll(${o.orderId})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600"><i class="fas fa-check-double mr-1"></i>Soạn hết</button>` : ''}
+                    ${o.pending ? `<button onclick="shipOrder(${o.orderId})" ${o.picked < o.pending ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-xs font-bold text-white ${o.picked < o.pending ? 'bg-gray-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}"><i class="fas fa-dolly mr-1"></i>Xuất kho</button>` : ''}
+                </div>
+            </div>
+            <table class="w-full text-sm">
+                <thead><tr class="text-[10px] uppercase text-gray-400 text-left border-b">
+                    <th class="p-3 w-10">Soạn</th><th class="p-3">Mã linh kiện</th><th class="p-3">Tên</th><th class="p-3">Loại mạch</th><th class="p-3">Vị trí kho</th><th class="p-3 text-right">Số lượng</th><th class="p-3">Tình trạng</th>
+                </tr></thead>
+                <tbody>${o.lines.map(l => `
+                    <tr class="border-b last:border-0 ${l.shipped ? 'bg-emerald-50/40' : (l.picked ? 'bg-blue-50/40' : '')}">
+                        <td class="p-3"><input type="checkbox" class="w-4 h-4" ${l.picked ? 'checked' : ''} ${l.shipped ? 'disabled' : ''} onchange="setPicked(${l.id}, this.checked)"></td>
+                        <td class="p-3 font-bold text-gray-700">${esc(l.itemCode)}</td>
+                        <td class="p-3 text-gray-600">${esc(l.itemName)}</td>
+                        <td class="p-3 text-xs text-gray-500">${esc(l.tenMach)}</td>
+                        <td class="p-3 text-xs text-gray-500">${esc(l.location) || '—'}</td>
+                        <td class="p-3 text-right font-black">${qty(l.quantity)} <span class="text-[10px] font-normal text-gray-400">${esc(l.unit)}</span></td>
+                        <td class="p-3 text-[11px]">${l.shipped ? `<b class="text-emerald-600">Đã xuất</b> ${dmy(l.shippedAt)} · ${esc(l.shippedBy || '')}` : (l.picked ? `<b class="text-blue-600">Đã soạn</b> · ${esc(l.pickedBy || '')}` : '<b class="text-red-500">Chưa soạn</b>')}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    };
+    // Trang chi tiet cua 1 don (bam 1 dong trong bang tong hop)
+    const cur = pickDetail ? pickOrders.find(o => o.orderId === pickDetail) : null;
+    if (pickDetail && !cur) pickDetail = null;
+    document.getElementById('pk-summary').style.display = cur ? 'none' : '';
+    if (cur) {
+        box.innerHTML = `<div class="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+            <button onclick="pickDetail = null; render()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại danh sách đơn</button>
+            <p class="font-black text-slate-800 text-lg">Soạn linh kiện đơn ${esc(cur.maDH)}</p><span class="ml-auto flex flex-wrap gap-2"><a href="/api/orders/${cur.orderId}/folder/in-bom" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder-open mr-1"></i>BOM của khách</a><a href="/api/orders/${cur.orderId}/folder/kho" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder mr-1"></i>Thư mục Kho - Giao hàng</a></span></div>` + card(cur);
+        return;
+    }
+    if (!list.length) { box.innerHTML = '<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">Không có đơn nào cần soạn linh kiện từ kho.</div>'; return; }
+    box.innerHTML = `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><table class="w-full text-sm">
+        <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr><th class="p-3">Đơn hàng</th><th class="p-3">Khách hàng</th><th class="p-3">Ngày chốt</th><th class="p-3">Bàn giao</th><th class="p-3 text-right">Số mã</th><th class="p-3 w-52">Đã soạn</th><th class="p-3">Phiếu xuất</th><th class="p-3">Tình trạng</th></tr></thead>
+        <tbody>${list.map(o => {
+            const codes = [...new Set(o.lines.filter(l => l.shipCode).map(l => l.shipCode))];
+            const doneN = o.pending ? o.picked : o.total, totalN = o.pending || o.total, pct = totalN ? Math.round(doneN / totalN * 100) : 100;
+            return `<tr onclick="pickDetail = ${o.orderId}; render(); document.querySelector('main').scrollTop = 0" class="border-b last:border-0 cursor-pointer hover:bg-blue-50/50">
+                <td class="p-3 font-bold text-blue-700 whitespace-nowrap">${esc(o.maDH)}</td>
+                <td class="p-3 text-gray-700">${esc(o.tenKH || o.maKH || '')}</td>
+                <td class="p-3 text-xs text-gray-500">${esc(o.ngayChot || '—')}</td>
+                <td class="p-3 text-xs text-gray-500">${esc(o.ngayBanGiao || '—')}</td>
+                <td class="p-3 text-right font-bold">${o.total}</td>
+                <td class="p-3"><div class="flex items-center gap-2"><div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full ${pct === 100 ? 'bg-emerald-500' : 'bg-amber-400'}" style="width:${pct}%"></div></div><span class="text-[11px] font-bold whitespace-nowrap">${doneN}/${totalN}</span></div></td>
+                <td class="p-3 text-xs text-gray-500">${esc(codes.join(', ') || '—')}</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-black ${STATUS_STYLE[o.status] || ''}">${o.status}</span></td>
+            </tr>`; }).join('')}</tbody></table>
+        <p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một đơn để soạn từng mã, in phiếu và xuất kho.</p></div>`;
+}
+
+async function call(url, method, body) {
+    const result = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+    if (!result.success) { Swal.fire('Lỗi', result.error || 'Không thực hiện được', 'error'); return null; }
+    return result;
+}
+async function setPicked(id, picked) { await call('/api/purchase/picking/' + id, 'PATCH', { picked }); loadData(); }
+async function pickAll(orderId) { if (await call(`/api/purchase/picking/order/${orderId}/pick-all`, 'POST')) loadData(); }
+
+async function shipOrder(orderId) {
+    const o = pickOrders.find(x => x.orderId === orderId);
+    const ok = await Swal.fire({ title: 'Xuất kho đơn ' + o.maDH + '?', text: `Xác nhận xuất thật ${o.pending} mã đã soạn. Sau khi xuất không sửa lại được.`, icon: 'question', showCancelButton: true, confirmButtonText: 'Xuất kho', cancelButtonText: 'Hủy', confirmButtonColor: '#059669' });
+    if (!ok.isConfirmed) return;
+    const result = await call(`/api/purchase/picking/order/${orderId}/ship`, 'POST');
+    if (!result) return;
+    await loadData();
+    const again = await Swal.fire({ title: 'Đã xuất kho', text: 'Số phiếu: ' + result.shipCode, icon: 'success', showCancelButton: true, confirmButtonText: 'In phiếu xuất', cancelButtonText: 'Đóng' });
+    if (again.isConfirmed) printSlip(orderId);
+}
+
+// In phieu: truoc khi xuat la "Phieu soan hang", sau khi xuat la "Phieu xuat kho"
+function printSlip(orderId) {
+    const o = pickOrders.find(x => x.orderId === orderId);
+    if (!o) return;
+    const shipped = !o.pending;
+    const codes = [...new Set(o.lines.filter(l => l.shipCode).map(l => l.shipCode))].join(', ');
+    const rows = o.lines.map((l, i) => `<tr><td>${i + 1}</td><td><b>${esc(l.itemCode)}</b></td><td>${esc(l.itemName)}</td><td>${esc(l.tenMach)}</td><td>${esc(l.location)}</td><td style="text-align:right"><b>${qty(l.quantity)}</b> ${esc(l.unit)}</td><td style="text-align:center">${l.shipped ? 'Đã xuất' : (l.picked ? '☑' : '☐')}</td></tr>`).join('');
+    const w = window.open('', '_blank');
+    if (!w) return Swal.fire('Lỗi', 'Trình duyệt đang chặn cửa sổ in, hãy cho phép pop-up.', 'error');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${shipped ? 'Phiếu xuất kho' : 'Phiếu soạn hàng'} ${esc(o.maDH)}</title>
+        <style>body{font-family:Arial,sans-serif;font-size:13px;margin:24px}h2{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #444;padding:6px 8px;text-align:left}th{background:#eee;font-size:11px}.sign{display:flex;justify-content:space-around;margin-top:48px;text-align:center}</style></head><body>
+        <h2>${shipped ? 'PHIẾU XUẤT KHO' : 'PHIẾU SOẠN HÀNG'}${codes ? ' — ' + esc(codes) : ''}</h2>
+        <div>Đơn hàng: <b>${esc(o.maDH)}</b> · Khách hàng: ${esc(o.tenKH || o.maKH || '')}</div>
+        <div>Ngày chốt: ${esc(o.ngayChot || '')} · Ngày in: ${new Date().toLocaleDateString('vi-VN')}</div>
+        <table><thead><tr><th>STT</th><th>Mã linh kiện</th><th>Tên</th><th>Loại mạch</th><th>Vị trí kho</th><th>Số lượng</th><th>${shipped ? 'Tình trạng' : 'Đã soạn'}</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="sign"><div>Người soạn<br><br><br><br>__________</div><div>Thủ kho<br><br><br><br>__________</div><div>Người nhận<br><br><br><br>__________</div></div>
+        </body></html>`);
+    w.document.close(); w.focus(); w.print();
+}
+
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,409 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Điều hành mua linh kiện</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Đơn đã chốt → chọn nhà cung cấp → gom PO → nhận hàng → ghép bộ theo BOM → bàn giao sản xuất</p>
+    </div>
+    <input id="bySearch" oninput="render()" placeholder="Tìm mã đơn, khách, linh kiện, NCC, PO..." class="border rounded-xl px-3 py-2 text-sm w-72">
+</div>
+
+<div id="bySummary" class="space-y-4">
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <button onclick="setTab('supplier')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Dòng chưa đặt</p><p id="k-todo" class="text-3xl font-black text-red-500 mt-1">0</p></button>
+    <button onclick="setTab('po')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">PO đang về</p><p id="k-po" class="text-3xl font-black text-blue-600 mt-1">0</p></button>
+    <button onclick="setTab('po')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">PO trễ hạn</p><p id="k-late" class="text-3xl font-black text-orange-500 mt-1">0</p></button>
+    <button onclick="setTab('order')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Đơn đang gom vật tư</p><p id="k-gather" class="text-3xl font-black text-amber-500 mt-1">0</p></button>
+    <button onclick="setTab('order')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Đủ bộ, chờ bàn giao</p><p id="k-ready" class="text-3xl font-black text-emerald-600 mt-1">0</p></button>
+</div>
+
+<div class="flex gap-2">
+    <button id="tab-order" onclick="setTab('order')" class="by-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-layer-group mr-1"></i>Theo đơn hàng (ghép bộ)</button>
+    <button id="tab-supplier" onclick="setTab('supplier')" class="by-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-store mr-1"></i>Cần đặt theo nhà cung cấp</button>
+    <button id="tab-po" onclick="setTab('po')" class="by-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-truck mr-1"></i>PO &amp; tình trạng hàng về</button>
+    <button id="tab-cancel" onclick="setTab('cancel')" class="by-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-ban mr-1"></i>Đơn hủy cần xử lý <span id="k-cancel" class="ml-1 px-1.5 rounded-full bg-red-500 text-white text-[10px]">0</span></button>
+</div>
+
+<datalist id="bySuppliers"></datalist>
+<div id="byBody" class="space-y-4"></div>
+</div>
+
+<!-- Trang chi tiet (thay cho bang tong hop khi bam 1 dong) -->
+<div id="byDetail" class="space-y-4" style="display:none">
+    <div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+        <button onclick="closeDetail()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại <span id="byBackLabel"></span></button>
+        <h2 id="byModalTitle" class="font-black text-slate-800 text-lg"></h2>
+    </div>
+    <div id="byModalBody" class="space-y-4"></div>
+</div>
+</div>
+</main>
+
+<script>
+let D = { orders: [], lines: [], pos: [], suppliers: [], cancelled: [], checks: [] };
+let tab = 'order';
+const picked = new Set(); // dong chua dat dang duoc chon de tao PO
+const n = v => (v || 0).toLocaleString('vi-VN');
+const numIn = v => { let t = String(v == null ? '' : v).trim().replace(/\s/g, ''); if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, ''); return parseFloat(t.replace(',', '.')) || 0; };
+const ST = { 'Chưa đặt': 'bg-red-100 text-red-700', 'Đã đặt': 'bg-blue-100 text-blue-700', 'Về thiếu': 'bg-amber-100 text-amber-700', 'Đã về đủ': 'bg-emerald-100 text-emerald-700',
+    'Đã hủy': 'bg-gray-200 text-gray-500 line-through', 'Chờ khách gửi': 'bg-sky-100 text-sky-700', 'Khách gửi thiếu': 'bg-amber-100 text-amber-700', 'Khách đã gửi đủ': 'bg-emerald-100 text-emerald-700',
+    'Đang gom': 'bg-amber-100 text-amber-700', 'Đủ bộ, chờ bàn giao': 'bg-emerald-100 text-emerald-700', 'Đã bàn giao': 'bg-gray-100 text-gray-500' };
+const chip = s => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${ST[s] || 'bg-gray-100 text-gray-500'}">${esc(s)}</span>`;
+const empty = t => `<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">${t}</div>`;
+
+async function loadData() {
+    const r = await fetch('/api/buying/overview');
+    D = r.ok ? await r.json() : D;
+    if (!detail && location.hash) detailFromHash(); // mo thang trang chi tiet theo dia chi
+    document.getElementById('bySuppliers').innerHTML = D.suppliers.map(s => `<option value="${esc(s.name)}">`).join('');
+    render();
+}
+function setTab(t) { tab = t; if (detail) { detail = null; history.pushState(null, '', location.pathname); } render(); }
+async function call(url, method, body) {
+    const result = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+    if (!result.success) { Swal.fire('Lỗi', result.error || 'Không thực hiện được', 'error'); return null; }
+    return result;
+}
+
+function render() {
+    const todo = D.lines.filter(l => l.status === 'Chưa đặt');
+    document.getElementById('k-todo').innerText = todo.length;
+    document.getElementById('k-po').innerText = D.pos.filter(p => p.status !== 'Đã nhận').length;
+    document.getElementById('k-late').innerText = D.pos.filter(p => p.late).length;
+    document.getElementById('k-gather').innerText = D.orders.filter(o => o.status === 'Đang gom').length;
+    const kc = document.getElementById('k-cancel'); kc.textContent = (D.cancelled || []).length; kc.style.display = (D.cancelled || []).length ? '' : 'none';
+    document.getElementById('k-ready').innerText = D.orders.filter(o => o.status === 'Đủ bộ, chờ bàn giao').length;
+    document.querySelectorAll('.by-tab').forEach(b => { const on = b.id === 'tab-' + tab; b.className = 'by-tab px-4 py-2 rounded-xl text-sm font-bold border ' + (on ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-gray-500 hover:bg-gray-50'); });
+    const q = document.getElementById('bySearch').value.trim().toLowerCase();
+    const hit = (...parts) => !q || parts.join(' ').toLowerCase().includes(q);
+    document.getElementById('byBody').innerHTML = { order: renderOrders, supplier: renderSuppliers, po: renderPOs, cancel: renderCancelled }[tab](hit);
+    renderDetail(); // cua so chi tiet dang mo duoc cap nhat theo du lieu moi
+}
+
+// ================= BANG TONG HOP + CUA SO CHI TIET =================
+// Moi tab chi hien 1 bang tong hop; bam 1 dong -> mo cua so chi tiet de thao tac.
+let detail = null; // { type: 'order' | 'supplier' | 'po' | 'cancel', key }
+const sumTable = (heads, rows) => `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr>${heads.map(h => `<th class="p-3 ${h[1] || ''}">${h[0]}</th>`).join('')}</tr></thead>
+    <tbody>${rows}</tbody></table></div><p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một dòng để xem chi tiết và thao tác.</p></div>`;
+const sumRow = (type, key, cells, cls) => `<tr onclick="openDetail('${type}', ${typeof key === 'number' ? key : `'${encodeURIComponent(key)}'`})" class="border-b last:border-0 cursor-pointer hover:bg-blue-50/50 ${cls || ''}">${cells.map(c => `<td class="p-3 ${c[1] || ''}">${c[0]}</td>`).join('')}</tr>`;
+const bar = (done, total) => { const pct = total ? Math.round(done / total * 100) : 100; return `<div class="flex items-center gap-2"><div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-[80px]"><div class="h-full ${pct === 100 ? 'bg-emerald-500' : 'bg-amber-400'}" style="width:${pct}%"></div></div><span class="text-[11px] font-bold whitespace-nowrap">${done}/${total}</span></div>`; };
+
+const TAB_LABEL = { order: 'danh sách đơn hàng', supplier: 'danh sách nhà cung cấp', po: 'danh sách PO', cancel: 'danh sách đơn hủy' };
+// Dia chi trang co dang #po/12 -> nut Back cua trinh duyet quay ve bang tong hop, F5 van o dung trang chi tiet
+function openDetail(type, key) {
+    detail = { type, key: typeof key === 'number' ? key : decodeURIComponent(key) };
+    if (type === 'supplier') picked.clear();
+    const hash = '#' + type + '/' + encodeURIComponent(detail.key);
+    if (location.hash !== hash) history.pushState(null, '', hash);
+    renderDetail();
+    window.scrollTo(0, 0); const m = document.querySelector('main'); if (m) m.scrollTop = 0;
+}
+function closeDetail() {
+    detail = null;
+    if (location.hash) history.pushState(null, '', location.pathname);
+    renderDetail();
+}
+function detailFromHash() {
+    const m = /^#(order|supplier|po|cancel)\/(.*)$/.exec(location.hash);
+    if (!m) { detail = null; return; }
+    const raw = decodeURIComponent(m[2]);
+    tab = m[1];
+    detail = { type: m[1], key: m[1] === 'supplier' ? raw : Number(raw) };
+}
+window.addEventListener('popstate', () => { detailFromHash(); render(); });
+function renderDetail() {
+    const made = detail ? { order: detailOrder, supplier: detailSuppliers, po: detailPOs, cancel: detailCancelled }[detail.type](detail.key) : null;
+    if (detail && !made) { detail = null; if (location.hash) history.replaceState(null, '', location.pathname); } // khong con gi de xu ly -> ve bang tong hop
+    document.getElementById('bySummary').style.display = made ? 'none' : '';
+    document.getElementById('byDetail').style.display = made ? '' : 'none';
+    if (!made) return;
+    document.getElementById('byBackLabel').textContent = TAB_LABEL[detail.type];
+    document.getElementById('byModalTitle').innerHTML = made.title;
+    document.getElementById('byModalBody').innerHTML = made.html;
+}
+
+// ---------- 1. THEO DON HANG ----------
+function renderOrders(hit) {
+    const list = D.orders.filter(o => hit(o.maDH, o.tenKH, ...o.kits.flatMap(k => [k.tenMach, ...k.rows.map(r => r.name + ' ' + r.supplierName + ' ' + r.poCode)])));
+    if (!list.length) return empty('Không có đơn nào đang cần gom linh kiện.');
+    return sumTable([['Đơn hàng'], ['Khách hàng'], ['Loại mạch'], ['Vật tư đã đủ', 'w-52'], ['Chờ soạn kho', 'text-right'], ['Chờ mua về', 'text-right'], ['Còn thiếu'], ['Dự kiến về đủ'], ['Tình trạng']], list.map(o => {
+        const rows = o.kits.filter(k => !k.kitAt).flatMap(k => k.rows);
+        const missing = rows.filter(r => !r.ready).map(r => r.itemCode || r.name);
+        const waitStock = rows.filter(r => r.stockGot < r.fromStock).length, waitBuy = rows.filter(r => r.buyGot < r.toBuy).length;
+        return sumRow('order', o.orderId, [
+            [`<span class="font-bold text-blue-700 whitespace-nowrap">${esc(o.maDH)}</span>`], [esc(o.tenKH), 'text-gray-700'],
+            [o.kits.map(k => esc(k.tenMach)).join(' · '), 'text-gray-600'], [bar(o.ready, o.total)],
+            [waitStock || '—', 'text-right ' + (waitStock ? 'text-amber-600 font-bold' : 'text-gray-300')], [waitBuy || '—', 'text-right ' + (waitBuy ? 'text-red-600 font-bold' : 'text-gray-300')],
+            [missing.length ? esc(missing.slice(0, 3).join(', ')) + (missing.length > 3 ? ` +${missing.length - 3}` : '') : '—', 'text-[11px] ' + (missing.length ? 'text-red-600' : 'text-gray-300')],
+            [esc(o.eta || '—'), 'text-xs text-gray-600 whitespace-nowrap'], [chip(o.status)]]);
+    }).join(''));
+}
+function detailOrder(id) {
+    const o = D.orders.find(x => x.orderId === id);
+    if (!o) return null;
+    return { title: `${esc(o.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(o.tenKH)} · ghép bộ linh kiện theo BOM</span> ${chip(o.status)}`, html: `<div class="flex flex-wrap gap-2"><a href="/api/orders/${o.orderId}/folder/in-bom" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder-open mr-1"></i>BOM của khách</a><a href="/api/orders/${o.orderId}/folder/linhkien" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder mr-1"></i>Thư mục Linh kiện</a><a href="/api/orders/${o.orderId}/folder/kho" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder mr-1"></i>Thư mục Kho - Giao hàng</a></div><div class="space-y-4">${o.kits.map(k => kitBlock(o, k)).join('')}</div>` };
+}
+
+// ---------- 2. CAN DAT THEO NHA CUNG CAP ----------
+function renderSuppliers(hit) {
+    const todo = D.lines.filter(l => l.status === 'Chưa đặt' && hit(l.name, l.maDH, l.supplierName, l.tenMach));
+    if (!todo.length) return empty('Không còn dòng nào chờ đặt hàng.');
+    const groups = new Map();
+    for (const l of todo) { const key = l.supplierName || ''; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(l); }
+    const keys = [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+    return sumTable([['Nhà cung cấp'], ['Số dòng cần đặt', 'text-right'], ['Trong đó tụ, trở', 'text-right'], ['Số đơn hàng', 'text-right'], ['Đơn hàng'], ['Giá trị dự kiến', 'text-right'], ['Chênh so với giá báo', 'text-right']], keys.map(key => {
+        const ls = groups.get(key);
+        const sum = ls.reduce((s, l) => s + l.qtyOrdered * l.priceActual, 0), diff = ls.reduce((s, l) => s + (l.priceActual - l.priceQuote) * l.qtyNeed, 0);
+        const orders = [...new Set(ls.map(l => l.maDH))];
+        return sumRow('supplier', key, [
+            [key ? `<i class="fas fa-store mr-2 text-gray-400"></i><b>${esc(key)}</b>` : '<b class="text-red-600"><i class="fas fa-exclamation-circle mr-2"></i>Chưa chọn nhà cung cấp</b>'],
+            [ls.length, 'text-right font-bold'], [ls.filter(l => l.grp === 'passive').length || '—', 'text-right text-gray-500'], [orders.length, 'text-right'],
+            [esc(orders.slice(0, 3).join(', ')) + (orders.length > 3 ? ` +${orders.length - 3}` : ''), 'text-[11px] text-gray-500'],
+            [n(Math.round(sum)) + ' đ', 'text-right font-bold'], [diff ? (diff > 0 ? '+' : '') + n(Math.round(diff)) + ' đ' : '—', 'text-right ' + (diff > 0 ? 'text-red-600' : (diff < 0 ? 'text-emerald-600' : 'text-gray-300'))]], key ? '' : 'bg-red-50/40');
+    }).join(''));
+}
+
+// ---------- 3. PO & NHAN HANG ----------
+function renderPOs(hit) {
+    const list = D.pos.filter(p => hit(p.poCode, p.supplierName, ...p.lines.map(l => l.name + ' ' + l.maDH)));
+    if (!list.length) return empty('Chưa có PO linh kiện nào tạo từ trang này.');
+    return sumTable([['PO'], ['Nhà cung cấp'], ['Cho đơn hàng'], ['Giá trị', 'text-right'], ['Ngày đặt'], ['Dự kiến về'], ['Dòng đã về đủ', 'w-44'], ['Tình trạng']], list.map(p => {
+        const live = p.lines.filter(l => l.status !== 'Đã hủy');
+        const full = live.filter(l => l.qtyReceived >= l.qtyOrdered).length;
+        const orders = [...new Set(p.lines.map(l => l.maDH))];
+        return sumRow('po', p.id, [
+            [`<span class="font-bold text-gray-800 whitespace-nowrap">${esc(p.poCode)}</span>`], [esc(p.supplierName || ''), 'text-gray-700'],
+            [esc(orders.slice(0, 2).join(', ')) + (orders.length > 2 ? ` +${orders.length - 2}` : ''), 'text-[11px] text-gray-500'], [n(p.totalAmount) + ' đ', 'text-right font-bold whitespace-nowrap'],
+            [new Date(p.createdAt).toLocaleDateString('vi-VN'), 'text-xs text-gray-500'], [esc(p.expectedDate || '—'), 'text-xs whitespace-nowrap ' + (p.late ? 'text-orange-600 font-bold' : 'text-gray-600')],
+            [bar(full, live.length)],
+            [`<span class="px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${p.status === 'Đã nhận' ? 'bg-emerald-100 text-emerald-700' : (p.status === 'Hủy' ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-700')}">${esc(p.status)}</span>${p.late ? ' <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-700">Trễ hạn</span>' : ''}`]], p.late ? 'bg-orange-50/40' : '');
+    }).join(''));
+}
+
+// ---------- 4. DON HUY CAN XU LY ----------
+function renderCancelled(hit) {
+    const list = (D.cancelled || []).filter(o => hit(o.maDH, o.tenKH, ...o.pending.map(l => l.name + ' ' + l.poCode + ' ' + l.supplierName)));
+    if (!list.length) return empty('Không có đơn hủy nào còn treo dòng mua hay hàng giữ.');
+    return (D.canResolve ? '' : '<p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2"><i class="fas fa-lock mr-1"></i>Chỉ Trưởng BP Mua hàng hoặc Admin được xử lý các đơn dưới đây.</p>')
+        + sumTable([['Đơn hàng'], ['Khách hàng'], ['Lý do hủy'], ['Dòng đã đặt mua chờ xử lý', 'text-right'], ['Trong đó hàng đã về', 'text-right'], ['Giá trị đã đặt', 'text-right'], ['Mã kho đang giữ', 'text-right']], list.map(o => sumRow('cancel', o.orderId, [
+            [`<span class="font-bold text-gray-800 whitespace-nowrap">${esc(o.maDH)}</span>`], [esc(o.tenKH), 'text-gray-700'], [esc(o.lyDoHuy || '—'), 'text-xs text-gray-500'],
+            [o.pending.length || '—', 'text-right font-bold ' + (o.pending.length ? 'text-red-600' : 'text-gray-300')], [o.pending.filter(l => l.qtyReceived > 0).length || '—', 'text-right text-gray-600'],
+            [n(Math.round(o.pending.reduce((s, l) => s + l.qtyOrdered * l.priceActual, 0))) + ' đ', 'text-right'], [o.holds.length || '—', 'text-right font-bold ' + (o.holds.length ? 'text-amber-600' : 'text-gray-300')]])).join(''));
+}
+
+function kitBlock(o, k) {
+    const head = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <p class="text-xs font-bold text-slate-700"><i class="fas fa-microchip mr-1 text-slate-400"></i>${esc(k.tenMach)} <span class="font-normal text-gray-400">· ${n(k.soLuongLK)} bộ · ${k.ready}/${k.total} mã đủ</span>
+            ${k.kitAt ? `<span class="ml-2 text-emerald-600">Đã bàn giao ${new Date(k.kitAt).toLocaleDateString('vi-VN')} · ${esc(k.kitBy || '')} · phiếu ${esc(k.kitCode || '')}</span>${k.kitNote ? `<span class="ml-2 text-red-500">${esc(k.kitNote)}</span>` : ''}` : ''}</p>
+        <div class="flex gap-2">
+            <button onclick="event.stopPropagation(); printKit(${o.orderId}, ${k.lineId})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border hover:bg-gray-100"><i class="fas fa-print mr-1"></i>In bảng ghép bộ</button>
+            ${k.kitAt ? '' : `<button onclick="event.stopPropagation(); handoff(${k.lineId}, ${k.complete})" class="px-3 py-1.5 rounded-lg text-xs font-bold text-white ${k.complete ? 'bg-emerald-600 hover:bg-emerald-700' : (D.canForce ? 'bg-orange-500 hover:bg-orange-600' : 'bg-gray-300 cursor-not-allowed')}" ${k.complete || D.canForce ? '' : 'disabled'}><i class="fas fa-people-carry mr-1"></i>${k.complete ? 'Đủ bộ, bàn giao sản xuất' : 'Bàn giao thiếu'}</button>`}
+        </div></div>`;
+    if (!k.hasBom) return `<div class="bg-white border rounded-lg p-3">${head}<p class="text-xs text-gray-400 italic">Loại mạch này báo giá nhập tay, không có bảng vật tư để ghép bộ.</p></div>`;
+    return `<div class="bg-white border rounded-lg p-3">${head}<table class="w-full text-xs">
+        <thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2">Vật tư</th><th class="p-2 text-right">Cần</th><th class="p-2 text-right">Lấy kho (đã soạn / cần)</th><th class="p-2 text-right">Mua / khách gửi (đã về)</th><th class="p-2">Nguồn mua</th><th class="p-2">Dự kiến</th><th class="p-2">Đủ?</th></tr></thead>
+        <tbody>${k.rows.map(r => `<tr class="border-b last:border-0 ${r.ready ? '' : 'bg-red-50/40'}">
+            <td class="p-2 font-semibold text-gray-700">${esc(r.name)}</td>
+            <td class="p-2 text-right font-bold">${n(r.need)} <span class="font-normal text-gray-400">${esc(r.unit)}</span></td>
+            <td class="p-2 text-right whitespace-nowrap ${r.fromStock ? (r.stockGot >= r.fromStock ? 'text-emerald-600' : 'text-red-600') : 'text-gray-300'}">${r.fromStock ? `${n(r.stockGot)} / ${n(r.fromStock)}` : '—'}${(r.holds || []).map(h => ` <label class="inline-flex items-center gap-1 ml-1 text-[11px] font-bold ${h.picked ? 'text-emerald-600' : 'text-gray-600'}" title="${h.shipped ? 'Đã xuất kho' : (h.picked ? 'Đã soạn' + (h.pickedBy ? ' · ' + esc(h.pickedBy) : '') : 'Tick khi đã soạn xong mã này từ kho')}"><input type="checkbox" ${h.picked ? 'checked' : ''} ${h.shipped || k.kitAt ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="setPicked(${h.id}, this.checked)">soạn</label>`).join('')}${r.fromStock && r.location ? `<span class="block text-[10px] font-normal text-gray-400">vị trí ${esc(r.location)}</span>` : ''}</td>
+            <td class="p-2 text-right ${r.toBuy ? (r.buyGot >= r.toBuy ? 'text-emerald-600' : 'text-red-600') : 'text-gray-300'}">${r.toBuy ? `${n(r.buyGot)} / ${n(r.toBuy)}` : '—'}</td>
+            <td class="p-2">${r.khachCap ? `<b class="text-sky-700">Khách cấp</b> ${chip(r.buyStatus)}`
+                : (r.toBuy ? `${esc(r.supplierName || 'chưa chọn NCC')} ${r.poCode ? '· ' + esc(r.poCode) : ''} ${chip(r.buyStatus)}` : '<span class="text-gray-300">kho</span>')}</td>
+            <td class="p-2 text-gray-500">${esc(r.expectedDate || '')}</td>
+            <td class="p-2">${r.ready ? '<i class="fas fa-check-circle text-emerald-500"></i>' : '<i class="fas fa-hourglass-half text-red-400"></i>'}</td>
+        </tr>`).join('')}</tbody></table>
+        ${k.rows.some(r => r.khachCap && r.buyLineId && r.buyGot < r.toBuy) && !k.kitAt ? `<p class="mt-2 text-xs text-sky-700"><i class="fas fa-truck-loading mr-1"></i>Còn linh kiện khách gửi chưa về đủ. Khi hàng tới, nhóm mua hàng kiểm ở trang <a href="/mua-hang-linh-kien" class="font-bold underline">Mua hàng linh kiện</a> → "Hàng khách gửi".</p>` : ''}
+        ${k.rows.some(r => (r.holds || []).some(h => !h.picked)) && !k.kitAt ? `<div class="mt-2 flex flex-wrap items-center gap-2 text-xs"><span class="text-emerald-700 font-bold"><i class="fas fa-warehouse mr-1"></i>Linh kiện lấy từ kho:</span><button onclick="pickAllStock(${k.lineId})" class="px-3 py-1 rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700">Đã soạn hết phần kho</button><span class="text-gray-400">Tick "soạn" từng mã khi lấy xong. Tồn kho đã trừ từ lúc báo giá; bàn giao sản xuất sẽ xuất kho thật phần đã soạn.</span></div>` : ''}</div>`;
+}
+// Soan linh kien tu kho ngay tren bang ghep bo (phan nay truoc day nam o trang "Xuat linh kien theo don")
+async function setPicked(holdId, picked) { await call('/api/purchase/picking/' + holdId, 'PATCH', { picked }); loadData(); }
+async function pickAllStock(lineId) {
+    const o = D.orders.find(x => x.kits.some(k => k.lineId === lineId)); const k = o && o.kits.find(x => x.lineId === lineId);
+    const todo = k ? k.rows.flatMap(r => (r.holds || []).filter(h => !h.picked)) : [];
+    for (const h of todo) await call('/api/purchase/picking/' + h.id, 'PATCH', { picked: true });
+    loadData();
+}
+async function handoff(lineId, complete) {
+    const r = await Swal.fire({ title: complete ? 'Bàn giao bộ linh kiện cho sản xuất?' : 'Bàn giao khi CHƯA đủ bộ?', input: 'text', inputPlaceholder: complete ? 'Ghi chú (không bắt buộc)' : 'Lý do bàn giao thiếu (bắt buộc)',
+        icon: complete ? 'question' : 'warning', showCancelButton: true, confirmButtonText: 'Bàn giao', cancelButtonText: 'Hủy',
+        inputValidator: v => (!complete && !String(v || '').trim()) ? 'Cần ghi lý do' : undefined });
+    if (!r.isConfirmed) return;
+    const res = await call('/api/buying/kit/' + lineId, 'POST', { note: r.value || '', force: !complete });
+    if (res) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2500, showConfirmButton: false, title: 'Đã bàn giao · phiếu ' + res.kitCode }); loadData(); }
+}
+function printKit(orderId, lineId) {
+    const o = D.orders.find(x => x.orderId === orderId); const k = o && o.kits.find(x => x.lineId === lineId);
+    if (!k) return;
+    const w = window.open('', '_blank');
+    if (!w) return Swal.fire('Lỗi', 'Trình duyệt đang chặn cửa sổ in, hãy cho phép pop-up.', 'error');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Ghép bộ ${esc(o.maDH)}</title><style>body{font-family:Arial,sans-serif;font-size:13px;margin:24px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #444;padding:6px 8px;text-align:left}th{background:#eee;font-size:11px}.sign{display:flex;justify-content:space-around;margin-top:48px;text-align:center}</style></head><body>
+        <h2 style="margin:0 0 4px">${k.kitAt ? 'PHIẾU BÀN GIAO LINH KIỆN — ' + esc(k.kitCode || '') : 'BẢNG GHÉP BỘ LINH KIỆN'}</h2>
+        <div>Đơn hàng: <b>${esc(o.maDH)}</b> · ${esc(o.tenKH)} · Mạch: <b>${esc(k.tenMach)}</b> · ${n(k.soLuongLK)} bộ · Ngày in: ${new Date().toLocaleDateString('vi-VN')}</div>
+        <table><thead><tr><th>STT</th><th>Vật tư</th><th>Cần</th><th>Từ kho</th><th>Từ mua</th><th>Nguồn mua</th><th>Đủ</th></tr></thead><tbody>
+        ${k.rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td><b>${n(r.need)}</b> ${esc(r.unit)}</td><td>${r.fromStock ? n(r.stockGot) + ' / ' + n(r.fromStock) : ''}</td><td>${r.toBuy ? n(r.buyGot) + ' / ' + n(r.toBuy) : ''}</td><td>${esc(r.supplierName)} ${esc(r.poCode)}</td><td style="text-align:center">${r.ready ? '☑' : '☐'}</td></tr>`).join('')}
+        </tbody></table>${k.kitNote ? `<p>Ghi chú: ${esc(k.kitNote)}</p>` : ''}
+        <div class="sign"><div>Người giao<br><br><br><br>__________</div><div>Thủ kho<br><br><br><br>__________</div><div>Sản xuất nhận<br><br><br><br>__________</div></div></body></html>`);
+    w.document.close(); w.focus(); w.print();
+}
+</script>
+<script>
+// ---------- 2. CAN DAT THEO NHA CUNG CAP ----------
+function detailSuppliers(supKey) {
+    const todo = D.lines.filter(l => l.status === 'Chưa đặt' && (l.supplierName || '') === supKey);
+    if (!todo.length) return null;
+    return { title: supKey ? `<i class="fas fa-store mr-2 text-gray-400"></i>${esc(supKey)} <span class="font-normal text-sm text-gray-500">· ${todo.length} dòng cần đặt</span>` : '<span class="text-red-600">Chưa chọn nhà cung cấp</span> <span class="font-normal text-sm text-gray-500">· chọn nguồn mua cho từng dòng</span>', html: supplierDetailHtml(todo) };
+}
+function supplierDetailHtml(todo) {
+    const groups = new Map();
+    for (const l of todo) { const key = l.supplierName || ''; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(l); }
+    const keys = [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+    const inp = 'border rounded px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400';
+    return `<div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3">
+            <span class="text-xs text-gray-500">Đã chọn <b id="pickedCount">${picked.size}</b> dòng</span>
+            <label class="text-xs text-gray-500">Ngày dự kiến về <input id="poDate" type="date" class="${inp} ml-1"></label>
+            <input id="poNote" placeholder="Ghi chú PO" class="${inp} w-56">
+            <button onclick="createPO()" ${D.canOrder ? '' : 'disabled'} class="px-4 py-2 rounded-lg text-xs font-bold text-white ${D.canOrder ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed'}"><i class="fas fa-file-invoice mr-1"></i>Tạo PO cho các dòng đã chọn (mỗi NCC một PO)</button>
+            <span class="text-[11px] text-gray-400">Mua dư theo MOQ: tăng "SL đặt"; phần dư nhập kho thường.</span>
+        </div>` + keys.map(key => {
+        const ls = groups.get(key);
+        const sum = ls.reduce((s, l) => s + l.qtyOrdered * l.priceActual, 0);
+        return `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b">
+                <p class="font-black ${key ? 'text-gray-800' : 'text-red-600'}"><i class="fas fa-store mr-2 text-gray-400"></i>${key ? esc(key) : 'Chưa chọn nhà cung cấp'} <span class="font-normal text-xs text-gray-400">· ${ls.length} dòng · dự kiến ${n(Math.round(sum))} đ</span></p>
+                ${key ? `<button onclick="pickGroup('${encodeURIComponent(key)}')" class="text-xs font-bold text-blue-600 hover:underline">Chọn / bỏ chọn cả nhóm</button>` : ''}
+            </div>
+            <table class="w-full text-xs"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2 w-8"></th><th class="p-2">Vật tư</th><th class="p-2">Đơn hàng · mạch</th><th class="p-2 text-right">Cần</th><th class="p-2">Nhà cung cấp</th><th class="p-2 text-right">SL đặt</th><th class="p-2 text-right">Giá mua thực tế</th><th class="p-2 text-right">Giá đã báo</th><th class="p-2 text-right">Chênh lệch</th></tr></thead>
+            <tbody>${ls.map(l => {
+                const diff = (l.priceActual - l.priceQuote) * l.qtyNeed;
+                const ro = D.canOrder ? '' : 'disabled';
+                return `<tr class="border-b last:border-0 ${l.altNote ? 'bg-yellow-100' : ''}">
+                    <td class="p-2"><input type="checkbox" ${picked.has(l.id) ? 'checked' : ''} ${l.supplierName ? '' : 'disabled'} onchange="togglePick(${l.id}, this.checked)"></td>
+                    <td class="p-2 font-semibold text-gray-700">${esc(l.name)}${l.grp === 'passive' ? ' <span class="text-[10px] bg-slate-200 text-slate-600 rounded px-1 font-bold">nhóm tụ trở</span>' : ''}${l.altNote ? `<span class="block text-[11px] font-bold text-yellow-800"><i class="fas fa-exchange-alt mr-1"></i>Mã thay thế: ${esc(l.altNote)}</span>` : ''}</td>
+                    <td class="p-2 text-gray-500">${esc(l.maDH)} · ${esc(l.tenMach || '')}</td>
+                    <td class="p-2 text-right font-bold">${n(l.qtyNeed)} ${esc(l.unit || '')}${l.qtyOrdered > l.qtyNeed ? `<span class="block text-[10px] font-normal text-amber-700">dư ${n(l.qtyOrdered - l.qtyNeed)} → ${l.surplus === 'khach' ? 'trả khách' : 'nhập kho'}</span>` : ''}</td>
+                    <td class="p-2"><input list="bySuppliers" value="${esc(l.supplierName || '')}" placeholder="Digikey, Mouser, LCSC..." ${ro} onchange="changeSupplier(${l.id}, this.value)" class="${inp} w-40"></td>
+                    <td class="p-2 text-right"><input value="${l.qtyOrdered}" ${ro} onchange="saveLine(${l.id}, { qtyOrdered: numIn(this.value) })" class="${inp} w-20 text-right ${l.qtyOrdered > l.qtyNeed ? 'bg-amber-50' : ''}"></td>
+                    <td class="p-2 text-right"><input value="${l.priceActual}" ${ro} onchange="saveLine(${l.id}, { priceActual: numIn(this.value) })" class="${inp} w-24 text-right"></td>
+                    <td class="p-2 text-right text-gray-500">${n(l.priceQuote)}</td>
+                    <td class="p-2 text-right font-bold ${diff > 0 ? 'text-red-600' : (diff < 0 ? 'text-emerald-600' : 'text-gray-300')}">${diff ? (diff > 0 ? '+' : '') + n(Math.round(diff)) : '—'}</td>
+                </tr>`; }).join('')}</tbody></table></div>`;
+    }).join('');
+}
+function togglePick(id, on) { if (on) picked.add(id); else picked.delete(id); const c = document.getElementById('pickedCount'); if (c) c.textContent = picked.size; }
+function pickGroup(encoded) {
+    const key = decodeURIComponent(encoded);
+    const ids = D.lines.filter(l => l.status === 'Chưa đặt' && (l.supplierName || '') === key).map(l => l.id);
+    const all = ids.every(id => picked.has(id));
+    ids.forEach(id => { if (all) picked.delete(id); else picked.add(id); });
+    render();
+}
+// Tu tro mua theo nhom: doi NCC thi hoi ap dung ca nhom tu tro cua don hay chi rieng ma nay (NCC het hang)
+async function changeSupplier(id, value) {
+    const l = D.lines.find(x => x.id === id);
+    const mates = l && l.grp === 'passive' ? D.lines.filter(x => x.orderId === l.orderId && x.grp === 'passive' && x.status === 'Chưa đặt' && x.id !== id).length : 0;
+    let applyGroup = false;
+    if (mates) {
+        const r = await Swal.fire({ title: 'Đổi nhà cung cấp tụ, trở', text: `Đơn ${l.maDH} còn ${mates} mã tụ trở khác chưa đặt. Tụ trở nên mua cùng một nhà.`, icon: 'question',
+            showDenyButton: true, showCancelButton: true, confirmButtonText: 'Đổi cả nhóm tụ trở', denyButtonText: 'Chỉ mã này (NCC hết hàng)', cancelButtonText: 'Hủy' });
+        if (r.isDismissed) return render();
+        applyGroup = r.isConfirmed;
+    }
+    saveLine(id, { supplierName: value, applyGroup });
+}
+async function saveLine(id, body) { await call('/api/buying/lines/' + id, 'PATCH', body); if (body.supplierName !== undefined) picked.delete(id); loadData(); }
+async function createPO() {
+    if (!picked.size) return Swal.fire('Chưa chọn dòng', 'Tick các dòng cần đặt hàng trước.', 'info');
+    const res = await call('/api/buying/po', 'POST', { lineIds: [...picked], expectedDate: document.getElementById('poDate').value, note: document.getElementById('poNote').value });
+    if (!res) return;
+    picked.clear();
+    await Swal.fire({ icon: 'success', title: `Đã tạo ${res.pos.length} PO`, html: res.pos.map(p => `<p class="text-sm"><b>${esc(p.poCode)}</b> · ${esc(p.supplierName)} · ${p.lines} dòng · ${n(p.totalAmount)} đ</p>`).join('') });
+    tab = 'po'; detail = null; history.replaceState(null, '', location.pathname); loadData();
+}
+
+// ---------- 3. PO & NHAN HANG ----------
+function detailPOs(poId) {
+    const list = D.pos.filter(p => p.id === poId);
+    if (!list.length) return null;
+    return { title: `${esc(list[0].poCode)} <span class="font-normal text-sm text-gray-500">· ${esc(list[0].supplierName || '')} · tình trạng hàng về</span>`, html: poDetailHtml(list) };
+}
+function poDetailHtml(list) {
+    return list.map(p => {
+        const open = false; // kiem vat tu lam o trang Mua hang (PCB / linh kien), trang dieu hanh chi xem
+        const log = (D.checks || []).filter(c => c.poId === p.id);
+        return `<div class="bg-white rounded-2xl border ${p.late ? 'border-orange-300' : 'border-gray-100'} shadow-sm overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-slate-50 border-b">
+                <p><span class="font-black text-gray-800">${esc(p.poCode)}</span> <span class="text-sm text-gray-600">· ${esc(p.supplierName || '')}</span>
+                   <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black ${p.status !== 'Đã nhận' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}">${esc(p.status)}</span>
+                   ${p.late ? '<span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-700">Trễ hạn</span>' : ''}
+                   <span class="block text-[11px] text-gray-400">${n(p.totalAmount)} đ · đặt ${new Date(p.createdAt).toLocaleDateString('vi-VN')} bởi ${esc(p.createdBy || '')}${p.expectedDate ? ' · dự kiến về ' + esc(p.expectedDate) : ''}${p.note ? ' · ' + esc(p.note) : ''}</span>
+                   ${p.shipStatus ? `<span class="block text-[11px] text-cyan-700 font-bold"><i class="fas fa-truck mr-1"></i>Vận chuyển: ${esc(p.shipStatus)}${p.carrier ? ' · ' + esc(p.carrier) : ''}${p.trackingNo ? ' · mã ' + esc(p.trackingNo) : ''}${p.shipNote ? ' · ' + esc(p.shipNote) : ''}</span>` : ''}</p>
+                ${open ? `<div class="flex gap-2"><button onclick="fillAll(${p.id})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border hover:bg-gray-100">Điền về đủ (các dòng đang hiện)</button>
+                    <button onclick="receivePO(${p.id})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-clipboard-check mr-1"></i>Xác nhận đã kiểm</button></div>` : ''}
+            </div>
+            <table class="w-full text-xs"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2">Vật tư</th><th class="p-2">Cho đơn · mạch</th><th class="p-2 text-right">Đặt</th><th class="p-2 text-right">Đã về</th><th class="p-2">Tình trạng</th><th class="p-2">Kiểm gần nhất</th><th class="p-2 text-right">Đếm được lần này</th><th class="p-2">Chủng loại</th><th class="p-2">Ghi chú kiểm</th></tr></thead>
+            <tbody>${p.lines.map(l => { const rest = Math.max(0, l.qtyOrdered - l.qtyReceived); const last = log.find(c => c.buyLineId === l.id); return `<tr class="border-b last:border-0">
+                <td class="p-2 font-semibold text-gray-700">${esc(l.name)}${l.itemCode && !l.name.includes(l.itemCode) ? `<span class="block font-normal text-gray-400">${esc(l.itemCode)}</span>` : ''}</td>
+                <td class="p-2 text-gray-500">${esc(l.maDH)} · ${esc(l.tenMach || '')}</td>
+                <td class="p-2 text-right">${n(l.qtyOrdered)}</td>
+                <td class="p-2 text-right font-bold">${n(l.qtyReceived)}</td>
+                <td class="p-2">${chip(l.status)}</td>
+                <td class="p-2 text-[11px] ${last && last.result !== 'Đúng chủng loại' ? 'text-red-600 font-bold' : 'text-gray-500'}">${last ? `${esc(last.checkedBy || '')}<span class="block">${dt(last.checkedAt)}${last.result !== 'Đúng chủng loại' ? ' · ' + esc(last.result) : ''}</span>` : '—'}</td>
+                <td class="p-2 text-right">${rest > 0 && open ? `<input data-po="${p.id}" data-line="${l.id}" data-rest="${rest}" placeholder="còn ${n(rest)}" class="border rounded px-2 py-1 text-xs text-right w-24 outline-none focus:ring-2 focus:ring-emerald-400">` : '<span class="text-gray-300">đủ</span>'}</td>
+                <td class="p-2">${rest > 0 && open ? `<select data-type="${l.id}" class="border rounded px-1 py-1 text-xs bg-white"><option value="">Đúng loại</option><option value="1">Sai loại</option></select>` : ''}</td>
+                <td class="p-2">${rest > 0 && open ? `<input data-note="${l.id}" placeholder="thiếu, sai mã, bao bì..." class="border rounded px-2 py-1 text-xs w-40">` : ''}</td>
+            </tr>`; }).join('')}</tbody></table>
+            ${p.status !== 'Đã nhận' ? '<p class="px-4 py-2 text-[11px] text-gray-500 border-t">Kiểm vật tư về (đủ số lượng, đúng chủng loại) làm ở trang <a href="/mua-hang-linh-kien" class="text-blue-600 font-bold hover:underline">Mua hàng linh kiện</a>. Trang điều hành chỉ theo dõi tình trạng.</p>' : ''}${open ? '<p class="px-4 py-2 text-[11px] text-gray-400 border-t">Đội mua hàng chỉ kiểm <b>đủ số lượng</b> và <b>đúng chủng loại</b>. Mỗi lần xác nhận được ghi lại ngày, giờ, người kiểm. Dòng "Sai loại" không tính là đã về và bắt buộc có ghi chú.</p>' : ''}</div>`;
+    }).join('');
+}
+// ---------- NHAT KY KIEM VAT TU: ngay, gio, nguoi kiem -> doi chieu camera khi can ----------
+const dt = v => { const d = new Date(v); return isNaN(d) ? '' : d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN'); };
+
+// ---------- 4. DON DA CHOT BI HUY: Truong BP Mua hang / Admin xu ly phan da dat mua va hang dang giu ----------
+function detailCancelled(orderId) {
+    const list = (D.cancelled || []).filter(o => o.orderId === orderId);
+    if (!list.length) return null;
+    return { title: `${esc(list[0].maDH)} <span class="font-normal text-sm text-gray-500">· đơn đã chốt bị hủy · xử lý phần đã đặt mua và hàng đang giữ</span>`, html: cancelDetailHtml(list) };
+}
+function cancelDetailHtml(list) {
+    const btn = (on, cls) => `px-3 py-1.5 rounded-lg text-xs font-bold text-white ${on ? cls : 'bg-gray-300 cursor-not-allowed'}`;
+    return (D.canResolve ? '' : '<p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2"><i class="fas fa-lock mr-1"></i>Chỉ Trưởng BP Mua hàng hoặc Admin được xử lý các dòng dưới đây.</p>') + list.map(o => `
+        <div class="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 bg-red-50 border-b"><span class="font-black text-gray-800">${esc(o.maDH)}</span> <span class="text-sm text-gray-600">· ${esc(o.tenKH)}</span>
+                <span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700">Đơn đã chốt bị hủy</span>${o.lyDoHuy ? `<span class="block text-[11px] text-gray-500">Lý do hủy: ${esc(o.lyDoHuy)}</span>` : ''}</div>
+            ${o.pending.length ? `<table class="w-full text-xs"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2">Vật tư đã đặt mua</th><th class="p-2">PO · NCC</th><th class="p-2 text-right">Đặt</th><th class="p-2 text-right">Đã về</th><th class="p-2 text-right">Giá trị</th><th class="p-2">Xử lý</th></tr></thead>
+            <tbody>${o.pending.map(l => `<tr class="border-b last:border-0">
+                <td class="p-2 font-semibold text-gray-700">${esc(l.name)}<span class="block font-normal text-gray-400">${esc(l.tenMach || '')}</span></td>
+                <td class="p-2 text-gray-600">${esc(l.poCode || '')} · ${esc(l.supplierName || '')}</td>
+                <td class="p-2 text-right">${n(l.qtyOrdered)}</td><td class="p-2 text-right font-bold">${n(l.qtyReceived)}</td>
+                <td class="p-2 text-right">${n(Math.round(l.qtyOrdered * l.priceActual))} đ</td>
+                <td class="p-2 whitespace-nowrap">
+                    <button ${D.canResolve && !(l.qtyReceived > 0) ? '' : 'disabled'} onclick="resolveLine(${l.id}, 'cancel')" class="${btn(D.canResolve && !(l.qtyReceived > 0), 'bg-red-500 hover:bg-red-600')}" title="Báo NCC hủy dòng này (chỉ khi hàng chưa về)">Hủy với NCC</button>
+                    <button ${D.canResolve ? '' : 'disabled'} onclick="resolveLine(${l.id}, 'tostock')" class="${btn(D.canResolve, 'bg-blue-600 hover:bg-blue-700')}" title="Vẫn nhận hàng, nhập kho thường; phần đã về được trả lại tồn kho">Chuyển nhập kho</button>
+                </td></tr>`).join('')}</tbody></table>` : ''}
+            ${o.holds.length ? `<div class="px-5 py-3 border-t flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs text-gray-600"><b>${o.holds.length} mã kho đang giữ cho đơn</b> (chưa bàn giao sản xuất): ${o.holds.slice(0, 6).map(h => esc(h.itemCode || '') + ' × ' + n(h.quantity)).join(', ')}${o.holds.length > 6 ? '…' : ''}</p>
+                <button ${D.canResolve ? '' : 'disabled'} onclick="resolveStock(${o.orderId})" class="${btn(D.canResolve, 'bg-emerald-600 hover:bg-emerald-700')}"><i class="fas fa-undo mr-1"></i>Trả tất cả về kho</button></div>` : ''}
+        </div>`).join('');
+}
+async function resolveLine(id, action) {
+    const r = await Swal.fire({ title: action === 'cancel' ? 'Hủy dòng này với nhà cung cấp?' : 'Chuyển thành hàng nhập kho?', text: action === 'cancel' ? 'Dòng sẽ bị loại khỏi PO và giá trị PO được tính lại.' : 'Hàng vẫn nhận theo PO nhưng nhập kho thường; phần đã về được trả lại tồn kho.',
+        input: 'text', inputPlaceholder: 'Ghi chú (không bắt buộc)', icon: 'warning', showCancelButton: true, confirmButtonText: 'Xác nhận', cancelButtonText: 'Đóng' });
+    if (!r.isConfirmed) return;
+    if (await call('/api/buying/resolve/' + id, 'POST', { action, note: r.value || '' })) loadData();
+}
+async function resolveStock(orderId) {
+    const r = await Swal.fire({ title: 'Trả hàng đang giữ về kho?', text: 'Tồn kho sẽ được cộng lại đúng số lượng đang giữ cho đơn này.', icon: 'question', showCancelButton: true, confirmButtonText: 'Trả về kho', cancelButtonText: 'Đóng' });
+    if (!r.isConfirmed) return;
+    const res = await call('/api/buying/resolve-stock/' + orderId, 'POST');
+    if (res) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2500, showConfirmButton: false, title: `Đã trả ${res.count} mã về kho` }); loadData(); }
+}
+
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

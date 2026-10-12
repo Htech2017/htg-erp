@@ -1,5 +1,42 @@
 <script>
         console.log("H-TECH System Loaded");
+        /**
+ * Tự động định dạng phân tách hàng nghìn khi nhập liệu
+ * @param {HTMLInputElement} input 
+ */
+function formatCurrencyInput(input) {
+    // Lưu lại vị trí con trỏ để không bị nhảy khi nhập
+    let cursorPostion = input.selectionStart;
+    let oldLength = input.value.length;
+
+    // Xóa tất cả ký tự không phải số
+    let value = input.value.replace(/\D/g, "");
+    
+    if (value !== "") {
+        input.value = new Intl.NumberFormat('vi-VN').format(value);
+    } else {
+        input.value = "";
+    }
+
+    // Cân bằng lại vị trí con trỏ sau khi định dạng
+    let newLength = input.value.length;
+    cursorPostion = cursorPostion + (newLength - oldLength);
+    input.setSelectionRange(cursorPostion, cursorPostion);
+}
+
+/**
+ * Lấy giá trị số thuần túy từ ô nhập liệu đã định dạng
+ * @param {string} id - ID của element
+ */
+function getRawNumber(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    // Thay thế tất cả dấu chấm phân cách để chuyển về kiểu số
+    return parseFloat(el.value.replace(/\./g, "")) || 0;
+}
     </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </body>
 </html>

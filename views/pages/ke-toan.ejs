@@ -1,0 +1,353 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1600px] mx-auto space-y-5">
+
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Kế toán & Tài chính</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Doanh thu, công nợ, quỹ tiền mặt — tổng hợp toàn hệ thống</p>
+    </div>
+    <div class="flex gap-2">
+        <select id="filterMonth" onchange="loadData()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-white font-semibold outline-none shadow-sm">
+            <option value="">Tất cả tháng</option>
+        </select>
+        <select id="filterYear" onchange="loadData()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-white font-semibold outline-none shadow-sm">
+        </select>
+    </div>
+</div>
+
+<!-- KPI Tài chính -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-5 text-white shadow-lg shadow-blue-200">
+        <p class="text-[9px] font-black uppercase opacity-80">Tổng doanh thu</p>
+        <p id="kpi-revenue" class="text-2xl font-black mt-1">0đ</p>
+        <p class="text-[10px] opacity-60 mt-0.5" id="kpi-revenue-count">0 đơn hàng</p>
+    </div>
+    <div class="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg shadow-emerald-200">
+        <p class="text-[9px] font-black uppercase opacity-80">Đã thu</p>
+        <p id="kpi-collected" class="text-2xl font-black mt-1">0đ</p>
+        <p class="text-[10px] opacity-60 mt-0.5">Tạm ứng + thanh toán</p>
+    </div>
+    <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-5 text-white shadow-lg shadow-red-200">
+        <p class="text-[9px] font-black uppercase opacity-80">Còn công nợ</p>
+        <p id="kpi-debt" class="text-2xl font-black mt-1">0đ</p>
+        <p class="text-[10px] opacity-60 mt-0.5" id="kpi-debt-count">0 đơn</p>
+    </div>
+    <div class="bg-gradient-to-br from-slate-700 to-slate-800 rounded-2xl p-5 text-white shadow-lg shadow-slate-200">
+        <p class="text-[9px] font-black uppercase opacity-80">Tổng quỹ</p>
+        <p id="kpi-fund" class="text-2xl font-black mt-1">0đ</p>
+        <p id="kpi-fund-split" class="text-[11px] opacity-80 mt-1"></p>
+        <p class="text-[10px] opacity-60 mt-0.5">Thu - Chi (sổ quỹ)</p>
+    </div>
+</div>
+
+<!-- TABS -->
+<div class="flex gap-2">
+    <button onclick="switchTab('orders')" id="tabBtn-orders" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-900 text-white transition">Công nợ đơn hàng</button>
+    <button onclick="switchTab('purchase')" id="tabBtn-purchase" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-white text-gray-500 hover:bg-gray-200 transition border border-gray-200">Chi phí mua hàng</button>
+    <button onclick="switchTab('fund')" id="tabBtn-fund" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-white text-gray-500 hover:bg-gray-200 transition border border-gray-200">Sổ quỹ</button>
+</div>
+
+<!-- TAB: CÔNG NỢ -->
+<div id="tab-orders">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+            <input type="text" id="searchOrder" oninput="renderOrders()" placeholder="Mã đơn hàng, khách hàng..."
+                class="flex-1 min-w-[200px] border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            <select id="filterDebt" onchange="renderOrders()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+                <option value="">Tất cả</option>
+                <option value="debt">Còn nợ</option>
+                <option value="paid">Đã thu đủ</option>
+            </select>
+            <select id="filterDocs" onchange="renderOrders()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+                <option value="">Tất cả chứng từ</option>
+                <option value="hoadon">Chưa xuất hóa đơn</option>
+                <option value="hopdong">Chưa ký hợp đồng</option>
+                <option value="po">Chưa có PO khách</option>
+                <option value="bienban">Chưa có biên bản</option>
+                <option value="any">Còn thiếu chứng từ</option>
+            </select>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Mã ĐH</th>
+                        <th class="p-4">Khách hàng</th>
+                        <th class="p-4">Dịch vụ</th>
+                        <th class="p-4">Tổng đơn</th>
+                        <th class="p-4">Đã thu</th>
+                        <th class="p-4">Còn nợ</th>
+                        <th class="p-4">Trạng thái</th>
+                        <th class="p-4">Hợp đồng / PO</th>
+                        <th class="p-4">Hóa đơn</th>
+                        <th class="p-4">Biên bản</th>
+                        <th class="p-4">Ngày chốt</th>
+                        <th class="p-4 text-center">Thu tiền</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-tbody" class="divide-y divide-gray-50"></tbody>
+            </table>
+        </div>
+        <div class="px-4 py-3 border-t border-gray-100 flex justify-between">
+            <span id="ordersInfo" class="text-xs text-gray-400"></span>
+            <div class="text-xs text-gray-500">
+                Tổng còn nợ: <span id="totalDebt" class="font-black text-red-600">0đ</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: MUA HÀNG -->
+<div id="tab-purchase" class="hidden">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Mã PO</th>
+                        <th class="p-4">Loại</th>
+                        <th class="p-4">Đơn hàng</th>
+                        <th class="p-4">Nhà cung cấp</th>
+                        <th class="p-4">Giá trị</th>
+                        <th class="p-4">Trạng thái</th>
+                        <th class="p-4">Ngày nhận</th>
+                    </tr>
+                </thead>
+                <tbody id="purchase-tbody" class="divide-y divide-gray-50"></tbody>
+            </table>
+        </div>
+        <div class="px-4 py-3 border-t border-gray-100 flex justify-between">
+            <span id="purchaseInfo" class="text-xs text-gray-400"></span>
+            <div class="text-xs text-gray-500">Tổng chi mua hàng: <span id="totalPurchase" class="font-black text-blue-600">0đ</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: SỔ QUỸ -->
+<div id="tab-fund" class="hidden">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Ngày</th>
+                        <th class="p-4">Loại</th>
+                        <th class="p-4">Hạng mục</th>
+                        <th class="p-4">Số tiền</th>
+                        <th class="p-4">Người</th>
+                        <th class="p-4">Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody id="fund-tbody" class="divide-y divide-gray-50"></tbody>
+            </table>
+        </div>
+        <div class="px-4 py-3 border-t border-gray-100 flex justify-between">
+            <span id="fundInfo" class="text-xs text-gray-400"></span>
+            <div class="text-xs space-x-4 text-gray-500">
+                Thu: <span id="fundThu" class="font-black text-emerald-600">0đ</span>
+                Chi: <span id="fundChi" class="font-black text-red-500">0đ</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+</main>
+
+<script>
+let allOrders = [], allPOs = [], allFund = [];
+
+function initFilters() {
+    const now = new Date();
+    const yearSel = document.getElementById('filterYear');
+    const monthSel = document.getElementById('filterMonth');
+    for (let y = now.getFullYear(); y >= 2023; y--) {
+        yearSel.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
+    }
+    for (let m = 1; m <= 12; m++) {
+        monthSel.innerHTML += `<option value="${m}" ${m===now.getMonth()+1?'selected':''}>${'Tháng '+m}</option>`;
+    }
+}
+
+async function loadData() {
+    const [ordRes, poRes, fundRes] = await Promise.all([
+        fetch('/api/orders'),
+        fetch('/api/purchase/orders'),
+        fetch('/api/fund')
+    ]);
+    allOrders = await ordRes.json();
+    allPOs = await poRes.json();
+    // /api/fund tra ve { soQuy, dsDeNghi }; so quy luu loai la 'THU' / 'CHI'
+    const fundData = await fundRes.json();
+    allFund = (fundData.soQuy || []).map(f => ({ ...f, loai: f.loai === 'THU' ? 'Thu' : (f.loai === 'CHI' ? 'Chi' : f.loai) }));
+
+    // Filter by month/year
+    const year = document.getElementById('filterYear').value;
+    const month = document.getElementById('filterMonth').value;
+    
+    let filtOrders = allOrders.filter(o => o.ttChotDon === 'Đã chốt' && o.ttQuyTrinh !== 'Hủy đơn');
+    let filtPOs = allPOs;
+    let filtFund = allFund;
+    
+    if (year) {
+        filtOrders = filtOrders.filter(o => (o.ngayChot || o.ngayTao)?.startsWith(year)); // don chua nhap ngay chot thi lay ngay tao
+        filtPOs = filtPOs.filter(p => p.createdAt?.startsWith(year));
+        filtFund = filtFund.filter(f => f.ngay?.startsWith(year));
+    }
+    if (month) {
+        const m = month.padStart(2, '0');
+        filtOrders = filtOrders.filter(o => (o.ngayChot || o.ngayTao)?.substring(5, 7) === m);
+        filtPOs = filtPOs.filter(p => p.createdAt?.substring(5, 7) === m);
+        filtFund = filtFund.filter(f => f.ngay?.substring(5, 7) === m);
+    }
+
+    updateKPIs(filtOrders, filtPOs, filtFund);
+    renderOrders(filtOrders);
+    renderPurchase(filtPOs);
+    renderFund(filtFund);
+}
+
+function updateKPIs(orders, pos, fund) {
+    // tongCong = gia bao + VAT - chiet khau; daThu / conNo do server tinh
+    const totalRev = orders.reduce((s,o) => s + (o.tongCong||0), 0);
+    const totalColl = orders.reduce((s,o) => s + (o.daThu||0), 0);
+    const debtOrders = orders.filter(o => (o.conNo||0) > 0);
+    const totalDebt = orders.reduce((s,o) => s + Math.max(0, o.conNo||0), 0);
+    const fundThu = fund.filter(f=>f.loai==='Thu').reduce((s,f)=>s+f.tien,0);
+    const fundChi = fund.filter(f=>f.loai==='Chi').reduce((s,f)=>s+f.tien,0);
+
+    document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('kpi-revenue-count').innerText = orders.length + ' đơn hàng';
+    document.getElementById('kpi-collected').innerText = totalColl.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('kpi-debt').innerText = totalDebt.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('kpi-debt-count').innerText = debtOrders.length + ' đơn';
+    document.getElementById('kpi-fund').innerText = (fundThu - fundChi).toLocaleString('vi-VN') + 'đ';
+    // Tach theo 4 quy va 2 tai khoan (cap quy giua cac quy tu triet tieu trong tong)
+    const net = pred => fund.filter(pred).reduce((s,f) => s + (f.loai==='Thu' ? f.tien : -f.tien), 0).toLocaleString('vi-VN') + 'đ';
+    document.getElementById('kpi-fund-split').innerHTML =
+        `Chung: <b>${net(f=>f.quy==='chung')}</b> · R&amp;D: <b>${net(f=>f.quy==='rnd')}</b> · Mua hàng: <b>${net(f=>f.quy==='muahang')}</b> · Sản xuất: <b>${net(f=>f.quy==='sanxuat')}</b>`;
+}
+
+let cachedFilteredOrders = [];
+function renderOrders(orders) {
+    const src = orders || allOrders.filter(o => o.ttChotDon === 'Đã chốt' && o.ttQuyTrinh !== 'Hủy đơn');
+    const search = document.getElementById('searchOrder').value.toLowerCase();
+    const debtFilter = document.getElementById('filterDebt').value;
+    cachedFilteredOrders = src;
+
+    const filtered = src.filter(o => {
+        const ms = !search || o.maDH?.toLowerCase().includes(search) || o.maKH?.toLowerCase().includes(search);
+        const debt = o.conNo||0;
+        const md = !debtFilter || (debtFilter==='debt' && debt > 0) || (debtFilter==='paid' && debt <= 0);
+        const docs = o.chungTu || {};
+        const docFilter = document.getElementById('filterDocs').value;
+        const mdoc = !docFilter || (docFilter === 'any' ? (docs.thieu || []).length > 0 : (docs[docFilter] && !docs[docFilter].done));
+        return ms && md && mdoc;
+    });
+
+    const totalDebt = filtered.reduce((s,o) => s + Math.max(0, o.conNo||0), 0);
+    document.getElementById('ordersInfo').innerText = `${filtered.length} đơn hàng`;
+    document.getElementById('totalDebt').innerText = totalDebt.toLocaleString('vi-VN') + 'đ';
+
+    document.getElementById('orders-tbody').innerHTML = filtered.length ? filtered.map(o => {
+        const debt = Math.max(0, o.conNo||0);
+        const isPaid = debt === 0;
+        const debtCls = isPaid ? 'text-emerald-600' : 'text-red-600 font-black';
+        const badge = isPaid
+            ? '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded font-black">Thu đủ</span>'
+            : '<span class="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded font-black">Còn nợ</span>';
+        return `
+        <tr class="hover:bg-slate-50 border-b border-gray-50 ${!isPaid?'bg-red-50/20':''}">
+            <td class="p-4 font-bold text-xs text-blue-700 uppercase">${o.maDH}</td>
+            <td class="p-4 text-sm text-slate-700">${o.maKH||'--'}</td>
+            <td class="p-4 text-xs text-gray-500">${o.loaiDVLabel||o.loaiDV||'--'}</td>
+            <td class="p-4 text-sm font-bold text-slate-800">${(o.tongCong||0).toLocaleString('vi-VN')}đ</td>
+            <td class="p-4 text-sm font-bold text-emerald-600">${(o.daThu||0).toLocaleString('vi-VN')}đ</td>
+            <td class="p-4 text-sm ${debtCls}">${debt.toLocaleString('vi-VN')}đ</td>
+            <td class="p-4">${badge}</td>
+            <td class="p-4 whitespace-nowrap">${orderDocBadge(o, 'hopdong', 'editDoc')}${(o.chungTu && o.chungTu.po && o.chungTu.po.trangThai !== 'Không cần') ? ' <span class="text-[10px] font-bold text-gray-400">PO</span> ' + orderDocBadge(o, 'po', 'editDoc') : ''}</td>
+            <td class="p-4">${orderDocBadge(o, 'hoadon', 'editDoc')}</td>
+            <td class="p-4">${orderDocBadge(o, 'bienban', 'editDoc')}</td>
+            <td class="p-4 text-xs text-gray-500">${o.ngayChot?new Date(o.ngayChot).toLocaleDateString('vi-VN'):'--'}</td>
+            <td class="p-4 text-center whitespace-nowrap">
+                ${isPaid ? '' : `<button onclick="collectPayment(${o.id})" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold hover:bg-emerald-700 transition"><i class="fas fa-hand-holding-usd mr-1"></i>Thu tiền</button>`}
+                <button onclick="showPayments(${o.id})" title="Lịch sử thu tiền" class="text-slate-400 hover:text-slate-700 ml-1"><i class="fas fa-history"></i></button>
+            </td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="12" class="text-center py-12 text-gray-300 italic text-sm">Không có dữ liệu</td></tr>`;
+}
+
+// Cap nhat hop dong / hoa don / bien ban (ham chung trong /js/auth-db.js)
+function editDoc(id, loai) {
+    const o = allOrders.find(x => x.id === id);
+    if (o) openOrderDocument(o, loai, loadData);
+}
+
+// Thu tien / lich su thu: dung ham chung trong /js/auth-db.js (Sale cung dung o trang Don hang)
+function collectPayment(id) {
+    const o = allOrders.find(x => x.id === id);
+    if (o) openCollectPayment(o, loadData);
+}
+function showPayments(id) {
+    const o = allOrders.find(x => x.id === id);
+    if (o) showOrderPayments(o);
+}
+
+function renderPurchase(pos) {
+    const src = pos || allPOs;
+    const typeCls = {'PCB':'bg-blue-100 text-blue-700','LinhKien':'bg-green-100 text-green-700','GiaCong':'bg-purple-100 text-purple-700'};
+    const sCls = {'Đã nhận':'bg-emerald-100 text-emerald-700','Đang giao':'bg-cyan-100 text-cyan-700','Chờ duyệt':'bg-amber-100 text-amber-700'};
+    const total = src.reduce((s,p) => s+(p.totalAmount||0), 0);
+    document.getElementById('purchaseInfo').innerText = `${src.length} PO`;
+    document.getElementById('totalPurchase').innerText = total.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('purchase-tbody').innerHTML = src.length ? src.map(p => `
+        <tr class="hover:bg-slate-50 border-b border-gray-50">
+            <td class="p-4 font-mono text-xs font-bold text-slate-700">${p.poCode||'-'}</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black ${typeCls[p.type]||'bg-gray-100'}">${p.type}</span></td>
+            <td class="p-4 font-bold text-xs uppercase text-purple-700">${p.maDH||'-'}</td>
+            <td class="p-4 text-sm text-gray-700">${p.supplierName||'-'}</td>
+            <td class="p-4 text-sm font-bold text-slate-800">${(p.totalAmount||0).toLocaleString('vi-VN')}đ</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black ${sCls[p.status]||'bg-gray-100 text-gray-500'}">${p.status}</span></td>
+            <td class="p-4 text-xs text-gray-500">${p.receivedDate?new Date(p.receivedDate).toLocaleDateString('vi-VN'):'--'}</td>
+        </tr>`).join('') : `<tr><td colspan="7" class="text-center py-12 text-gray-300 italic text-sm">Không có dữ liệu</td></tr>`;
+}
+
+function renderFund(fund) {
+    const src = fund || allFund;
+    const thu = src.filter(f=>f.loai==='Thu').reduce((s,f)=>s+f.tien,0);
+    const chi = src.filter(f=>f.loai==='Chi').reduce((s,f)=>s+f.tien,0);
+    document.getElementById('fundInfo').innerText = `${src.length} giao dịch`;
+    document.getElementById('fundThu').innerText = thu.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('fundChi').innerText = chi.toLocaleString('vi-VN') + 'đ';
+    document.getElementById('fund-tbody').innerHTML = src.length ? src.slice(0,100).map(f => {
+        const cls = f.loai==='Thu' ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+        const sign = f.loai==='Thu' ? '+' : '-';
+        return `
+        <tr class="hover:bg-slate-50 border-b border-gray-50">
+            <td class="p-4 text-xs text-gray-500">${f.ngay?new Date(f.ngay).toLocaleDateString('vi-VN'):'--'}</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black ${f.loai==='Thu'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-600'}">${f.loai}</span></td>
+            <td class="p-4 text-sm text-slate-700">${f.hangMuc||'--'}</td>
+            <td class="p-4 text-sm ${cls}">${sign}${(f.tien||0).toLocaleString('vi-VN')}đ</td>
+            <td class="p-4 text-xs text-gray-500">${f.nguoi||'--'}</td>
+            <td class="p-4 text-xs text-gray-400 max-w-[200px] truncate">${f.note||''}</td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="6" class="text-center py-12 text-gray-300 italic text-sm">Không có giao dịch</td></tr>`;
+}
+
+function switchTab(tab) {
+    ['orders','purchase','fund'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById(`tabBtn-${t}`);
+        btn.className = t === tab
+            ? 'px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-900 text-white transition'
+            : 'px-5 py-2.5 rounded-xl font-bold text-sm bg-white text-gray-500 hover:bg-gray-200 transition border border-gray-200';
+    });
+}
+
+window.onload = () => { initFilters(); loadData(); };
+</script>
+
+<%- include('../partials/footer') %>

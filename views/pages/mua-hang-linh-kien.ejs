@@ -1,0 +1,366 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1600px] mx-auto space-y-5">
+
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Mua hàng Linh kiện</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Quản lý đặt linh kiện & gia công từ đơn hàng đã chốt</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="/nhap-xuat-du-lieu?e=suppliers" class="bg-white border text-emerald-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-50 transition flex items-center gap-2"><i class="fas fa-file-excel"></i> NCC: nhập / xuất Excel</a>
+        <button onclick="PoCheck.openLog('lk')" class="bg-white border text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition flex items-center gap-2"><i class="fas fa-clipboard-list"></i> Nhật ký kiểm</button>
+        <button onclick="PoCheck.openCustomer()" class="bg-white border text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 transition flex items-center gap-2"><i class="fas fa-truck-loading"></i> Hàng khách gửi</button>
+        <button onclick="openSupplierModal()" class="bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition flex items-center gap-2"><i class="fas fa-truck"></i> NCC</button>
+        <button onclick="openPOModal()" class="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:bg-green-700 transition flex items-center gap-2"><i class="fas fa-plus"></i> Tạo PO</button>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <p class="text-[9px] font-black text-gray-400 uppercase">Tổng PO</p>
+        <p id="kpi-total" class="text-3xl font-black text-gray-800 mt-1">0</p>
+    </div>
+    <div class="bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm">
+        <p class="text-[9px] font-black text-amber-500 uppercase">Chờ duyệt</p>
+        <p id="kpi-pending" class="text-3xl font-black text-amber-500 mt-1">0</p>
+    </div>
+    <div class="bg-blue-50 rounded-2xl p-4 border border-blue-100 shadow-sm">
+        <p class="text-[9px] font-black text-blue-500 uppercase">Đang giao</p>
+        <p id="kpi-shipping" class="text-3xl font-black text-blue-600 mt-1">0</p>
+    </div>
+    <div class="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm">
+        <p class="text-[9px] font-black text-emerald-500 uppercase">Đã nhận</p>
+        <p id="kpi-received" class="text-3xl font-black text-emerald-600 mt-1">0</p>
+    </div>
+</div>
+
+<!-- TABLE -->
+<div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+        <input type="text" id="searchPO" oninput="renderTable()" placeholder="Mã PO, đơn hàng, nhà cung cấp..."
+            class="flex-1 min-w-[200px] border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500">
+        <select id="filterStatus" onchange="renderTable()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+            <option value="">Tất cả trạng thái</option>
+            <option>Chờ duyệt</option><option>Đã duyệt</option><option>Đã đặt hàng</option>
+            <option>Đang giao</option><option>Hủy</option>
+        </select>
+        <select id="filterType" onchange="renderTable()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+            <option value="">Tất cả loại</option>
+            <option value="LinhKien">Linh kiện</option>
+            <option value="GiaCong">Gia công</option>
+        </select>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <tr>
+                    <th class="p-4">Mã PO</th>
+                    <th class="p-4">Loại</th>
+                    <th class="p-4">Đơn hàng</th>
+                    <th class="p-4">Nhà cung cấp</th>
+                    <th class="p-4">Giá trị</th>
+                    <th class="p-4">Ngày dự kiến</th>
+                    <th class="p-4">Trạng thái</th>
+                    <th class="p-4 text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="po-tbody" class="divide-y divide-gray-50"></tbody>
+        </table>
+    </div>
+    <div class="px-4 py-3 border-t border-gray-100">
+        <span id="tableInfo" class="text-xs text-gray-400"></span>
+    </div>
+</div>
+
+<!-- MODAL PO -->
+<div id="modalPO" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+    <div class="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center"><i class="fas fa-microchip text-slate-900"></i></div>
+            <div>
+                <h2 class="font-black text-sm uppercase">Tạo PO Linh kiện / Gia công</h2>
+                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Đặt hàng từ nhà cung cấp</p>
+            </div>
+        </div>
+        <button type="button" onclick="closePOModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="formPO" onsubmit="handleSavePO(event)" class="flex-1 overflow-y-auto p-6 space-y-5">
+        <input type="hidden" id="po_id">
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Loại mua hàng</label>
+                <select id="po_type" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-green-500">
+                    <option value="LinhKien">Linh kiện</option>
+                    <option value="GiaCong">Gia công</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Nhà cung cấp</label>
+                <select id="po_supplierId" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-green-500">
+                    <option value="">-- Chọn NCC --</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Đơn hàng</label>
+                <select id="po_orderId" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-green-500">
+                    <option value="">-- Chọn đơn hàng --</option>
+                </select>
+            </div>
+        </div>
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-[9px] font-black text-gray-400 uppercase">Danh sách linh kiện / dịch vụ gia công</label>
+                <button type="button" onclick="addItem()" class="text-[10px] bg-green-50 text-green-600 px-3 py-1 rounded-lg font-bold hover:bg-green-100 transition">+ Thêm dòng</button>
+            </div>
+            <div id="itemsContainer" class="space-y-2">
+                <p class="text-gray-400 text-xs italic text-center py-4">Nhấn "Thêm dòng" để thêm linh kiện</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Ngày dự kiến</label>
+                <input type="date" id="po_expectedDate" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-green-400">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Trạng thái</label>
+                <select id="po_status" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none">
+                    <option>Chờ duyệt</option><option>Đã duyệt</option><option>Đã đặt hàng</option>
+                    <option>Đang giao</option><option>Hủy</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tổng (VND) · tự cộng từ các dòng</label>
+                <input type="number" id="po_total" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-green-700 outline-none focus:border-green-400" placeholder="0">
+            </div>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Ghi chú</label>
+            <textarea id="po_note" rows="2" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-green-400 resize-none" placeholder="Yêu cầu kỹ thuật, thông số..."></textarea>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button type="button" onclick="closePOModal()" class="px-5 py-2.5 text-gray-400 font-bold hover:text-red-500 transition uppercase text-[10px]">Hủy</button>
+            <button type="submit" class="bg-green-600 text-white px-8 py-3 rounded-xl font-black hover:bg-green-700 transition active:scale-95 uppercase text-[10px] flex items-center gap-2">
+                <i class="fas fa-save"></i> Lưu PO
+            </button>
+        </div>
+    </form>
+</div>
+</div>
+
+<!-- MODAL SUPPLIER -->
+<div id="modalSupplier" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+    <div class="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <h2 class="font-black text-sm uppercase">Nhà cung cấp Linh kiện / Gia công</h2>
+        <button onclick="closeSupplierModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-3" id="supplierList"></div>
+        <div class="border-t pt-4">
+            <p class="text-[10px] font-black text-gray-500 uppercase mb-3">Thêm NCC mới</p>
+            <form onsubmit="handleAddSupplier(event)" class="grid grid-cols-2 gap-3">
+                <input type="text" id="sup_name" placeholder="Tên nhà cung cấp *" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" required>
+                <input type="text" id="sup_phone" placeholder="Số điện thoại" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                <select id="sup_type" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                    <option value="LinhKien">Linh kiện</option>
+                    <option value="GiaCong">Gia công</option>
+                    <option value="Tất cả">Tất cả</option>
+                </select>
+                <input type="text" id="sup_contactPerson" placeholder="Người liên hệ" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                <input type="number" id="sup_rating" placeholder="Đánh giá 1-5" min="1" max="5" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                <input type="text" id="sup_address" placeholder="Địa chỉ" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                <button type="submit" class="col-span-2 bg-slate-900 text-white py-2.5 rounded-xl font-black text-xs uppercase hover:bg-black transition">+ Thêm NCC</button>
+            </form>
+        </div>
+    </div>
+</div>
+</div>
+
+</div>
+</main>
+
+<script src="/js/scan.js?v=20261006a"></script>
+<script src="/js/po-check.js?v=20261006c"></script>
+<script>
+let allPOs = [], allSuppliers = [], allSaleOrders = [];
+
+async function loadData() {
+    const [posRes, supRes, ordersRes] = await Promise.all([
+        fetch('/api/purchase/orders'),
+        fetch('/api/purchase/suppliers'),
+        fetch('/api/purchase/sale-orders')
+    ]);
+    allPOs = (await posRes.json()).filter(p => p.type === 'LinhKien' || p.type === 'GiaCong');
+    allSuppliers = await supRes.json();
+    allSaleOrders = await ordersRes.json();
+    updateKPIs(); renderTable(); populateDropdowns();
+}
+
+function updateKPIs() {
+    document.getElementById('kpi-total').innerText = allPOs.length;
+    document.getElementById('kpi-pending').innerText = allPOs.filter(p => p.status === 'Chờ duyệt').length;
+    document.getElementById('kpi-shipping').innerText = allPOs.filter(p => p.status === 'Đang giao').length;
+    document.getElementById('kpi-received').innerText = allPOs.filter(p => p.status === 'Đã nhận').length;
+}
+
+function populateDropdowns() {
+    document.getElementById('po_orderId').innerHTML = '<option value="">-- Chọn đơn hàng --</option>' +
+        allSaleOrders.map(o => `<option value="${o.id}" data-madh="${o.maDH}">${o.maDH} — ${o.tenMach||''}</option>`).join('');
+    document.getElementById('po_supplierId').innerHTML = '<option value="">-- Chọn NCC --</option>' +
+        allSuppliers.map(s => `<option value="${s.id}" data-name="${s.name}">${s.name} [${s.type||'Tất cả'}]</option>`).join('');
+}
+
+function renderTable() {
+    const search = document.getElementById('searchPO').value.toLowerCase();
+    const fStatus = document.getElementById('filterStatus').value;
+    const fType = document.getElementById('filterType').value;
+    const filtered = allPOs.filter(p =>
+        (!search || p.poCode?.toLowerCase().includes(search) || p.maDH?.toLowerCase().includes(search) || p.supplierName?.toLowerCase().includes(search)) &&
+        (!fStatus || p.status === fStatus) && (!fType || p.type === fType)
+    );
+    document.getElementById('tableInfo').innerText = `${filtered.length} đơn mua hàng`;
+    const sCls = {'Chờ duyệt':'bg-amber-100 text-amber-700','Đã duyệt':'bg-blue-100 text-blue-700','Đã đặt hàng':'bg-indigo-100 text-indigo-700','Đang giao':'bg-cyan-100 text-cyan-700','Đã nhận':'bg-emerald-100 text-emerald-700','Hủy':'bg-red-100 text-red-500'};
+    const tCls = {'LinhKien':'bg-green-100 text-green-700','GiaCong':'bg-purple-100 text-purple-700'};
+    document.getElementById('po-tbody').innerHTML = filtered.length ? filtered.map(p => `
+        <tr onclick="PoCheck.open(${p.id})" title="Bấm để xem chi tiết PO" class="cursor-pointer hover:bg-blue-50/50 border-b border-gray-50">
+            <td class="p-4 font-mono text-xs font-bold text-slate-700">${p.poCode||'-'}</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black ${tCls[p.type]||'bg-gray-100 text-gray-500'}">${p.type}</span></td>
+            <td class="p-4 font-bold text-xs uppercase text-green-700">${p.maDH||'-'}</td>
+            <td class="p-4 text-sm text-gray-700">${p.supplierName||'-'}</td>
+            <td class="p-4 text-sm font-bold">${(p.totalAmount||0).toLocaleString('vi-VN')}đ</td>
+            <td class="p-4 text-xs text-gray-500">${p.expectedDate?new Date(p.expectedDate).toLocaleDateString('vi-VN'):'--'}</td>
+            <td class="p-4"><span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${sCls[p.status]||'bg-gray-100 text-gray-500'}">${p.status}</span>${p.shipStatus && p.shipStatus !== 'Chưa gửi' && p.status !== 'Đã nhận' ? `<span class="block mt-1 text-[10px] font-bold text-cyan-700 normal-case"><i class="fas fa-truck mr-1"></i>${esc(p.shipStatus)}${p.trackingNo ? ' · ' + esc(p.trackingNo) : ''}</span>` : ''}</td>
+            <td class="p-4">
+                <div class="flex justify-center gap-2" onclick="event.stopPropagation()">
+                    <button onclick="PoCheck.open(${p.id})" title="Kiểm vật tư về: đủ số lượng, đúng chủng loại" class="px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap ${p.status === 'Đã nhận' || p.status === 'Hủy' ? 'bg-gray-100 text-gray-500' : 'bg-emerald-600 text-white hover:bg-emerald-700'}"><i class="fas fa-clipboard-check mr-1"></i>${p.status === 'Đã nhận' ? 'Xem kiểm' : 'Kiểm hàng về'}</button>
+                    <select onchange="quickUpdate(${p.id}, this.value)" class="text-[10px] border border-gray-200 rounded-lg p-1 bg-gray-50 font-bold outline-none">
+                        <option value="">Đổi TT</option>
+                        <option>Đã duyệt</option><option>Đã đặt hàng</option><option>Đang giao</option><option>Hủy</option>
+                    </select>
+                    <button onclick="deletePO(${p.id})" class="text-red-300 hover:text-red-500 p-1.5"><i class="fas fa-trash-alt text-xs"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('') : `<tr><td colspan="8" class="text-center py-12 text-gray-300 italic text-sm">Chưa có đơn mua hàng</td></tr>`;
+}
+
+let itemCount = 0;
+function addItem() {
+    const c = document.getElementById('itemsContainer');
+    if (!itemCount) c.innerHTML = '';
+    itemCount++;
+    const d = document.createElement('div');
+    d.className = 'flex gap-2 items-center';
+    d.innerHTML = `
+        <input type="text" placeholder="Tên linh kiện / dịch vụ" class="flex-1 border border-gray-200 rounded-xl p-2 text-xs outline-none item-name">
+        <input type="number" placeholder="SL" class="w-16 border border-gray-200 rounded-xl p-2 text-xs text-center outline-none item-qty">
+        <input type="text" placeholder="Đơn vị" class="w-16 border border-gray-200 rounded-xl p-2 text-xs outline-none item-unit">
+        <input type="number" placeholder="Đơn giá" class="w-28 border border-gray-200 rounded-xl p-2 text-xs outline-none item-price">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-300 hover:text-red-500 text-xs w-6 shrink-0"><i class="fas fa-times"></i></button>
+    `;
+    c.appendChild(d);
+}
+
+function getItems() {
+    return Array.from(document.querySelectorAll('#itemsContainer .flex')).map(r => ({
+        name: r.querySelector('.item-name')?.value||'',
+        qty: parseFloat(r.querySelector('.item-qty')?.value)||1,
+        unit: r.querySelector('.item-unit')?.value||'cái',
+        price: parseFloat(r.querySelector('.item-price')?.value)||0
+    })).filter(i => i.name);
+}
+
+function openPOModal() {
+    document.getElementById('po_id').value = '';
+    ['po_orderId','po_supplierId','po_expectedDate','po_note'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('po_status').value = 'Chờ duyệt';
+    document.getElementById('po_total').value = '';
+    document.getElementById('itemsContainer').innerHTML = '<p class="text-gray-400 text-xs italic text-center py-4">Nhấn "Thêm dòng" để thêm linh kiện</p>';
+    itemCount = 0;
+    const m = document.getElementById('modalPO');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closePOModal() { const m=document.getElementById('modalPO'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+async function handleSavePO(e) {
+    e.preventDefault();
+    const ordSel = document.getElementById('po_orderId');
+    const supSel = document.getElementById('po_supplierId');
+    const data = {
+        id: document.getElementById('po_id').value || null,
+        orderId: ordSel.value,
+        maDH: ordSel.options[ordSel.selectedIndex]?.getAttribute('data-madh') || '',
+        type: document.getElementById('po_type').value,
+        supplierId: supSel.value,
+        supplierName: supSel.options[supSel.selectedIndex]?.getAttribute('data-name') || '',
+        items: getItems(),
+        totalAmount: parseFloat(document.getElementById('po_total').value)||0,
+        currency: 'VND',
+        status: document.getElementById('po_status').value,
+        expectedDate: document.getElementById('po_expectedDate').value,
+        note: document.getElementById('po_note').value
+    };
+    const r = await (await fetch('/api/purchase/orders/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) })).json();
+    if (r.success) { closePOModal(); loadData(); } else alert('Lỗi!');
+}
+
+async function quickUpdate(id, status) {
+    if (!status) return;
+    await fetch(`/api/purchase/orders/${id}/status`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status}) });
+    loadData();
+}
+async function deletePO(id) { if (!confirm('Xóa PO?')) return; await fetch(`/api/purchase/orders/${id}`, {method:'DELETE'}); loadData(); }
+
+async function openSupplierModal() {
+    const m = document.getElementById('modalSupplier');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    await renderSupplierList();
+}
+function closeSupplierModal() { const m=document.getElementById('modalSupplier'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+async function renderSupplierList() {
+    const sups = await (await fetch('/api/purchase/suppliers')).json();
+    document.getElementById('supplierList').innerHTML = sups.filter(s => s.type !== 'PCB').length ?
+        sups.filter(s => s.type !== 'PCB').map(s => `
+            <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                <div class="flex justify-between">
+                    <div>
+                        <p class="font-bold text-sm">${s.name}</p>
+                        <p class="text-[10px] text-gray-500">${s.type||''} • ${s.phone||''}</p>
+                        <p class="text-[10px] text-amber-500">${s.rating?'⭐'.repeat(s.rating):''}</p>
+                    </div>
+                    <button onclick="deleteSupplier(${s.id})" class="text-red-300 hover:text-red-500 text-xs p-1"><i class="fas fa-trash-alt"></i></button>
+                </div>
+            </div>
+        `).join('') : '<p class="col-span-2 text-center text-gray-400 text-sm italic py-4">Chưa có NCC</p>';
+}
+async function handleAddSupplier(e) {
+    e.preventDefault();
+    const r = await (await fetch('/api/purchase/suppliers/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+        name: document.getElementById('sup_name').value,
+        phone: document.getElementById('sup_phone').value,
+        type: document.getElementById('sup_type').value,
+        contactPerson: document.getElementById('sup_contactPerson').value,
+        rating: parseInt(document.getElementById('sup_rating').value)||3,
+        address: document.getElementById('sup_address').value,
+        code: 'SUP-' + Date.now().toString().slice(-5)
+    }) })).json();
+    if (r.success) { e.target.reset(); renderSupplierList(); allSuppliers = await (await fetch('/api/purchase/suppliers')).json(); populateDropdowns(); }
+}
+async function deleteSupplier(id) { if (!confirm('Xóa NCC?')) return; await fetch(`/api/purchase/suppliers/${id}`,{method:'DELETE'}); renderSupplierList(); }
+
+PoCheck.onDone = loadData;
+// Tong PO tu cong tu cac dong hang (van sua tay duoc neu co phi khac)
+document.addEventListener('input', (e) => {
+    if (!e.target.closest || !e.target.closest('#itemsContainer')) return;
+    const sum = getItems().reduce((t, i) => t + (i.qty || 0) * (i.price || 0), 0);
+    if (sum > 0) document.getElementById('po_total').value = Math.round(sum);
+});
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,122 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight"><i class="fas fa-dolly text-amber-500 mr-2"></i>Kho soạn linh kiện</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Kho là nguồn mua nội bộ: đơn đã chốt có linh kiện lấy từ kho thì hiện ở đây để soạn · soạn theo từng mạch (từng BOM), không gộp</p>
+    </div>
+    <input id="sSearch" oninput="render()" placeholder="Tìm mã đơn, khách, mạch, linh kiện..." class="border rounded-xl px-3 py-2 text-sm w-72">
+</div>
+
+<div id="sSummary" class="space-y-4">
+    <div id="sKpi" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+    <div id="sBody"></div>
+</div>
+<div id="sDetail" class="space-y-4" style="display:none">
+    <div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+        <button onclick="closeDetail()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại</button>
+        <h2 id="sTitle" class="font-black text-slate-800 text-lg"></h2>
+    </div>
+    <div id="sDetailBody" class="space-y-4"></div>
+</div>
+</div>
+</main>
+
+<script src="/js/scan.js?v=20261006a"></script>
+<script>
+let S = [], filter = 'todo', detailId = null, scanIds = null, scanText = '';
+let autoTick = true;
+try { autoTick = localStorage.getItem('htg_pick_auto') !== '0'; } catch (e) { /* bo qua */ }
+const n = v => (Number(v) || 0).toLocaleString('vi-VN');
+// Ten tinh trang theo cach goi cua kho
+const ST = { 'Chưa soạn': 'Chờ soạn', 'Đang soạn': 'Đang soạn', 'Đã soạn đủ': 'Đã soạn xong', 'Đã xuất kho': 'Đã bàn giao' };
+const ST_CLS = { 'Chờ soạn': 'bg-amber-100 text-amber-700', 'Đang soạn': 'bg-blue-100 text-blue-700', 'Đã soạn xong': 'bg-emerald-100 text-emerald-700', 'Đã bàn giao': 'bg-gray-200 text-gray-500' };
+const chip = t => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${ST_CLS[t] || ''}">${esc(t)}</span>`;
+const dt = v => v ? new Date(v).toLocaleString('vi-VN') : '';
+const boardState = ls => { const p = ls.filter(l => !l.shipped); return !p.length ? 'Đã bàn giao' : p.every(l => l.picked) ? 'Đã soạn xong' : p.some(l => l.picked) ? 'Đang soạn' : 'Chờ soạn'; };
+
+async function loadData() {
+    const r = await fetch('/api/purchase/picking');
+    S = (r.ok ? await r.json() : []).map(o => ({ ...o, state: ST[o.status] || o.status }));
+    render();
+}
+function setFilter(f) { filter = f; render(); }
+function openDetail(id) { detailId = id; scanIds = null; render(); document.querySelector('main').scrollTop = 0; }
+function closeDetail() { HtgScan.stop(); detailId = null; scanIds = null; render(); }
+
+function render() {
+    const o = detailId ? S.find(x => x.orderId === detailId) : null;
+    if (detailId && !o) detailId = null;
+    document.getElementById('sSummary').style.display = o ? 'none' : '';
+    document.getElementById('sDetail').style.display = o ? '' : 'none';
+    if (o) return renderDetail(o);
+    const F = [['todo', 'Cần soạn (chờ + đang soạn)', 'text-slate-700'], ['Chờ soạn', 'Chờ soạn', 'text-amber-600'], ['Đang soạn', 'Đang soạn', 'text-blue-600'], ['Đã soạn xong', 'Đã soạn xong', 'text-emerald-600']];
+    const inF = (x, f) => (f === 'todo' ? ['Chờ soạn', 'Đang soạn'].includes(x.state) : x.state === f);
+    document.getElementById('sKpi').innerHTML = F.map(([k, label, cls]) => `<button onclick="setFilter('${k}')" class="text-left bg-white rounded-2xl p-4 shadow-sm border-2 ${filter === k ? 'border-slate-700' : 'border-transparent'}">
+        <p class="text-[9px] font-black text-gray-400 uppercase">${label}</p><p class="text-3xl font-black ${cls} mt-1">${S.filter(x => inF(x, k)).length}</p></button>`).join('');
+    const q = document.getElementById('sSearch').value.trim().toLowerCase();
+    const list = S.filter(x => q ? [x.maDH, x.tenKH, ...x.lines.map(l => l.tenMach + ' ' + l.itemCode + ' ' + l.itemName)].join(' ').toLowerCase().includes(q) : inF(x, filter));
+    document.getElementById('sBody').innerHTML = list.length ? `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+        <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr><th class="p-3">Đơn hàng</th><th class="p-3">Khách hàng</th><th class="p-3">Mạch cần soạn</th><th class="p-3">Ngày chốt</th><th class="p-3">Hẹn giao</th><th class="p-3 w-52">Đã soạn</th><th class="p-3">Tình trạng</th></tr></thead>
+        <tbody>${list.map(x => { const boards = [...new Set(x.lines.map(l => l.tenMach))]; const pct = x.pending ? Math.round(x.picked / x.pending * 100) : 100;
+            return `<tr onclick="openDetail(${x.orderId})" class="border-t cursor-pointer hover:bg-blue-50/50"><td class="p-3 font-bold text-blue-700 whitespace-nowrap">${esc(x.maDH)}</td><td class="p-3 text-gray-700">${esc(x.tenKH || x.maKH)}</td>
+            <td class="p-3 text-xs text-gray-600">${boards.map(esc).join('<br>')}</td><td class="p-3 text-xs text-gray-500">${esc((x.ngayChot || '').slice(0, 10))}</td><td class="p-3 text-xs text-gray-600">${esc(x.ngayBanGiao || '—')}</td>
+            <td class="p-3"><div class="flex items-center gap-2"><div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full ${pct === 100 ? 'bg-emerald-500' : 'bg-blue-500'}" style="width:${pct}%"></div></div><span class="text-xs font-bold text-gray-600 whitespace-nowrap">${x.picked}/${x.pending} mã</span></div></td>
+            <td class="p-3">${chip(x.state)}</td></tr>`; }).join('')}</tbody></table></div>
+        <p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một đơn để xem danh sách linh kiện cần soạn theo từng mạch.</p></div>`
+        : '<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">Không có đơn nào ở mục này.</div>';
+}
+
+function renderDetail(o) {
+    document.getElementById('sTitle').innerHTML = `${esc(o.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(o.tenKH || '')} · soạn ${o.picked}/${o.pending} mã</span> ${chip(o.state)}`;
+    const groups = new Map();
+    o.lines.forEach(l => { const k = l.lineId || 0; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); });
+    const canEdit = o.state !== 'Đã bàn giao';
+    document.getElementById('sDetailBody').innerHTML = `
+        ${canEdit ? HtgScan.barHtml({ placeholder: 'Quét mã vạch / nhãn linh kiện vừa lấy, hoặc gõ mã rồi Enter', extra: `<label class="text-xs font-bold text-gray-600 flex items-center gap-1 cursor-pointer"><input type="checkbox" ${autoTick ? 'checked' : ''} onchange="autoTick = this.checked; try { localStorage.setItem('htg_pick_auto', this.checked ? '1' : '0'); } catch (e) {}"> Quét trúng 1 mã thì tự đánh dấu đã soạn</label>` }) : ''}
+        ${[...groups.values()].map(ls => { const st = boardState(ls); const todo = ls.filter(l => !l.shipped && !l.picked).length;
+            const rows = ls.slice().sort((a, b) => (a.location || '~').localeCompare(b.location || '~') || a.itemCode.localeCompare(b.itemCode)).filter(l => !scanIds || scanIds.includes(l.id));
+            return `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-slate-50 border-b"><p class="font-bold text-slate-800"><i class="fas fa-microchip mr-1 text-slate-400"></i>${esc(ls[0].tenMach || 'Mạch')} ${chip(st)} <span class="font-normal text-xs text-gray-500">· ${ls.length} mã lấy từ kho${todo ? ` · còn ${todo} mã chưa soạn` : ''}</span></p>
+                ${todo ? `<button onclick="pickBoard(${o.orderId}, ${ls[0].lineId || 0})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-check-double mr-1"></i>Đã soạn hết mạch này</button>` : ''}</div>
+            <table class="w-full text-sm"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-3 w-16 text-center">Đã soạn</th><th class="p-3">Vị trí kho</th><th class="p-3">Mã hàng</th><th class="p-3">Tên linh kiện</th><th class="p-3 text-right">SL cần soạn</th><th class="p-3 text-right">Còn trong kho</th><th class="p-3">Người soạn · lúc</th></tr></thead>
+            <tbody>${rows.map(l => `<tr class="border-b last:border-0 ${l.shipped ? 'opacity-50' : (l.picked ? 'bg-emerald-50/50' : '')}">
+                <td class="p-3 text-center">${l.shipped ? '<i class="fas fa-truck-loading text-gray-400" title="Đã bàn giao sản xuất"></i>' : `<input type="checkbox" class="w-5 h-5 cursor-pointer" ${l.picked ? 'checked' : ''} onchange="setPicked(${l.id}, this.checked)">`}</td>
+                <td class="p-3 font-bold text-amber-700 whitespace-nowrap">${esc(l.location || '—')}</td><td class="p-3 font-mono text-xs font-bold text-slate-700">${esc(l.itemCode)}</td>
+                <td class="p-3 text-gray-700">${esc(l.itemName)}${l.mpn ? `<span class="block text-[11px] text-gray-400">${esc(l.mpn)}</span>` : ''}</td>
+                <td class="p-3 text-right font-black text-base">${n(l.quantity)} <span class="text-xs font-normal text-gray-500">${esc(l.unit)}</span></td><td class="p-3 text-right text-xs text-gray-500">${n(l.tonKho)}</td>
+                <td class="p-3 text-xs text-gray-500">${l.picked ? esc(l.pickedBy || '') + ' · ' + dt(l.pickedAt) : ''}${l.shipped ? `<span class="block">Bàn giao ${esc(l.shipCode || '')} · ${dt(l.shippedAt)}</span>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-400 italic">Không có dòng nào khớp nội dung vừa quét.</td></tr>'}</tbody></table></div>`; }).join('')}
+        <p class="text-xs text-gray-400">Số "cần soạn" đã được giữ cho đơn từ lúc báo giá, tồn kho đã trừ sẵn. Soạn xong, người điều hành bàn giao bộ linh kiện cho sản xuất ở trang Điều hành mua linh kiện.</p>`;
+    if (canEdit && HtgScan.mount()) { if (scanIds) HtgScan.info(scanIds.length ? `<b class="text-blue-700">${scanIds.length} dòng khớp</b> "${esc(scanText.slice(0, 50))}"` : `<b class="text-red-600">Không có linh kiện nào của đơn này khớp "${esc(scanText.slice(0, 50))}"</b> — có thể lấy nhầm mã.`); HtgScan.focus(); }
+}
+async function patch(url, method, body) {
+    const res = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+    if (!res.success) { Swal.fire('Lỗi', res.error || 'Không thực hiện được', 'error'); return false; }
+    return true;
+}
+async function setPicked(id, picked) { await patch('/api/purchase/picking/' + id, 'PATCH', { picked }); loadData(); }
+async function pickBoard(orderId, lineId) {
+    const o = S.find(x => x.orderId === orderId);
+    for (const l of o.lines.filter(x => (x.lineId || 0) === lineId && !x.shipped && !x.picked)) if (!(await patch('/api/purchase/picking/' + l.id, 'PATCH', { picked: true }))) break;
+    loadData();
+}
+HtgScan.onChange = () => render();
+HtgScan.onClear = () => { scanIds = null; render(); };
+HtgScan.onScan = async (text) => {
+    const o = S.find(x => x.orderId === detailId); if (!o) return;
+    const open = o.lines.filter(l => !l.shipped);
+    const m = HtgScan.match(text, open.map(l => ({ id: l.id, keys: [l.itemCode, l.mpn, l.itemName] })));
+    scanText = String(text).trim(); scanIds = m.ids;
+    const todo = open.filter(l => m.ids.includes(l.id) && !l.picked);
+    // Quet trung dung 1 ma hang (co the nam o nhieu mach) con chua soan -> danh dau dong dau tien
+    if (autoTick && m.strong && todo.length && new Set(todo.map(l => l.itemId)).size === 1) { await patch('/api/purchase/picking/' + todo[0].id, 'PATCH', { picked: true }); scanIds = null; await loadData(); HtgScan.info(`<b class="text-emerald-600"><i class="fas fa-check mr-1"></i>Đã soạn ${esc(todo[0].itemCode)} × ${n(todo[0].quantity)}</b> cho ${esc(todo[0].tenMach)}${todo.length > 1 ? ` · mã này còn ${todo.length - 1} dòng ở mạch khác, quét tiếp` : ''}`); return; }
+    render();
+};
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

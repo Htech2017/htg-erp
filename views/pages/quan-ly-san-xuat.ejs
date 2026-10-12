@@ -1,0 +1,425 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1600px] mx-auto space-y-5">
+
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Quản lý Sản xuất</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Lệnh sản xuất, tiến độ, dây chuyền & vật tư</p>
+    </div>
+    <div class="flex gap-2">
+        <button onclick="openLineModal()" class="bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition flex items-center gap-2"><i class="fas fa-industry"></i> Dây chuyền</button>
+        <button onclick="openWOModal()" class="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:bg-purple-700 transition flex items-center gap-2"><i class="fas fa-plus"></i> Tạo lệnh SX</button>
+    </div>
+</div>
+
+<!-- KPI -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <p class="text-[9px] font-black text-gray-400 uppercase">Tổng lệnh</p>
+        <p id="kpi-total" class="text-3xl font-black text-gray-800 mt-1">0</p>
+    </div>
+    <div class="bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm">
+        <p class="text-[9px] font-black text-amber-500 uppercase">Chờ SX</p>
+        <p id="kpi-waiting" class="text-3xl font-black text-amber-500 mt-1">0</p>
+    </div>
+    <div class="bg-blue-50 rounded-2xl p-4 border border-blue-100 shadow-sm">
+        <p class="text-[9px] font-black text-blue-500 uppercase">Đang SX</p>
+        <p id="kpi-running" class="text-3xl font-black text-blue-600 mt-1">0</p>
+    </div>
+    <div class="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 shadow-sm">
+        <p class="text-[9px] font-black text-emerald-500 uppercase">Hoàn thành</p>
+        <p id="kpi-done" class="text-3xl font-black text-emerald-600 mt-1">0</p>
+    </div>
+    <div class="bg-red-50 rounded-2xl p-4 border border-red-100 shadow-sm">
+        <p class="text-[9px] font-black text-red-400 uppercase">Tạm dừng</p>
+        <p id="kpi-paused" class="text-3xl font-black text-red-500 mt-1">0</p>
+    </div>
+</div>
+
+<!-- FILTER + TABLE -->
+<div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+        <input type="text" id="searchWO" oninput="renderTable()" placeholder="Mã lệnh, đơn hàng, sản phẩm..."
+            class="flex-1 min-w-[200px] border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500">
+        <select id="filterStatus" onchange="renderTable()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+            <option value="">Tất cả trạng thái</option>
+            <option>Chờ sản xuất</option><option>Đang sản xuất</option><option>Hoàn thành</option><option>Tạm dừng</option>
+        </select>
+        <select id="filterLine" onchange="renderTable()" class="border border-gray-200 rounded-xl p-2.5 text-sm bg-gray-50 font-semibold outline-none">
+            <option value="">Tất cả dây chuyền</option>
+        </select>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead class="bg-slate-50 border-b text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <tr>
+                    <th class="p-4">Mã WO</th>
+                    <th class="p-4">Đơn hàng</th>
+                    <th class="p-4">Sản phẩm</th>
+                    <th class="p-4">Dây chuyền</th>
+                    <th class="p-4">Tiến độ</th>
+                    <th class="p-4">Ngày dự kiến</th>
+                    <th class="p-4">Trạng thái</th>
+                    <th class="p-4 text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="wo-tbody" class="divide-y divide-gray-50"></tbody>
+        </table>
+    </div>
+    <div class="px-4 py-3 border-t border-gray-100">
+        <span id="tableInfo" class="text-xs text-gray-400"></span>
+    </div>
+</div>
+
+<!-- MODAL TẠO WO -->
+<div id="modalWO" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+    <div class="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center"><i class="fas fa-cogs text-slate-900"></i></div>
+            <div>
+                <h2 class="font-black text-sm uppercase">Lệnh sản xuất</h2>
+                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Work Order</p>
+            </div>
+        </div>
+        <button type="button" onclick="closeWOModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="formWO" onsubmit="handleSaveWO(event)" class="flex-1 overflow-y-auto p-6 space-y-5">
+        <input type="hidden" id="wo_id">
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Đơn hàng liên quan</label>
+                <select id="wo_orderId" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-purple-500">
+                    <option value="">-- Chọn đơn hàng --</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Dây chuyền SX</label>
+                <select id="wo_lineId" onchange="onLineChange()" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-purple-500">
+                    <option value="">-- Chọn dây chuyền --</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+            <div class="col-span-2">
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tên sản phẩm / bo mạch</label>
+                <input type="text" id="wo_productName" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-purple-500" placeholder="PCB Layer 2 / SMT Assembly..." required>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Số lượng</label>
+                <input type="number" id="wo_qty" min="1" value="1" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-center outline-none focus:border-purple-500">
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Người phụ trách</label>
+                <input type="text" id="wo_assignedTo" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-purple-400" placeholder="Tên NV...">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Ngày bắt đầu</label>
+                <input type="date" id="wo_startDate" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-purple-400">
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Ngày dự kiến xong</label>
+                <input type="date" id="wo_expectedDate" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-purple-400">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Trạng thái</label>
+                <select id="wo_status" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none focus:border-purple-500">
+                    <option>Chờ sản xuất</option><option>Đang sản xuất</option><option>Hoàn thành</option><option>Tạm dừng</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tiến độ (%)</label>
+                <input type="range" id="wo_progress" min="0" max="100" value="0" oninput="document.getElementById('progressVal').innerText=this.value+'%'"
+                    class="w-full mt-3 accent-purple-600">
+                <span id="progressVal" class="text-xs font-bold text-purple-600 block text-center">0%</span>
+            </div>
+        </div>
+
+        <!-- BOM Đơn giản -->
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-[9px] font-black text-gray-400 uppercase">BOM — Vật tư cần dùng</label>
+                <button type="button" onclick="addBOM()" class="text-[10px] bg-purple-50 text-purple-600 px-3 py-1 rounded-lg font-bold hover:bg-purple-100">+ Thêm</button>
+            </div>
+            <div id="bomContainer" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+                <p class="text-gray-400 text-xs italic text-center py-3">Chưa có vật tư</p>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Ghi chú</label>
+            <textarea id="wo_note" rows="2" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none focus:border-purple-400 resize-none" placeholder="Yêu cầu đặc biệt, lưu ý kỹ thuật..."></textarea>
+        </div>
+        <div class="flex justify-end gap-3">
+            <button type="button" onclick="closeWOModal()" class="px-5 py-2.5 text-gray-400 font-bold hover:text-red-500 uppercase text-[10px]">Hủy</button>
+            <button type="submit" class="bg-purple-600 text-white px-8 py-3 rounded-xl font-black hover:bg-purple-700 transition active:scale-95 uppercase text-[10px] flex items-center gap-2">
+                <i class="fas fa-save"></i> Lưu lệnh SX
+            </button>
+        </div>
+    </form>
+</div>
+</div>
+
+<!-- MODAL CẬP NHẬT TIẾN ĐỘ NHANH -->
+<div id="modalProgress" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden">
+    <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
+        <h2 class="font-black text-sm uppercase">Cập nhật tiến độ</h2>
+        <button onclick="closeProgressModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-6 space-y-4">
+        <input type="hidden" id="prog_woId">
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Tiến độ</label>
+            <input type="range" id="prog_progress" min="0" max="100" value="0" oninput="document.getElementById('progVal').innerText=this.value+'%'" class="w-full accent-purple-600">
+            <span id="progVal" class="text-sm font-black text-purple-600 block text-center mt-1">0%</span>
+        </div>
+        <div>
+            <label class="block text-[9px] font-black text-gray-400 uppercase mb-1.5">Trạng thái</label>
+            <select id="prog_status" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm bg-gray-50 outline-none">
+                <option>Chờ sản xuất</option><option>Đang sản xuất</option><option>Hoàn thành</option><option>Tạm dừng</option>
+            </select>
+        </div>
+        <button onclick="handleUpdateProgress()" class="w-full bg-purple-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-purple-700 transition active:scale-95">
+            <i class="fas fa-check mr-2"></i> Xác nhận
+        </button>
+    </div>
+</div>
+</div>
+
+<!-- MODAL DÂY CHUYỀN -->
+<div id="modalLine" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+<div class="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+    <div class="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+        <h2 class="font-black text-sm uppercase">Quản lý Dây chuyền / Máy móc</h2>
+        <button onclick="closeLineModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <div id="lineList" class="grid grid-cols-2 gap-3"></div>
+        <div class="border-t pt-4">
+            <p class="text-[10px] font-black text-gray-500 uppercase mb-3">Thêm dây chuyền / máy</p>
+            <form onsubmit="handleAddLine(event)" class="grid grid-cols-2 gap-3">
+                <input type="text" id="line_code" placeholder="Mã (VD: LINE-01)" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500" required>
+                <input type="text" id="line_name" placeholder="Tên dây chuyền *" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500" required>
+                <input type="text" id="line_type" placeholder="Loại (SMT, THT, Kiểm tra...)" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                <input type="text" id="line_capacity" placeholder="Công suất (VD: 500 panel/ngày)" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                <input type="date" id="line_nextMaint" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none" title="Ngày bảo trì tiếp theo">
+                <select id="line_status" class="border border-gray-200 rounded-xl p-2.5 text-sm outline-none">
+                    <option value="Hoạt động">Hoạt động</option>
+                    <option value="Bảo trì">Bảo trì</option>
+                    <option value="Dừng">Dừng</option>
+                </select>
+                <button type="submit" class="col-span-2 bg-slate-900 text-white py-2.5 rounded-xl font-black text-xs uppercase hover:bg-black transition">+ Thêm dây chuyền</button>
+            </form>
+        </div>
+    </div>
+</div>
+</div>
+
+</div>
+</main>
+
+<script>
+let allWOs = [], allLines = [], allSaleOrders = [];
+
+async function loadData() {
+    const [woRes, lineRes, ordRes] = await Promise.all([
+        fetch('/api/production/work-orders'),
+        fetch('/api/production/lines'),
+        fetch('/api/production/sale-orders')
+    ]);
+    allWOs = await woRes.json();
+    allLines = await lineRes.json();
+    allSaleOrders = await ordRes.json();
+    updateKPIs(); renderTable(); populateDropdowns();
+}
+
+function updateKPIs() {
+    document.getElementById('kpi-total').innerText = allWOs.length;
+    document.getElementById('kpi-waiting').innerText = allWOs.filter(w => w.status === 'Chờ sản xuất').length;
+    document.getElementById('kpi-running').innerText = allWOs.filter(w => w.status === 'Đang sản xuất').length;
+    document.getElementById('kpi-done').innerText = allWOs.filter(w => w.status === 'Hoàn thành').length;
+    document.getElementById('kpi-paused').innerText = allWOs.filter(w => w.status === 'Tạm dừng').length;
+}
+
+function populateDropdowns() {
+    document.getElementById('wo_orderId').innerHTML = '<option value="">-- Chọn đơn hàng --</option>' +
+        allSaleOrders.map(o => `<option value="${o.id}" data-madh="${o.maDH}">${o.maDH} — ${o.tenMach||''}</option>`).join('');
+    const lineSels = [document.getElementById('wo_lineId'), document.getElementById('filterLine')];
+    lineSels.forEach(sel => {
+        if (!sel) return;
+        const extra = sel.id === 'filterLine' ? '<option value="">Tất cả dây chuyền</option>' : '<option value="">-- Chọn dây chuyền --</option>';
+        sel.innerHTML = extra + allLines.map(l => `<option value="${l.id}" data-name="${l.name}">${l.code} — ${l.name} [${l.status}]</option>`).join('');
+    });
+}
+
+function onLineChange() {}
+
+function renderTable() {
+    const search = document.getElementById('searchWO').value.toLowerCase();
+    const fStatus = document.getElementById('filterStatus').value;
+    const fLine = document.getElementById('filterLine').value;
+    const filtered = allWOs.filter(w =>
+        (!search || w.woCode?.toLowerCase().includes(search) || w.maDH?.toLowerCase().includes(search) || w.productName?.toLowerCase().includes(search)) &&
+        (!fStatus || w.status === fStatus) && (!fLine || String(w.lineId) === fLine)
+    );
+    document.getElementById('tableInfo').innerText = `${filtered.length} lệnh sản xuất`;
+    const sCls = {'Chờ sản xuất':'bg-amber-100 text-amber-700','Đang sản xuất':'bg-blue-100 text-blue-700','Hoàn thành':'bg-emerald-100 text-emerald-700','Tạm dừng':'bg-red-100 text-red-600'};
+    document.getElementById('wo-tbody').innerHTML = filtered.length ? filtered.map(w => {
+        const prog = w.progress || 0;
+        const barCls = prog < 30 ? 'bg-red-400' : prog < 70 ? 'bg-amber-400' : 'bg-emerald-500';
+        return `
+        <tr class="hover:bg-slate-50 border-b border-gray-50">
+            <td class="p-4 font-mono text-xs font-bold text-slate-700">${w.woCode}</td>
+            <td class="p-4 font-bold text-xs uppercase text-purple-700">${w.maDH||'--'}</td>
+            <td class="p-4 text-sm font-bold text-slate-800">${w.productName} <span class="text-gray-400 font-normal text-xs">×${w.quantity}</span></td>
+            <td class="p-4 text-xs text-gray-600">${w.lineName||'--'}</td>
+            <td class="p-4 w-32">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div class="${barCls} h-full rounded-full transition-all" style="width:${prog}%"></div>
+                    </div>
+                    <span class="text-[10px] font-black text-gray-500 w-8 text-right">${prog}%</span>
+                </div>
+            </td>
+            <td class="p-4 text-xs text-gray-500">${w.expectedDate?new Date(w.expectedDate).toLocaleDateString('vi-VN'):'--'}</td>
+            <td class="p-4"><span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${sCls[w.status]||'bg-gray-100 text-gray-500'}">${w.status}</span></td>
+            <td class="p-4">
+                <div class="flex justify-center gap-1.5">
+                    <button onclick="openProgressModal(${w.id}, ${prog}, '${w.status}')" class="bg-purple-50 text-purple-600 hover:bg-purple-100 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition">Cập nhật</button>
+                    <button onclick="deleteWO(${w.id})" class="text-red-300 hover:text-red-500 p-1.5"><i class="fas fa-trash-alt text-xs"></i></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="8" class="text-center py-12 text-gray-300 italic text-sm">Chưa có lệnh sản xuất</td></tr>`;
+}
+
+let bomCount = 0;
+function addBOM() {
+    const c = document.getElementById('bomContainer');
+    if (!bomCount) c.innerHTML = '';
+    bomCount++;
+    const d = document.createElement('div');
+    d.className = 'flex gap-2 items-center';
+    d.innerHTML = `
+        <input type="text" placeholder="Tên linh kiện / vật tư" class="flex-1 border border-gray-200 rounded-xl p-2 text-xs outline-none bom-name">
+        <input type="number" placeholder="SL" class="w-16 border border-gray-200 rounded-xl p-2 text-xs text-center outline-none bom-qty">
+        <input type="text" placeholder="ĐV" class="w-16 border border-gray-200 rounded-xl p-2 text-xs outline-none bom-unit">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-300 hover:text-red-500 text-xs w-6 shrink-0"><i class="fas fa-times"></i></button>
+    `;
+    c.appendChild(d);
+}
+
+function getBOM() {
+    return Array.from(document.querySelectorAll('#bomContainer .flex')).map(r => ({
+        name: r.querySelector('.bom-name')?.value||'', qty: parseFloat(r.querySelector('.bom-qty')?.value)||1, unit: r.querySelector('.bom-unit')?.value||'cái'
+    })).filter(i => i.name);
+}
+
+function openWOModal() {
+    document.getElementById('wo_id').value = '';
+    document.getElementById('formWO').reset();
+    document.getElementById('wo_qty').value = 1;
+    document.getElementById('wo_progress').value = 0;
+    document.getElementById('progressVal').innerText = '0%';
+    document.getElementById('bomContainer').innerHTML = '<p class="text-gray-400 text-xs italic text-center py-3">Chưa có vật tư</p>';
+    bomCount = 0;
+    const m = document.getElementById('modalWO');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeWOModal() { const m=document.getElementById('modalWO'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+async function handleSaveWO(e) {
+    e.preventDefault();
+    const ordSel = document.getElementById('wo_orderId');
+    const lineSel = document.getElementById('wo_lineId');
+    const data = {
+        id: document.getElementById('wo_id').value || null,
+        orderId: ordSel.value,
+        maDH: ordSel.options[ordSel.selectedIndex]?.getAttribute('data-madh') || '',
+        productName: document.getElementById('wo_productName').value,
+        quantity: parseInt(document.getElementById('wo_qty').value) || 1,
+        status: document.getElementById('wo_status').value,
+        lineId: lineSel.value,
+        lineName: lineSel.options[lineSel.selectedIndex]?.getAttribute('data-name') || '',
+        assignedTo: document.getElementById('wo_assignedTo').value,
+        startDate: document.getElementById('wo_startDate').value,
+        expectedDate: document.getElementById('wo_expectedDate').value,
+        progress: parseInt(document.getElementById('wo_progress').value) || 0,
+        bom: getBOM(),
+        note: document.getElementById('wo_note').value
+    };
+    const r = await (await fetch('/api/production/work-orders/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) })).json();
+    if (r.success) { closeWOModal(); loadData(); } else alert('Lỗi: ' + (r.error||''));
+}
+
+function openProgressModal(id, prog, status) {
+    document.getElementById('prog_woId').value = id;
+    document.getElementById('prog_progress').value = prog;
+    document.getElementById('progVal').innerText = prog + '%';
+    document.getElementById('prog_status').value = status;
+    const m = document.getElementById('modalProgress');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeProgressModal() { const m=document.getElementById('modalProgress'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+async function handleUpdateProgress() {
+    const id = document.getElementById('prog_woId').value;
+    const progress = parseInt(document.getElementById('prog_progress').value);
+    const status = document.getElementById('prog_status').value;
+    const completedDate = status === 'Hoàn thành' ? new Date().toISOString().slice(0,10) : null;
+    const r = await (await fetch(`/api/production/work-orders/${id}/progress`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({progress, status, completedDate}) })).json();
+    if (r.success) { closeProgressModal(); loadData(); } else alert('Lỗi!');
+}
+
+async function deleteWO(id) { if (!confirm('Xóa lệnh sản xuất này?')) return; await fetch(`/api/production/work-orders/${id}`, {method:'DELETE'}); loadData(); }
+
+async function openLineModal() {
+    const m = document.getElementById('modalLine');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    await renderLineList();
+}
+function closeLineModal() { const m=document.getElementById('modalLine'); m.classList.add('hidden'); m.classList.remove('flex'); }
+
+async function renderLineList() {
+    const lines = await (await fetch('/api/production/lines')).json();
+    const sCls = {'Hoạt động':'bg-emerald-100 text-emerald-700','Bảo trì':'bg-amber-100 text-amber-600','Dừng':'bg-red-100 text-red-600'};
+    document.getElementById('lineList').innerHTML = lines.length ? lines.map(l => `
+        <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="font-bold text-sm">${l.code} — ${l.name}</p>
+                    <p class="text-xs text-gray-500">${l.type||''} ${l.capacity?'• '+l.capacity:''}</p>
+                    <span class="text-[10px] ${sCls[l.status]||'bg-gray-100 text-gray-500'} px-2 py-0.5 rounded font-black">${l.status}</span>
+                </div>
+                ${l.nextMaintenance?`<p class="text-[10px] text-amber-500">Bảo trì: ${new Date(l.nextMaintenance).toLocaleDateString('vi-VN')}</p>`:''}
+            </div>
+        </div>
+    `).join('') : '<p class="col-span-2 text-center text-gray-400 text-sm italic py-4">Chưa có dây chuyền</p>';
+}
+
+async function handleAddLine(e) {
+    e.preventDefault();
+    const r = await (await fetch('/api/production/lines/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+        code: document.getElementById('line_code').value.toUpperCase(),
+        name: document.getElementById('line_name').value,
+        type: document.getElementById('line_type').value,
+        capacity: document.getElementById('line_capacity').value,
+        nextMaintenance: document.getElementById('line_nextMaint').value,
+        status: document.getElementById('line_status').value
+    }) })).json();
+    if (r.success) { e.target.reset(); renderLineList(); allLines = await (await fetch('/api/production/lines')).json(); populateDropdowns(); }
+    else alert('Lỗi: ' + (r.error||'Mã dây chuyền đã tồn tại?'));
+}
+
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

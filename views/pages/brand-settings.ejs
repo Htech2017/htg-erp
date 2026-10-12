@@ -1,0 +1,209 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-50 custom-scrollbar">
+    <div class="max-w-5xl mx-auto space-y-6">
+        
+        <div class="mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Cài đặt Thương hiệu</h1>
+                <p class="text-sm text-slate-500 font-medium mt-1">Quản lý thông tin pháp lý & Tài khoản ngân hàng</p>
+            </div>
+            <button onclick="openBrandModal()" class="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs shadow-md hover:bg-indigo-700 transition flex items-center">
+                <i class="fas fa-plus mr-2"></i> Thêm Thương Hiệu
+            </button>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="brand-list"></div>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<div id="modalBrand" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm overflow-y-auto">
+    <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl my-8">
+        <div class="p-5 bg-slate-900 text-white font-bold flex justify-between items-center">
+            <span class="text-sm uppercase tracking-wider"><i class="fas fa-briefcase mr-2"></i> Cấu hình chi tiết Thương hiệu</span>
+            <button onclick="closeBrandModal()"><i class="fas fa-times-circle text-xl opacity-50 hover:opacity-100 transition"></i></button>
+        </div>
+        <form class="p-8 grid grid-cols-12 gap-5" onsubmit="handleSaveBrand(event)">
+            <input type="hidden" id="brand_id">
+            
+            <div class="col-span-8">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tên Công ty (Hiển thị báo giá)</label>
+                <input type="text" id="b_company_name" class="w-full border border-slate-200 rounded-xl p-3 font-bold outline-none focus:border-indigo-500" required>
+            </div>
+            <div class="col-span-4">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Mã Brand</label>
+                <input type="text" id="b_code" maxlength="5" class="w-full border border-slate-200 rounded-xl p-3 font-bold uppercase outline-none focus:border-indigo-500" required>
+            </div>
+            
+            <div class="col-span-12">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Địa chỉ văn phòng</label>
+                <input type="text" id="b_address" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:border-indigo-500">
+            </div>
+            
+            <div class="col-span-12 bg-slate-50 p-5 rounded-2xl border border-dashed border-slate-300">
+                <label class="block text-[11px] font-black text-indigo-600 uppercase mb-4">
+                    <i class="fas fa-university mr-1"></i> Thông tin thanh toán
+                </label>
+                
+                <div class="flex items-center gap-2 mb-5">
+                    <input type="checkbox" id="showBankDefault" name="showBankDefault" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                    <label for="showBankDefault" class="text-[11px] font-bold text-slate-600 uppercase cursor-pointer">
+                        Hiện STK trên báo giá mặc định
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="b_bank_name" class="w-full border border-slate-200 outline-none focus:border-indigo-500 rounded-lg p-3 text-sm" placeholder="Tên Ngân hàng (Ví dụ: Vietcombank)">
+                    <input type="text" id="b_bank_no" class="w-full border border-slate-200 outline-none focus:border-indigo-500 rounded-lg p-3 text-sm font-bold text-indigo-700" placeholder="Số tài khoản">
+                    <input type="text" id="b_bank_owner" class="col-span-2 w-full border border-slate-200 outline-none focus:border-indigo-500 rounded-lg p-3 text-sm uppercase font-bold" placeholder="Tên Chủ tài khoản">
+                </div>
+            </div>
+
+            <div class="col-span-12 grid grid-cols-2 gap-5">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Logo Công ty (Tải lên)</label>
+                    <input type="file" id="b_logo_file" accept="image/*" class="w-full border border-slate-200 rounded-xl p-2 text-xs">
+                    
+                    <input type="hidden" id="b_old_logo"> 
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Link QR Thanh toán (URL)</label>
+                    <input type="text" id="b_qr_url" class="w-full border border-slate-200 rounded-xl p-3 text-xs" placeholder="https://...">
+                </div>
+            </div>
+                        
+            <div class="col-span-12 flex justify-end gap-3 pt-5 border-t border-slate-200 mt-2">
+                <button type="button" onclick="closeBrandModal()" class="px-6 py-2 text-slate-500 font-bold uppercase text-xs hover:bg-slate-100 rounded-xl transition">Hủy</button>
+                <button type="submit" class="bg-indigo-600 text-white px-10 py-3 rounded-2xl font-black shadow-lg uppercase text-xs tracking-wider hover:bg-indigo-700 active:scale-95 transition">Lưu thương hiệu</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentBrands = [];
+
+async function renderBrands() {
+    try {
+        const response = await fetch('/api/settings/brands');
+        currentBrands = await response.json();
+        const list = document.getElementById('brand-list');
+        if (!list) return;
+
+        if (currentBrands.length === 0) {
+            list.innerHTML = `<div class="col-span-2 p-10 text-center text-slate-400 border-2 border-dashed rounded-3xl font-bold uppercase text-[10px] tracking-widest bg-slate-50">Chưa có thương hiệu nào</div>`;
+            return;
+        }
+
+        list.innerHTML = currentBrands.map(b => {
+            const isShowBank = b.showBankDefault === 1;
+            return `
+            <div class="bg-white p-5 rounded-2xl border border-slate-100 relative group hover:shadow-lg hover:border-indigo-100 transition-all duration-300">
+                <div class="flex items-center gap-4">
+                    <div class="flex flex-col gap-2 items-center bg-slate-50 p-3 rounded-xl border border-slate-100 min-w-[80px]">
+                        <img src="${b.logo || 'https://via.placeholder.com/80x40?text=LOGO'}" class="h-8 w-16 object-contain" title="Logo">
+                        <img src="${b.qr_url || 'https://via.placeholder.com/40x40?text=QR'}" class="h-10 w-10 object-contain bg-white rounded shadow-sm border border-slate-100" title="QR">
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <h4 class="font-black text-slate-800 uppercase text-sm leading-none">${b.company}</h4>
+                            ${isShowBank ? '<span class="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tighter">Bank ON</span>' : '<span class="text-[8px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tighter">Bank OFF</span>'}
+                        </div>
+                        <p class="text-[10px] text-indigo-500 font-bold mt-1 tracking-wider uppercase">${b.code}</p>
+                        <p class="text-xs text-slate-500 mt-2 font-medium"><i class="fas fa-university text-slate-400 w-4"></i> ${b.bankName} | ${b.bankNo}</p>
+                    </div>
+                </div>
+                <div class="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button onclick="editBrand(${b.id})" class="text-blue-500 p-2 bg-blue-50 hover:bg-blue-100 rounded-lg transition"><i class="fas fa-edit text-xs"></i></button>
+                    <button onclick="deleteBrand(${b.id})" class="text-red-500 p-2 bg-red-50 hover:bg-red-100 rounded-lg transition"><i class="fas fa-trash text-xs"></i></button>
+                </div>
+            </div>
+        `}).join('');
+    } catch (e) { console.error(e); }
+}
+
+async function handleSaveBrand(e) {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('id', document.getElementById('brand_id').value || '');
+    formData.append('company', document.getElementById('b_company_name').value);
+    formData.append('code', document.getElementById('b_code').value.toUpperCase());
+    formData.append('address', document.getElementById('b_address').value);
+    formData.append('bankName', document.getElementById('b_bank_name').value);
+    formData.append('bankNo', document.getElementById('b_bank_no').value);
+    formData.append('bankOwner', document.getElementById('b_bank_owner').value);
+    formData.append('qr_url', document.getElementById('b_qr_url').value);
+    formData.append('showBankDefault', document.getElementById('showBankDefault').checked);
+    formData.append('oldLogo', document.getElementById('b_old_logo').value); // Gửi logo cũ lên
+
+    const fileInput = document.getElementById('b_logo_file');
+    if (fileInput.files[0]) {
+        formData.append('logoFile', fileInput.files[0]);
+    }
+
+    Swal.fire({ title: 'Đang lưu...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const res = await fetch('/api/settings/brands/save', {
+        method: 'POST',
+        body: formData // Gửi trực tiếp formData, không cần Headers Content-Type
+    });
+    
+    const result = await res.json();
+    if(result.success) {
+        closeBrandModal();
+        renderBrands();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Lưu thành công', showConfirmButton: false, timer: 2000 });
+    }
+}
+
+function editBrand(id) {
+    const b = currentBrands.find(x => x.id === id);
+    if (!b) return;
+    document.getElementById('brand_id').value = b.id;
+    document.getElementById('b_company_name').value = b.company;
+    document.getElementById('b_code').value = b.code;
+    document.getElementById('b_address').value = b.address;
+    document.getElementById('b_bank_name').value = b.bankName;
+    document.getElementById('b_bank_no').value = b.bankNo;
+    document.getElementById('b_bank_owner').value = b.bankOwner;
+    document.getElementById('b_logo_url').value = b.logo || '';
+    document.getElementById('b_qr_url').value = b.qr_url || '';
+    document.getElementById('showBankDefault').checked = b.showBankDefault === 1;
+
+    document.getElementById('b_old_logo').value = b.logo || '';
+    document.getElementById('modalBrand').classList.remove('hidden');
+}
+
+async function deleteBrand(id) {
+    
+    document.getElementById('modalBrand').classList.remove('hidden');
+}
+
+async function deleteBrand(id) {
+    const confirm = await Swal.fire({ title: 'Chắc chắn xóa?', text: "Hành động này không thể hoàn tác!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Xóa ngay' });
+    if(confirm.isConfirmed) {
+        await fetch(`/api/settings/brands/${id}`, { method: 'DELETE' });
+        renderBrands();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa', showConfirmButton: false, timer: 2000 });
+    }
+}
+
+function openBrandModal() {
+    document.getElementById('brand_id').value = '';
+    document.getElementById('modalBrand').querySelector('form').reset();
+    document.getElementById('modalBrand').classList.remove('hidden');
+}
+
+function closeBrandModal() { document.getElementById('modalBrand').classList.add('hidden'); }
+
+document.addEventListener('DOMContentLoaded', renderBrands);
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,809 +1,1206 @@
 <%- include('../partials/header') %>
 <%- include('../partials/sidebar') %>
 
-<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
-    <div class="max-w-[1600px] mx-auto">
-<div class="flex justify-between items-center mb-8">
-    <h1 class="text-2xl font-bold text-gray-800">Quản lý Đơn hàng (DH)</h1>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <button onclick="openModal()" class="bg-blue-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition">
-        + Khởi tạo đơn hàng (Sale)
-    </button>
-</div>
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1700px] mx-auto">
 
-<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
-    <div class="flex flex-wrap gap-4 mb-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div class="flex-1 min-w-[200px]">
-            <input type="text" id="filterSearch" oninput="renderTable()" placeholder="Tìm mã ĐH, tên dịch vụ..." class="w-full border rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Quản lý đơn hàng <%= orderType === 'rnd' ? 'R&D' : 'PCB / Linh kiện / Sản xuất' %></h1>
+            <p class="text-sm text-gray-400 mt-0.5"><%= orderType === 'rnd' ? 'Đơn Nghiên cứu phát triển: thiết kế mạch, firmware...' : 'Đơn PCB, linh kiện, sản xuất (không gồm đơn R&D)' %> ·
+                <a href="<%= orderType === 'rnd' ? '/don-hang/san-xuat' : '/don-hang/rnd' %>" data-role="<%= orderType === 'rnd' ? 'Admin,Sale' : 'Admin,Sale,Trưởng BP Thiết kế' %>" class="text-blue-600 hover:underline">sang <%= orderType === 'rnd' ? 'đơn PCB / Linh kiện / Sản xuất' : 'đơn R&D' %> →</a></p>
         </div>
-        <select id="filterStatus" onchange="renderTable()" class="border rounded-lg p-2 text-sm outline-none bg-gray-50 font-semibold">
-    <option value="Tất cả">Tất cả quy trình</option>
-    <optgroup label="Theo Sale">
-        <option value="Mới khởi tạo">Mới khởi tạo</option>
-        <option value="Đã chốt">Sale: Đã chốt</option>
-        <option value="Không chốt">Sale: Không chốt</option>
-    </optgroup>
-    <optgroup label="Theo Quản lý">
-        <option value="Đang review">QL: Đang review</option>
-        <option value="Đã báo giá">QL: Đã báo giá</option>
-        <option value="Hủy đơn">QL: Hủy đơn</option>
-    </optgroup>
-</select>
-        <select id="filterPayment" onchange="renderTable()" class="border rounded-lg p-2 text-sm outline-none">
-            <option value="Tất cả">Tất cả thanh toán</option>
-            <option value="Còn nợ">Còn nợ công nợ</option>
-            <option value="Thu đủ">Đã thu đủ</option>
-        </select>
+        <div class="flex gap-2"><a href="/nhap-xuat-du-lieu?e=orders" class="bg-white border text-emerald-700 px-4 py-2.5 rounded-xl hover:bg-emerald-50 transition font-semibold text-sm flex items-center gap-2"><i class="fas fa-file-excel"></i> Nhập / xuất Excel</a>
+        <button onclick="openModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl shadow hover:bg-blue-700 transition font-semibold text-sm flex items-center gap-2">
+            <i class="fas fa-plus"></i> Tạo đơn hàng
+        </button></div>
     </div>
-    <table class="w-full text-left whitespace-nowrap">
-        <thead class="bg-gray-50 border-b text-gray-600 text-sm">
-            <tr>
-                <th class="p-4">Mã ĐH</th>
-                <th class="p-4">Dịch vụ</th>
-                <th class="p-4">Đầu việc</th>
-                <th class="p-4">Ngày tạo</th>
-                <th class="p-4">Trạng thái</th>
-                <th class="p-4">Triển khai</th>
-                <th class="p-4 text-right">Tạm ứng</th>
-                <th class="p-4 text-right">Công nợ</th>
-                <th class="p-4 text-center">Thao tác</th>
-            </tr>
-        </thead>
-        <tbody id="order-tbody" class="text-sm"></tbody>
-    </table>
+
+    <!-- Canh bao don qua han chua chot -->
+    <div id="overdueBanner" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-4 mb-4 flex flex-wrap justify-between items-center gap-3"></div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="kpiCards"></div>
+
+    <!-- Filters + Table -->
+    <div class="bg-white rounded-xl shadow-sm">
+        <div class="flex flex-wrap gap-3 p-4 border-b">
+            <input type="text" id="filterSearch" oninput="renderTable()" placeholder="Tìm mã ĐH, tên mạch, khách hàng..." class="flex-1 min-w-[200px] border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400">
+            <select id="filterStage" onchange="renderTable()" class="border rounded-lg px-3 py-2 text-sm bg-gray-50">
+                <option value="">Tất cả (Giai đoạn)</option>
+                <option value="__quaHan">⚠ Quá hạn chưa chốt</option>
+                <option value="Chờ bộ phận báo giá">Chờ bộ phận báo giá</option>
+                <option value="Chờ Sale báo khách">Chờ Sale báo khách</option>
+                <option value="Chờ khách phản hồi">Chờ khách phản hồi</option>
+                <option value="Đang thực hiện">Đang thực hiện</option>
+                <option value="Chờ thu tiền">Chờ thu tiền</option>
+                <option value="Hoàn thành">Hoàn thành</option>
+                <option value="Không chốt">Không chốt</option>
+                <option value="Đã hủy">Đã hủy</option>
+            </select>
+            <select id="filterChot" onchange="renderTable()" class="border rounded-lg px-3 py-2 text-sm bg-gray-50">
+                <option value="">Tất cả (Chốt đơn)</option>
+                <option value="Chờ phản hồi">Chờ phản hồi</option>
+                <option value="Đã chốt">Đã chốt</option>
+                <option value="Không chốt">Không chốt</option>
+            </select>
+            <select id="filterDonHang" onchange="renderTable()" class="border rounded-lg px-3 py-2 text-sm bg-gray-50">
+                <option value="">Tất cả (Trạng thái)</option>
+                <option value="Chờ báo giá">Chờ báo giá</option>
+                <option value="Đang thiết kế">Đang thiết kế</option>
+                <option value="Chờ nghiệm thu">Chờ nghiệm thu</option>
+                <option value="Đang mua hàng">Đang mua hàng</option>
+                <option value="Vật tư về">Vật tư về</option>
+                <option value="Đang sản xuất">Đang sản xuất</option>
+                <option value="QC">QC</option>
+                <option value="Giao hàng">Giao hàng</option>
+                <option value="Hoàn thành">Hoàn thành</option>
+                <option value="Đã hủy">Đã hủy</option>
+            </select>
+            <select id="filterLoai" onchange="renderTable()" class="border rounded-lg px-3 py-2 text-sm bg-gray-50">
+                <option value="">Tất cả loại</option>
+                <option value="pcb">— Có PCB</option>
+                <option value="lk">— Có Linh kiện</option>
+                <option value="gc">— Có Sản xuất</option>
+            </select>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left whitespace-nowrap">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase border-b">
+                    <tr>
+                        <th class="px-4 py-3">Mã ĐH</th>
+                        <th class="px-4 py-3">Khách hàng</th>
+                        <th class="px-4 py-3">Tên mạch / Dự án</th>
+                        <th class="px-4 py-3 text-center">PCB</th>
+                        <th class="px-4 py-3 text-center">LK</th>
+                        <th class="px-4 py-3 text-center">SX</th>
+                        <th class="px-4 py-3">Giai đoạn</th>
+                        <th class="px-4 py-3">Tiến độ đơn</th>
+                        <th class="px-4 py-3">Giá báo (đ)</th>
+                        <th class="px-4 py-3">Ngày tạo</th>
+                        <th class="px-4 py-3 text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="order-tbody"></tbody>
+            </table>
+        </div>
+        <div id="paginationBar" class="flex justify-between items-center px-4 py-3 border-t text-xs text-gray-500"></div>
+    </div>
 </div>
 
-<div id="modalDH" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50 overflow-y-auto">
-    <div class="bg-white rounded-3xl w-full max-w-7xl shadow-2xl my-8 overflow-hidden">
-        
-        <div class="p-5 border-b flex justify-between items-center bg-slate-50">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                    <i class="fas fa-file-invoice text-lg"></i>
+<!-- =================== MODAL =================== -->
+<div id="modalDH" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center p-4 z-50 overflow-y-auto" style="display:none">
+<div class="bg-white rounded-2xl w-full max-w-5xl shadow-2xl my-8 flex flex-col" style="max-height:92vh">
+
+    <!-- Modal Header -->
+    <div class="px-6 py-4 border-b flex justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white">
+                <i class="fas fa-file-invoice text-sm"></i>
+            </div>
+            <div>
+                <h2 id="modalTitle" class="font-bold text-slate-800 text-sm">Đơn hàng mới</h2>
+                <p id="modalSubtitle" class="text-[10px] text-gray-400 uppercase tracking-widest">Hệ thống H-TECH ERP</p>
+                <p id="ownerInfo" class="text-[11px] text-gray-500 mt-0.5"></p>
+            </div>
+        </div>
+        <button type="button" onclick="closeModal()" class="text-gray-400 hover:text-red-500 transition">
+            <i class="fas fa-times-circle text-xl"></i>
+        </button>
+    </div>
+
+    <!-- Tab Nav -->
+    <div class="flex border-b bg-white shrink-0 px-4 gap-1 pt-2">
+        <button type="button" onclick="switchTab(1)" id="tab-btn-1" class="tab-btn px-4 py-2 text-sm font-semibold rounded-t-lg border border-b-0 border-blue-500 bg-blue-50 text-blue-700">
+            <i class="fas fa-info-circle mr-1"></i>1. Thông tin
+        </button>
+        <button type="button" onclick="switchTab(3)" id="tab-btn-3" class="tab-btn px-4 py-2 text-sm font-semibold rounded-t-lg text-gray-500 hover:bg-gray-50 border border-transparent">
+            <i class="fas fa-dollar-sign mr-1"></i>2. Báo giá &amp; chốt đơn
+        </button>
+        <button type="button" onclick="switchTab(4)" id="tab-btn-4" class="tab-btn px-4 py-2 text-sm font-semibold rounded-t-lg text-gray-500 hover:bg-gray-50 border border-transparent">
+            <i class="fas fa-tasks mr-1"></i>3. Tiến độ &amp; thanh toán
+        </button>
+        <button type="button" onclick="switchTab(2)" id="tab-btn-2" class="tab-btn px-4 py-2 text-sm font-semibold rounded-t-lg text-gray-500 hover:bg-gray-50 border border-transparent">
+            <i class="fas fa-folder-open mr-1"></i>4. Thư mục Drive
+        </button>
+        <span id="newOrderHint" class="hidden self-center ml-2 text-xs text-gray-400">Lưu đơn xong sẽ có các bước tiếp theo: báo giá, chốt đơn, tiến độ.</span>
+    </div>
+
+    <!-- Form -->
+    <form id="formDH" onsubmit="handleSaveOrder(event)" class="flex-1 overflow-y-auto">
+        <input type="hidden" id="dh_id">
+        <input type="hidden" id="folderId_hidden">
+        <input type="hidden" id="inputFolderId_hidden">
+        <input type="hidden" id="outputFolderId_hidden">
+        <input type="hidden" id="documentFolderId_hidden">
+        <input type="hidden" id="dh_maDH">
+
+        <!-- ===== TAB 1: THONG TIN ===== -->
+        <div id="tab-1" class="tab-pane p-5">
+            <!-- Loai don hang: chi chon khi tao moi -->
+            <div class="mb-4 flex flex-wrap items-center gap-3">
+                <p class="text-xs font-bold text-gray-600 uppercase tracking-wide">Loại đơn hàng</p>
+                <div class="flex flex-wrap gap-2">
+                    <label class="type-card flex items-center gap-2 border-2 rounded-lg px-3 py-1.5 cursor-pointer transition" data-type="rnd">
+                        <input type="radio" name="loaiDV" value="rnd" class="accent-violet-600" onchange="applyOrderType()">
+                        <span>
+                            <span class="block text-sm font-bold text-violet-700"><i class="fas fa-flask mr-1"></i>Nghiên cứu phát triển (R&amp;D)</span>
+                            <span class="hidden">Thiết kế, phát triển sản phẩm. Khi chốt đơn sẽ chuyển sang bộ phận Thiết kế.</span>
+                        </span>
+                    </label>
+                    <label class="type-card flex items-center gap-2 border-2 rounded-lg px-3 py-1.5 cursor-pointer transition" data-type="sx">
+                        <input type="radio" name="loaiDV" value="sx" class="accent-blue-600" onchange="applyOrderType()">
+                        <span>
+                            <span class="block text-sm font-bold text-blue-700"><i class="fas fa-industry mr-1"></i>PCB / Linh kiện / Sản xuất</span>
+                            <span class="hidden">Đặt PCB, mua linh kiện, sản xuất. Khi chốt đơn sẽ chuyển sang Mua hàng và Sản xuất.</span>
+                        </span>
+                    </label>
                 </div>
-                <div>
-                    <h2 id="modalTitle" class="font-black text-slate-800 uppercase tracking-tight text-sm">Khởi tạo dữ liệu đơn hàng</h2>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mt-1">Hệ thống quản lý H-TECH 2026</p>
+                <p id="typeLockedNote" class="text-xs text-gray-400 hidden"><i class="fas fa-lock mr-1"></i>Loại đơn không đổi được sau khi đã tạo.</p>
+            </div>
+            <div class="grid grid-cols-12 gap-x-4 gap-y-3">
+                <div class="col-span-12 md:col-span-5">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Khách hàng *</label>
+                    <select id="dh_maKH" onchange="onKhachHangChange()" required class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none">
+                        <option value="">-- Chọn khách hàng --</option>
+                    </select>
+                    <p id="khInfo" class="text-[11px] text-gray-500 mt-1 truncate"></p>
+                </div>
+                <div class="col-span-12 md:col-span-7">
+                    <label id="lbl_tenMach" class="block text-xs font-semibold text-gray-500 mb-1">Tên mạch / Sản phẩm *</label>
+                    <input type="text" id="dh_tenMach" required placeholder="VD: Mạch điều khiển động cơ" class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Ngày tạo *</label>
+                    <input type="date" id="dh_ngayTao" required class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-3 admin-only hidden">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Sale phụ trách (Admin đổi)</label>
+                    <select id="dh_saleName" class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none"></select>
+                </div>
+                <div class="col-span-12 md:col-span-3 admin-only hidden">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1" title="Dùng cho báo giá PDF và báo cáo theo thương hiệu">Thương hiệu</label>
+                    <select id="dh_brandId" class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none"></select>
+                </div>
+                <!-- Cac loai mach cua don (chi cho don loai sx): moi loai mach co so luong, BOM va gia cost rieng -->
+                <div class="col-span-12 md:col-span-12" id="wrapItems">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                            <p class="text-xs font-bold text-gray-600 uppercase tracking-wide">Các loại mạch trong đơn *</p>
+                            <span class="text-[11px] text-gray-400">Tick hạng mục khách đặt ở từng dòng (mỗi mạch có thể khác nhau). Hạng mục không tick sẽ không chuyển cho bộ phận đó.</span>
+                        </div>
+                        <button type="button" id="btnAddItem" onclick="addOrderItem()" class="text-xs font-bold text-blue-600 hover:underline"><i class="fas fa-plus mr-1"></i>Thêm loại mạch</button>
+                    </div>
+                    <div class="overflow-x-auto border rounded-xl">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-gray-500 text-[11px] uppercase">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">Tên mạch / sản phẩm</th>
+                                    <th data-svc="soLuongPCB" class="px-3 py-2 text-right text-blue-600">PCB (tấm)</th>
+                                    <th data-svc="soLuongLK" class="px-3 py-2 text-right text-purple-600">Linh kiện (bộ)</th>
+                                    <th data-svc="soLuongGiaCong" class="px-3 py-2 text-right text-orange-600">Sản xuất (cái)</th>
+                                    <th class="px-3 py-2 text-left">Thư mục dữ liệu</th>
+                                    <th class="px-3 py-2 text-right">Cost đã báo</th>
+                                    <th class="px-3 py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderItemsBody"></tbody>
+                        </table>
+                    </div>
+                    <p class="text-[11px] text-gray-400 mt-1">Đổi số lượng của mạch nào thì bộ phận phải báo giá lại cho mạch đó. <span id="itemsLockedNote" class="hidden"><i class="fas fa-lock mr-1"></i>Đơn đã chốt: không sửa được danh sách loại mạch và số lượng.</span></p>
+                </div>
+                <!-- Tong so luong (tu dong cong tu cac loai mach, khong nhap tay) -->
+                <div class="col-span-12 md:col-span-12 hidden" id="wrapSoLuong">
+                    <p class="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wide">Số lượng đặt hàng</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                            <label class="block text-xs font-semibold text-blue-600 mb-1"><i class="fas fa-microchip mr-1"></i>PCB (tấm)</label>
+                            <input type="number" id="dh_soLuongPCB" min="0" value="0" class="w-full border border-blue-300 rounded-lg px-2.5 py-1.5 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-400 outline-none">
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-xl p-3">
+                            <label class="block text-xs font-semibold text-purple-600 mb-1"><i class="fas fa-puzzle-piece mr-1"></i>Linh kiện (bộ)</label>
+                            <input type="number" id="dh_soLuongLK" min="0" value="0" class="w-full border border-purple-300 rounded-lg px-2.5 py-1.5 text-sm font-bold bg-white focus:ring-2 focus:ring-purple-400 outline-none">
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-xl p-3">
+                            <label class="block text-xs font-semibold text-orange-600 mb-1"><i class="fas fa-cogs mr-1"></i>Sản xuất (cái)</label>
+                            <input type="number" id="dh_soLuongGiaCong" min="0" value="0" class="w-full border border-orange-300 rounded-lg px-2.5 py-1.5 text-sm font-bold bg-white focus:ring-2 focus:ring-orange-400 outline-none">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-12 md:col-span-8">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Ghi chú kỹ thuật / yêu cầu đặc biệt</label>
+                    <textarea id="dh_ghiChuKyThuat" rows="2" placeholder="Mô tả yêu cầu kỹ thuật, file tham khảo, tiêu chuẩn..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none"></textarea>
+                </div>
+                <div class="col-span-12 md:col-span-4">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Ghi chú đơn hàng</label>
+                    <input type="text" id="dh_noteDH" placeholder="Ghi chú thêm..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
                 </div>
             </div>
-            <button type="button" onclick="closeModal()" class="text-gray-400 hover:text-red-500 transition-all">
-                <i class="fas fa-times-circle text-2xl"></i>
-            </button>
         </div>
-        
-        <form class="p-6 lg:p-8 grid grid-cols-12 gap-6" id="formDH" onsubmit="handleSaveOrder(event)">
-            <input type="hidden" id="dh_id">
-            
-            <div class="col-span-12 lg:col-span-3 space-y-5 border-r border-slate-100 pr-4">
-                <h3 class="font-bold text-blue-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
-                    <i class="fas fa-info-circle mr-2"></i> 1. Thông tin chung
-                </h3>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Loại dịch vụ</label>
-                    <select id="loaiDV" class="w-full border-2 border-slate-100 rounded-xl p-2.5 text-sm font-bold outline-none focus:border-blue-500 bg-white" onchange="renderServiceCheckboxes()">
-                        <option value="Thiet ke">Thiết kế mới</option>
-                        <option value="Copy">Copy mạch / Vẽ lại</option>
+
+        <!-- ===== TAB 2: DRIVE ===== -->
+        <div id="tab-2" class="tab-pane p-5 hidden">
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+                <p class="text-sm font-semibold text-blue-700 mb-1"><i class="fas fa-info-circle mr-1"></i>Thư mục Google Drive được tạo tự động khi tạo đơn hàng</p>
+                <p class="text-xs text-blue-500">Cấu trúc: Khách hàng → Mã ĐH → 1.INPUT / 2.OUTPUT / 3.Documents</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase font-semibold">Thư mục đơn hàng</p>
+                        <p class="text-sm font-bold text-gray-700 mt-1" id="display_folderId">Chưa có</p>
+                    </div>
+                    <a id="link_folderId" href="#" target="_blank" class="text-blue-500 hover:text-blue-700 hidden"><i class="fas fa-external-link-alt text-lg"></i></a>
+                </div>
+                <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-yellow-500 uppercase font-semibold"><i class="fas fa-upload mr-1"></i>INPUT folder</p>
+                        <p class="text-sm font-bold text-gray-700 mt-1" id="display_inputFolderId">Chưa có</p>
+                    </div>
+                    <a id="link_inputFolderId" href="#" target="_blank" class="text-blue-500 hover:text-blue-700 hidden"><i class="fas fa-external-link-alt text-lg"></i></a>
+                </div>
+                <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-green-500 uppercase font-semibold"><i class="fas fa-download mr-1"></i>OUTPUT folder</p>
+                        <p class="text-sm font-bold text-gray-700 mt-1" id="display_outputFolderId">Chưa có</p>
+                    </div>
+                    <a id="link_outputFolderId" href="#" target="_blank" class="text-blue-500 hover:text-blue-700 hidden"><i class="fas fa-external-link-alt text-lg"></i></a>
+                </div>
+                <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-purple-500 uppercase font-semibold"><i class="fas fa-file-alt mr-1"></i>Documents folder</p>
+                        <p class="text-sm font-bold text-gray-700 mt-1" id="display_documentFolderId">Chưa có</p>
+                    </div>
+                    <a id="link_documentFolderId" href="#" target="_blank" class="text-blue-500 hover:text-blue-700 hidden"><i class="fas fa-external-link-alt text-lg"></i></a>
+                </div>
+            </div>
+            <div class="mt-4">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Link thư mục tùy chỉnh (nếu có)</label>
+                <input type="url" id="dh_driveLink" placeholder="https://drive.google.com/..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+            </div>
+        </div>
+
+        <!-- ===== TAB 3: BAO GIA ===== -->
+        <div id="tab-3" class="tab-pane p-5 hidden">
+            <!-- Canh bao: con bo phan chua bao gia -->
+            <div id="quoteWarning" class="hidden bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 mb-5 text-sm">
+                <i class="fas fa-hourglass-half mr-1"></i><span id="quoteWarningText"></span>
+            </div>
+
+            <!-- Chi phi R&D (chi cho don loai rnd) -->
+            <div id="wrapCostRnd" class="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-5 hidden">
+                <h3 class="text-xs font-bold text-violet-600 uppercase tracking-wide mb-3"><i class="fas fa-flask mr-1"></i>Chi phí nghiên cứu phát triển</h3>
+                <% const canQuoteRnd = !!(user && user.allRoles && (user.allRoles.includes('Admin') || user.allRoles.includes('Trưởng BP Thiết kế'))); %>
+                <label class="block text-xs font-semibold text-gray-500 mb-1">Chi phí R&amp;D do bộ phận Thiết kế báo (đ)</label>
+                <input type="number" id="dh_giaThietKe" step="1000" min="0" value="0" oninput="calcGiaBao()" <%= canQuoteRnd ? '' : 'readonly' %> class="<%= canQuoteRnd ? '' : 'bg-gray-100 text-gray-500 ' %>w-full border border-violet-300 rounded-lg px-2.5 py-1.5 text-sm font-bold bg-white focus:ring-2 focus:ring-violet-400 outline-none">
+                <p class="text-xs text-gray-400 mt-1">Giá báo = Chi phí R&amp;D × Hệ số</p>
+            </div>
+
+            <!-- Cost from teams (read-only for sale, chi cho don loai sx) -->
+            <div id="wrapCostSx" class="bg-gray-50 border rounded-xl p-4 mb-5">
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3"><i class="fas fa-calculator mr-1"></i>Giá cost nhập từ bộ phận</h3>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
+                        <p class="text-xs text-blue-500 font-semibold">PCB</p>
+                        <p class="text-base font-black text-blue-700" id="display_costPCB">0 đ</p>
+                    </div>
+                    <div class="bg-purple-50 border border-purple-200 rounded-lg p-2 text-center">
+                        <p class="text-xs text-purple-500 font-semibold">Linh kiện</p>
+                        <p class="text-base font-black text-purple-700" id="display_costLK">0 đ</p>
+                    </div>
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-2 text-center">
+                        <p class="text-xs text-orange-500 font-semibold">Sản xuất</p>
+                        <p class="text-base font-black text-orange-700" id="display_costGC">0 đ</p>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t text-center">
+                    <p class="text-xs text-gray-500">Tổng cost</p>
+                    <p class="text-xl font-black text-gray-800" id="display_totalCost">0 đ</p>
+                </div>
+            </div>
+
+            <!-- Sale markup -->
+            <div class="grid grid-cols-12 gap-x-4 gap-y-3">
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Hệ số Sale</label>
+                    <input type="number" id="dh_heSoSale" step="0.01" min="1" value="1" oninput="calcGiaBao()" class="text-right w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                    <p id="heSoHint" class="text-xs text-gray-400 mt-1">Giá báo = Tổng cost × Hệ số</p>
+                </div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Giá báo khách (đ)</label>
+                    <input type="number" id="dh_giaBao" step="1000" oninput="calcTongCong()" class="text-right w-full border rounded-lg px-2.5 py-1.5 text-sm font-bold focus:ring-2 focus:ring-green-400 outline-none bg-green-50">
+                </div>
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">VAT (%)</label>
+                    <input type="number" id="dh_vat" step="1" min="0" max="100" value="0" oninput="calcTongCong()" class="text-right w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Chiết khấu (%)</label>
+                    <input type="number" id="dh_chietKhau" step="0.5" min="0" value="0" oninput="calcTongCong()" class="text-right w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-3 bg-green-50 border border-green-200 rounded-xl p-3 flex flex-col justify-center">
+                    <p class="text-xs text-green-600 font-semibold">Tổng cộng khách trả</p>
+                    <p class="text-xl font-black text-green-700" id="display_tongCong">0 đ</p>
+                </div>
+                <div class="col-span-12 md:col-span-12">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Đã thu (đ)</label>
+                    <input type="number" id="dh_tamUng" step="1000" value="0" readonly class="text-right w-48 border rounded-lg px-2.5 py-1.5 text-sm bg-gray-100 text-gray-500 outline-none">
+                    <div class="inline-flex items-center gap-3 ml-3">
+                        <button type="button" id="btnThuTien" onclick="collectForCurrentOrder()" class="hidden bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition"><i class="fas fa-hand-holding-usd mr-1"></i>Thu tiền</button>
+                        <button type="button" id="btnLichSuThu" onclick="historyForCurrentOrder()" class="hidden text-xs text-slate-500 hover:text-slate-800 underline">Lịch sử thu</button>
+                        <span id="thuTienHint" class="text-xs text-gray-400">Thu tiền được sau khi đơn đã chốt và đã lưu.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cam ket giao hang: chi co sau khi bo phan bao gia xong, Sale bao khach cung voi gia -->
+            <div class="mt-5 p-4 bg-white border rounded-xl">
+                <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Thời gian giao báo cho khách <span class="normal-case font-normal text-gray-400">· nhập sau khi có giá cost; nhập leadtime thì ngày bàn giao tự tính</span></h3>
+                <div class="grid grid-cols-12 gap-x-4 gap-y-3">
+                <div class="col-span-6 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Leadtime (ngày)</label>
+                    <input type="number" id="dh_leadtime" min="1" placeholder="7" oninput="leadtimeToDate()" class="text-right w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Bàn giao dự kiến</label>
+                    <input type="date" id="dh_ngayBanGiao" class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Trạng thái</label>
+                    <select id="dh_ttQuyTrinh" class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none">
+                        <option value="Đang xử lý">Đang xử lý</option>
+                        <option value="Đã báo giá">Đã báo giá</option>
+                        <option value="Hủy đơn">Hủy đơn</option>
+                        <option value="Hoàn thành">Hoàn thành</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2 italic">Hạng mục triển khai:</label>
-                    <div id="service-checkboxes" class="grid grid-cols-1 gap-2 bg-slate-50 p-4 rounded-2xl border border-dashed border-slate-200 max-h-40 overflow-y-auto">
-                        </div>
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1" title="Tự ghi ngày Sale chuyển trạng thái sang Đã chốt / Không chốt (tab Báo giá)">Ngày chốt / không chốt</label>
+                    <input type="date" id="dh_ngayChot" disabled class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-gray-100 text-gray-500 outline-none">
                 </div>
-                <div class="p-4 bg-blue-900 text-white rounded-2xl shadow-inner border-b-4 border-blue-950">
-                    <span class="text-[9px] opacity-60 uppercase font-black tracking-widest block mb-1">Mã đơn hàng hệ thống</span>
-                    <p id="previewMaDH" class="font-mono font-bold text-xs tracking-tighter text-blue-200 break-all leading-relaxed uppercase">--</p>
                 </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-3 space-y-5 border-r border-slate-100 pr-4">
-                <h3 class="font-bold text-purple-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
-                    <i class="fas fa-user-tag mr-2"></i> 2. Dữ liệu & Tài liệu
-                </h3>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Khách hàng</label>
-                    <select id="maKH" class="w-full border-2 border-slate-100 rounded-xl p-2.5 text-sm font-bold bg-white" required onchange="updateMaDH()"></select>
+            <!-- Chot don -->
+            <div class="mt-5 p-4 bg-slate-50 border rounded-xl">
+                <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Trạng thái chốt đơn</h3>
+                <div class="flex gap-3 flex-wrap">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="ttChotDon" id="chot_choPhanhoi" value="Chờ phản hồi" class="accent-yellow-500">
+                        <span class="text-sm font-semibold text-yellow-600">Chờ phản hồi</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="ttChotDon" id="chot_daChot" value="Đã chốt" class="accent-green-500">
+                        <span class="text-sm font-semibold text-green-600">Đã chốt ✓</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="ttChotDon" id="chot_khongChot" value="Không chốt" class="accent-red-500">
+                        <span class="text-sm font-semibold text-red-500">Không chốt</span>
+                    </label>
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Tên mạch / Model</label>
-                    <input type="text" id="tenMach" class="w-full border-2 border-slate-100 rounded-xl p-2.5 text-sm font-bold uppercase outline-none focus:border-purple-500 bg-slate-50" placeholder="NHẬP TÊN MẠCH..." required oninput="updateMaDH()">
+                <div id="lyDoHuyWrap" class="mt-3 hidden">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Lý do không chốt</label>
+                    <input type="text" id="dh_lyDoHuy" placeholder="Khách hủy vì..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-red-300 outline-none">
                 </div>
-                
-                <div class="col-span-12 space-y-3">
-    <label class="block text-[11px] font-black text-blue-600 uppercase tracking-widest">Tài liệu Google Drive</label>
-    <div class="col-span-12 grid grid-cols-2 gap-4 mt-2">
-    <a id="btnOpenInput" target="_blank" class="flex items-center justify-center p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 opacity-20 pointer-events-none transition-all hover:bg-blue-100">
-        <i class="fab fa-google-drive mr-2"></i> Folder <b>INPUT</b>
-    </a>
-    <a id="btnOpenOutput" target="_blank" class="flex items-center justify-center p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 opacity-20 pointer-events-none transition-all hover:bg-green-100">
-        <i class="fab fa-google-drive mr-2"></i> Folder <b>OUTPUT</b>
-    </a>
-</div>
-    <input type="hidden" id="inputFolderId_hidden">
-    <input type="hidden" id="outputFolderId_hidden">
-</div>
-
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Ghi chú (Sale)</label>
-                    <textarea id="noteDH" class="w-full border-2 border-slate-100 rounded-xl p-3 text-xs outline-none focus:border-purple-500 bg-white" rows="2" placeholder="Yêu cầu riêng..."></textarea>
-                </div>
-            </div>
-
-            <div class="col-span-12 lg:col-span-3 space-y-5 border-r border-slate-100 pr-4">
-                <h3 class="font-bold text-orange-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
-                    <i class="fas fa-tasks mr-2"></i> 3. Thời gian & Tiến độ
-                </h3>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="min-w-0"> <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Ngày tạo</label>
-                        <input type="date" id="ngayTao" class="w-full border-2 border-slate-100 rounded-xl p-2 text-[11px] font-bold outline-none bg-white" onchange="updateMaDH()">
-                    </div>
-                    <div class="min-w-0">
-                        <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Ngày chốt</label>
-                        <input type="date" id="ngayChot" class="w-full border-2 border-slate-100 rounded-xl p-2 text-[11px] font-bold outline-none bg-white" onchange="calculateDeadline()">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Leadtime (Ngày)</label>
-                        <input type="number" id="leadtime" value="3" class="w-full border-2 border-slate-100 rounded-xl p-2 text-xs font-bold text-center outline-none bg-white" oninput="calculateDeadline()">
-                    </div>
-                    <div>
-                        <label class="block text-[9px] font-bold text-blue-500 uppercase mb-1 italic">Hạn bàn giao</label>
-                        <input type="date" id="ngayBanGiao" class="w-full border-2 border-blue-100 bg-blue-50 rounded-xl p-2 text-[11px] font-black text-blue-700" readonly>
-                    </div>
-                </div>
-                
-                <div class="space-y-4 pt-4 border-t border-dashed border-slate-200">
-                    <div>
-                        <label class="block text-[10px] font-black text-blue-600 uppercase mb-1">1. Trạng thái chốt đơn (Sale)</label>
-                        <select id="ttChotDon" class="w-full border-2 border-blue-100 bg-blue-50 rounded-xl p-2.5 text-[11px] font-black text-blue-800 outline-none uppercase tracking-tighter">
-                            <option value="Mới khởi tạo">Mới khởi tạo</option>
-                            <option value="Đã chốt">Đã chốt</option>
-                            <option value="Không chốt">Không chốt</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] font-black text-purple-600 uppercase mb-1">2. Trạng thái phê duyệt (Quản lý)</label>
-                        <select id="ttQuyTrinh" onchange="toggleCancelNote()" class="w-full border-2 border-purple-100 bg-purple-50 rounded-xl p-2.5 text-[11px] font-black text-purple-800 outline-none uppercase tracking-tighter">
-                            <option value="Đang review">Đang review</option>
-                            <option value="Đã báo giá">Đã báo giá</option>
-                            <option value="Hủy đơn">Hủy đơn</option>
-                        </select>
-                    </div>
-
-                    <div id="cancelNoteBox" class="hidden animate__animated animate__fadeIn">
-                        <label class="block text-[10px] font-black text-red-500 uppercase mb-1">Lý do hủy đơn:</label>
-                        <textarea id="lyDoHuy" class="w-full border-2 border-red-100 rounded-xl p-3 text-xs outline-none bg-red-50 text-red-700" rows="2" placeholder="Nhập lý do hủy..."></textarea>
-                    </div>
-
-                    <div id="design-status-box" class="p-3 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between">
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Tiến độ kỹ thuật</label>
-                            <span id="viewTTThietKe" class="text-[10px] font-black uppercase text-slate-600 italic">Chờ triển khai</span>
-                        </div>
-                        <i class="fas fa-microchip text-slate-300 text-lg"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-span-12 lg:col-span-3 space-y-5">
-    <h3 class="font-bold text-emerald-600 uppercase text-[11px] tracking-widest flex items-center mb-4">
-        <i class="fas fa-coins mr-2"></i> 4. Báo giá chi tiết
-    </h3>
-    
-    <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col min-h-[350px]">
-        <div class="space-y-5 relative z-10">
-            <div class="flex justify-between items-center group">
-                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-emerald-500 transition-colors">Giá gốc TK</span>
-                <div class="relative w-32">
-                    <input type="number" id="giaThietKe" 
-                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-emerald-400 focus:border-emerald-500 transition-all" 
-                        value="0" oninput="updateGiaBao()">
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center group">
-                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-white transition-colors">Hệ số x</span>
-                <div class="relative w-24">
-                    <input type="number" id="heSoSale" step="0.1" 
-                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-white focus:border-emerald-500 transition-all" 
-                        value="1.0" oninput="updateGiaBao()">
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center group">
-                <span class="text-[10px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-white transition-colors">VAT (%)</span>
-                <div class="relative w-20">
-                    <input type="number" id="vat" 
-                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-white focus:border-emerald-500 transition-all" 
-                        value="0" oninput="updateGiaBao()">
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center group">
-                <span class="text-[10px] font-black text-red-500 uppercase tracking-tighter">CK (%)</span>
-                <div class="relative w-20">
-                    <input type="number" id="chietKhau" 
-                        class="bg-transparent border-b-2 border-slate-700 text-right w-full py-1 outline-none font-black text-xl text-red-400 focus:border-red-500 transition-all" 
-                        value="0" oninput="updateGiaBao()">
-                </div>
-            </div>
-            
-            <div class="pt-6 mt-2 border-t border-slate-800/50">
-                <p class="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] text-right mb-1">Tổng tiền báo khách</p>
-                <p id="previewGiaBao" class="text-2xl font-black text-emerald-400 text-right tracking-tighter leading-none drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
-                    0 VNĐ
-                </p>
-            </div>
-
-            <div class="mt-4 space-y-2">
-            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Chọn Brand báo giá:</label>
-            <div class="flex gap-2">
-                <select id="selectBrand" class="flex-1 bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-[11px] outline-none focus:border-emerald-500 transition-all">
-                    </select>
-                
-                <button type="button" onclick="exportQuote()" class="px-4 py-3 bg-emerald-500 text-slate-900 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-400 transition-all shadow-lg active:scale-95 flex items-center gap-2">
-                    <i class="fas fa-file-pdf text-sm"></i> Xuất PDF
-                </button>
-            </div>
-        </div>
-        </div>
-        
-        <i class="fas fa-receipt absolute -bottom-6 -left-6 text-9xl text-white opacity-[0.03] pointer-events-none rotate-12"></i>
-    </div>
-
-    <div class="bg-orange-50 p-5 rounded-3xl border border-orange-100 text-center relative overflow-hidden">
-        <label class="block text-[10px] font-black text-orange-600 uppercase mb-1 tracking-[0.1em]">Khách đã tạm ứng</label>
-        <input type="number" id="tamUng" class="w-full bg-transparent text-center text-2xl font-black text-orange-700 outline-none" value="0">
-        <div class="w-16 h-1 bg-orange-200 mx-auto mt-2 rounded-full"></div>
-    </div>
-</div>
-
-            <div class="col-span-12 flex flex-col md:flex-row justify-between items-center gap-4 pt-6 border-t mt-4">
-                <p class="text-[10px] text-gray-400 italic font-medium flex items-center gap-2">
-                    <i class="fas fa-shield-check text-blue-500"></i> Dữ liệu được bảo mật và lưu trữ trên hệ thống SQLite nội bộ.
-                </p>
-                <div class="flex gap-4">
-                    <button type="button" onclick="closeModal()" class="px-8 py-3 text-gray-400 font-bold hover:text-red-500 transition-all uppercase text-[10px] tracking-widest">Hủy đơn</button>
-                    <button type="submit" class="bg-blue-600 text-white px-12 py-3 rounded-2xl font-black shadow-xl shadow-blue-900/20 hover:bg-blue-700 transition-all active:scale-95 uppercase text-xs tracking-widest flex items-center">
-                        <i class="fas fa-save mr-3 text-lg"></i> XÁC NHẬN LƯU HỆ THỐNG
+                <div class="mt-3 flex gap-3">
+                    <button type="button" onclick="exportPDF()" class="bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-700 transition flex items-center gap-1.5">
+                        <i class="fas fa-file-pdf"></i> Xuất Báo giá PDF
                     </button>
                 </div>
             </div>
-        </form>
+        </div>
+
+        <!-- ===== TAB 4: TIEN DO & THANH TOAN ===== -->
+        <div id="tab-4" class="tab-pane p-5 hidden">
+            <!-- Pipeline status -->
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-gray-500 mb-2">Tiến độ đơn hàng</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="pipelineButtons"></div>
+            </div>
+
+            <div class="grid grid-cols-12 gap-x-4 gap-y-3">
+                <div class="col-span-12 md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Bàn giao thực tế</label>
+                    <input type="date" id="dh_ngayBanGiaoThucTe" class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Trạng thái nghiệm thu</label>
+                    <select id="dh_ttNghiemThu" class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-white focus:ring-2 focus:ring-blue-400 outline-none">
+                        <option value="">-- Chưa có --</option>
+                        <option value="Đạt">Đạt</option>
+                        <option value="Không đạt">Không đạt</option>
+                        <option value="Chờ nghiệm thu">Chờ nghiệm thu</option>
+                    </select>
+                </div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Trạng thái thanh toán</label>
+                    <select id="dh_ttThanhToan" disabled title="Tự cập nhật theo số tiền kế toán đã thu" class="w-full border rounded-lg px-2.5 py-1.5 text-sm bg-gray-100 text-gray-500 outline-none">
+                        <option value="">-- Chưa có --</option>
+                        <option value="Chưa thanh toán">Chưa thanh toán</option>
+                        <option value="Tạm ứng">Đã tạm ứng</option>
+                        <option value="Thu đủ">Thu đủ</option>
+                        <option value="Còn nợ">Còn nợ</option>
+                    </select>
+                </div>
+                <div class="col-span-12 md:col-span-4">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Hạng mục bàn giao</label>
+                    <input type="text" id="dh_hangMucBanGiao" placeholder="PCB đã hàn linh kiện, hộp vỏ..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                </div>
+                <div class="col-span-12 md:col-span-6">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Ghi chú nghiệm thu</label>
+                    <textarea id="dh_ghiChuNghiemThu" rows="2" placeholder="Ghi chú về nghiệm thu, lỗi phát sinh..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none"></textarea>
+                </div>
+                <div class="col-span-12 md:col-span-6">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Nội dung phát sinh</label>
+                    <textarea id="dh_noiDungPhatSinh" rows="2" placeholder="Ghi lại các phát sinh trong quá trình thực hiện..." class="w-full border rounded-lg px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none"></textarea>
+                </div>
+                <div class="col-span-12 md:col-span-12 bg-slate-50 border rounded-xl p-4">
+                    <p class="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3"><i class="fas fa-file-contract mr-1"></i>Hợp đồng, hóa đơn, biên bản</p>
+                    <div id="docBadges" class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs"></div>
+                    <p id="docHint" class="text-xs text-gray-400 mt-2">Lưu đơn hàng trước, sau đó cập nhật trạng thái chứng từ tại đây. Kế toán cũng cập nhật được ở trang Kế toán &amp; Tài chính.</p>
+                </div>
+            </div>
+        </div>
+
+    </form>
+
+    <!-- Modal Footer -->
+    <div class="px-6 py-4 border-t bg-slate-50 flex justify-between items-center shrink-0 rounded-b-2xl">
+        <button type="button" id="btnDelete" onclick="deleteCurrentOrder()" class="text-red-500 hover:text-red-700 text-sm font-semibold hidden flex items-center gap-1">
+            <i class="fas fa-trash"></i> Xóa đơn
+        </button>
+        <button type="button" id="btnReorder" onclick="reorderFrom()" class="hidden ml-4 text-emerald-600 hover:text-emerald-800 text-sm font-semibold items-center gap-1" title="Tạo đơn mới giống đơn này; các bộ phận báo giá lại">
+            <i class="fas fa-redo"></i> Đặt lại đơn này
+        </button>
+        <div class="flex gap-3 ml-auto">
+            <button type="button" onclick="closeModal()" class="px-5 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition">Hủy</button>
+            <button type="submit" form="formDH" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition flex items-center gap-2 shadow">
+                <i class="fas fa-save"></i> Lưu đơn hàng
+            </button>
+        </div>
     </div>
 </div>
 </div>
-</main>
+<!-- =================== END MODAL =================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-let currentOrders = [];
-const serviceData = {
-    'Thiet ke': ['Nguyên lý', 'Layout', 'Code', 'Prototype'],
-    'Copy': ['Copy mạch', 'Tạo BOM', 'Vẽ lại nguyên lý', 'Code firmware']
+// ---- DATA ----
+const PAGE_TYPE = '<%= orderType %>'; // trang nay chi quan ly 1 loai don: 'rnd' hoac 'sx'
+let allOrders = [];
+let allCustomers = [];
+let currentPage = 1;
+const PAGE_SIZE = 15;
+
+// Tien do rieng cho tung loai don
+const PIPELINE_BY_TYPE = {
+    rnd: ['Chờ báo giá','Đang thiết kế','Chờ nghiệm thu','Hoàn thành','Đã hủy'],
+    sx:  ['Chờ báo giá','Đang mua hàng','Vật tư về','Đang sản xuất','QC','Giao hàng','Hoàn thành','Đã hủy']
+};
+const TYPE_BADGE = {
+    rnd: '<span class="bg-violet-100 text-violet-700 rounded px-1.5 py-0.5 text-[10px] font-bold ml-1">R&amp;D</span>',
+    sx:  '<span class="bg-sky-100 text-sky-700 rounded px-1.5 py-0.5 text-[10px] font-bold ml-1">SX</span>'
+};
+function currentOrderType() {
+    const el = document.querySelector('input[name="loaiDV"]:checked');
+    return el ? el.value : 'sx';
+}
+// An / hien cac phan cua form theo loai don dang chon
+function applyOrderType() {
+    const type = currentOrderType();
+    const isRnd = type === 'rnd';
+    document.getElementById('wrapItems').classList.toggle('hidden', isRnd);
+    // Don sx: ten mach lay tu cac loai mach ben duoi; don R&D: 1 ten du an
+    const tenMach = document.getElementById('dh_tenMach');
+    tenMach.closest('div').classList.toggle('hidden', !isRnd);
+    tenMach.required = isRnd;
+    document.getElementById('wrapCostSx').classList.toggle('hidden', isRnd);
+    document.getElementById('wrapCostRnd').classList.toggle('hidden', !isRnd);
+    document.getElementById('lbl_tenMach').textContent = isRnd ? 'Tên dự án / Sản phẩm nghiên cứu *' : 'Tên mạch / Sản phẩm *';
+    document.getElementById('heSoHint').textContent = isRnd ? 'Giá báo = Chi phí R&D × Hệ số' : 'Giá báo = Tổng cost × Hệ số';
+    document.querySelectorAll('.type-card').forEach(card => {
+        const on = card.dataset.type === type;
+        card.classList.toggle('border-violet-500', on && isRnd);
+        card.classList.toggle('bg-violet-50', on && isRnd);
+        card.classList.toggle('border-blue-500', on && !isRnd);
+        card.classList.toggle('bg-blue-50', on && !isRnd);
+        card.classList.toggle('border-gray-200', !on);
+    });
+    const steps = PIPELINE_BY_TYPE[type];
+    // Don dang sua (loai da khoa) giu nguyen trang thai cu; don moi doi loai thi quay ve buoc dau neu buoc dang chon khong thuoc loai moi
+    const locked = document.querySelector('input[name="loaiDV"]').disabled;
+    renderPipelineButtons(locked || steps.includes(selectedPipeline) ? selectedPipeline : 'Chờ báo giá');
+}
+function setOrderType(type, locked) {
+    document.querySelectorAll('input[name="loaiDV"]').forEach(r => { r.checked = r.value === type; r.disabled = !!locked; });
+    document.getElementById('typeLockedNote').classList.toggle('hidden', !locked);
+    applyOrderType();
+}
+
+const CHOT_BADGE = {
+    'Chờ phản hồi': 'bg-yellow-100 text-yellow-700',
+    'Đã chốt': 'bg-green-100 text-green-700',
+    'Không chốt': 'bg-red-100 text-red-600',
+    '': 'bg-gray-100 text-gray-500'
+};
+const STAGE_BADGE = {
+    'Chờ bộ phận báo giá': 'bg-amber-100 text-amber-700',
+    'Chờ Sale báo khách':  'bg-orange-100 text-orange-700',
+    'Chờ khách phản hồi':  'bg-yellow-100 text-yellow-700',
+    'Đang thực hiện':      'bg-blue-100 text-blue-700',
+    'Chờ thu tiền':        'bg-pink-100 text-pink-700',
+    'Hoàn thành':          'bg-green-100 text-green-700',
+    'Không chốt':          'bg-red-100 text-red-600',
+    'Đã hủy':              'bg-gray-200 text-gray-600'
+};
+const PIPELINE_BADGE = {
+    'Chờ báo giá':  'bg-gray-100 text-gray-600',
+    'Đang thiết kế':'bg-violet-100 text-violet-700',
+    'Chờ nghiệm thu':'bg-amber-100 text-amber-700',
+    'Đang mua hàng':'bg-blue-100 text-blue-700',
+    'Vật tư về':    'bg-cyan-100 text-cyan-700',
+    'Đang sản xuất':'bg-indigo-100 text-indigo-700',
+    'QC':           'bg-purple-100 text-purple-700',
+    'Giao hàng':    'bg-orange-100 text-orange-700',
+    'Hoàn thành':   'bg-green-100 text-green-700',
+    'Đã hủy':       'bg-red-100 text-red-600'
 };
 
-// --- LOGIC GIAO DIỆN ---
+// ---- LOAD ----
+async function loadAll() {
+    const [orders, customers] = await Promise.all([
+        fetch('/api/orders').then(r=>r.json()),
+        fetch('/api/customers').then(r=>r.json())
+    ]);
+    allOrders = (Array.isArray(orders) ? orders : []).filter(o => (o.loaiDV === 'rnd') === (PAGE_TYPE === 'rnd') && !o.vip); // lo hang VIP quan ly o trang rieng
+    allCustomers = customers;
+    if (PAGE_TYPE === 'rnd') document.getElementById('filterLoai').classList.add('hidden'); // don R&D khong chia PCB / linh kien / san xuat
+    await loadSaleAndBrandOptions();
+    renderKPIs();
+    renderOverdueBanner();
+    if (new URLSearchParams(location.search).get('quaHan') && !window.__quaHanApplied) { window.__quaHanApplied = true; document.getElementById('filterStage').value = '__quaHan'; }
+    renderTable();
+    populateCustomerDropdown();
+    // Tu trang Khach hang: mo san form tao don voi khach da chon
+    const addFor = new URLSearchParams(location.search).get('addFor');
+    if (addFor && !window.__addForDone) {
+        window.__addForDone = true;
+        history.replaceState(null, '', location.pathname);
+        if (allCustomers.some(c => c.maKH === addFor)) { openModal(); document.getElementById('dh_maKH').value = addFor; onKhachHangChange(); }
+    }
+}
 
-function renderServiceCheckboxes(selectedItems = []) {
-    const type = document.getElementById('loaiDV').value;
-    const container = document.getElementById('service-checkboxes');
-    container.innerHTML = '';
-    const items = serviceData[type] || [];
-    items.forEach(item => {
-        const isChecked = selectedItems.includes(item) ? 'checked' : '';
-        container.innerHTML += `
-            <label class="flex items-center space-x-2 text-xs cursor-pointer hover:text-blue-600">
-                <input type="checkbox" name="dv_item" value="${item}" ${isChecked} class="rounded text-blue-600">
-                <span>${item}</span>
-            </label>`;
+function populateCustomerDropdown() {
+    const sel = document.getElementById('dh_maKH');
+    sel.innerHTML = '<option value="">-- Chọn khách hàng --</option>';
+    allCustomers.forEach(c => {
+        sel.innerHTML += `<option value="${c.maKH}">${c.maKH} - ${c.tenKH}</option>`;
     });
 }
 
-function updateMaDH() {
-    const dateVal = document.getElementById('ngayTao').value;
-    const datePart = dateVal ? dateVal.split('-').join('').slice(2) : 'YYMMDD';
-    const khPart = document.getElementById('maKH').value || 'KH';
-    const machPart = document.getElementById('tenMach').value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0,8) || 'MACH';
-    const code = `${datePart}_${khPart}_${machPart}`;
-    document.getElementById('previewMaDH').innerText = code;
-    return code;
-}
-
-function calculateDeadline() {
-    const ngayChotVal = document.getElementById('ngayChot').value;
-    const lead = parseInt(document.getElementById('leadtime').value) || 0;
-    if(ngayChotVal) {
-        let d = new Date(ngayChotVal);
-        d.setDate(d.getDate() + lead);
-        document.getElementById('ngayBanGiao').value = d.toISOString().split('T')[0];
-    }
-}
-
-function updateGiaBao() {
-    const giaTK = parseFloat(document.getElementById('giaThietKe').value) || 0;
-    const hs = parseFloat(document.getElementById('heSoSale').value) || 1;
-    const vat = parseFloat(document.getElementById('vat').value) || 0;
-    const ck = parseFloat(document.getElementById('chietKhau').value) || 0;
-
-    let sub = giaTK * hs;
-    let final = sub + (sub * vat / 100) - (sub * ck / 100);
-    document.getElementById('previewGiaBao').innerText = new Intl.NumberFormat('vi-VN').format(Math.round(final)) + ' VNĐ';
-    return final;
-}
-
-async function populateCustomers() {
-    try {
-        const res = await fetch('/api/customers');
-        const customers = await res.json();
-        const select = document.getElementById('maKH');
-        select.innerHTML = customers.map(kh => `<option value="${kh.maKH}">${kh.maKH} - ${kh.tenKH}</option>`).join('');
-        updateMaDH();
-    } catch (e) { console.error("Lỗi load KH:", e); }
-}
-
-function closeModal() { document.getElementById('modalDH').classList.add('hidden'); }
-
-// --- LOGIC DỮ LIỆU (API) ---
-
-async function renderTable() {
-    renderServiceCheckboxes();
-    try {
-        const response = await fetch('/api/orders');
-        currentOrders = await response.json();
-        const tbody = document.getElementById('order-tbody');
-        const keyword = document.getElementById('filterSearch').value.toLowerCase();
-        const status = document.getElementById('filterStatus').value;
-        const payFilter = document.getElementById('filterPayment').value;
-        
-        tbody.innerHTML = '';
-        currentOrders.filter(o => {
-    const keyword = document.getElementById('filterSearch').value.toLowerCase();
-    const status = document.getElementById('filterStatus').value;
-    
-    const matchesSearch = o.maDH.toLowerCase().includes(keyword) || o.tenMach.toLowerCase().includes(keyword);
-    
-    // Logic lọc trạng thái thông minh: Kiểm tra cả 2 cột
-    const matchesStatus = (status === 'Tất cả') || 
-                          (o.ttChotDon === status) || 
-                          (o.ttQuyTrinh === status);
-
-    const congNo = o.giaBao - o.tamUng;
-    const matchesPay = (payFilter === 'Tất cả') || 
-                       (payFilter === 'Còn nợ' && congNo > 0) || 
-                       (payFilter === 'Thu đủ' && congNo <= 0);
-
-    return matchesSearch && matchesStatus && matchesPay;
-}).forEach(o => {
-            const congNo = o.giaBao - o.tamUng;
-    
-    // ĐỊNH NGHĨA MÀU SẮC CHO TRẠNG THÁI SALE (ttChotDon)
-    const chotDonColor = o.ttChotDon === 'Đã chốt' ? 'bg-green-100 text-green-700' : 
-                         (o.ttChotDon === 'Không chốt' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700');
-
-    // ĐỊNH NGHĨA MÀU SẮC CHO TRẠNG THÁI QUẢN LÝ (ttQuyTrinh)
-    const quyTrinhColor = o.ttQuyTrinh === 'Đã báo giá' ? 'bg-purple-100 text-purple-700' :
-                          (o.ttQuyTrinh === 'Hủy đơn' ? 'bg-slate-200 text-slate-700' : 'bg-orange-100 text-orange-700');
-
-    const tr = document.createElement('tr');
-    tr.className = 'border-b hover:bg-gray-50 transition-colors';
-    tr.innerHTML = `
-        <td class="p-4 font-mono text-blue-700 font-bold text-xs">${o.maDH}</td>
-        <td class="p-4">
-            <div class="text-xs font-bold uppercase text-slate-700">${o.loaiDV}</div>
-            <div class="text-[10px] text-slate-400 font-medium">${o.tenMach}</div>
-        </td>
-        <td class="p-4 text-[10px] text-gray-400 max-w-[150px] truncate">
-            ${Array.isArray(o.dauViec) ? o.dauViec.join(', ') : o.dauViec}
-        </td>
-        <td class="p-4 text-[10px] font-medium text-gray-500">${o.ngayTao}</td>
-        
-        <td class="p-4">
-            <div class="flex flex-col gap-1">
-                <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase w-fit ${chotDonColor}">
-                    SALE: ${o.ttChotDon || 'Mới tạo'}
-                </span>
-                <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase w-fit ${quyTrinhColor}">
-                    QL: ${o.ttQuyTrinh || 'Review'}
-                </span>
-                ${o.ttQuyTrinh === 'Hủy đơn' ? `<span class="text-[8px] text-red-400 italic font-medium">Lý do: ${o.lyDoHuy || 'N/A'}</span>` : ''}
+// ---- KPI ----
+function renderKPIs() {
+    // Dem theo giai doan cua quy trinh (server tinh san trong o.giaiDoan)
+    const count = stage => allOrders.filter(o => o.giaiDoan === stage).length;
+    const cards = [
+        { label:'Chờ bộ phận báo giá', value: count('Chờ bộ phận báo giá'), color:'bg-amber-500', icon:'fa-hourglass-half' },
+        { label:'Chờ Sale báo khách', value: count('Chờ Sale báo khách'), color:'bg-orange-500', icon:'fa-calculator' },
+        { label:'Chờ khách phản hồi', value: count('Chờ khách phản hồi'), color:'bg-yellow-500', icon:'fa-clock' },
+        { label:'Đang thực hiện', value: count('Đang thực hiện'), color:'bg-blue-600', icon:'fa-cogs' },
+        { label:'Chờ thu tiền', value: count('Chờ thu tiền'), color:'bg-pink-600', icon:'fa-hand-holding-usd' }
+    ];
+    document.getElementById('kpiCards').innerHTML = cards.map(c => `
+        <div class="bg-white rounded-xl shadow-sm p-4 flex items-center gap-3">
+            <div class="w-10 h-10 ${c.color} rounded-xl flex items-center justify-center text-white">
+                <i class="fas ${c.icon}"></i>
             </div>
-        </td>
-
-        <td class="p-4">
-            <div class="flex items-center gap-2">
-                <span class="text-[9px] font-bold uppercase text-gray-400 italic">${o.ttThietKe || 'Chờ...'}</span>
-                ${o.inputFolderId ? `
-                    <a href="https://drive.google.com/drive/folders/${o.inputFolderId}" target="_blank" class="text-blue-500 hover:text-blue-700">
-                        <i class="fab fa-google-drive"></i>
-                    </a>
-                ` : ''}
+            <div>
+                <p class="text-2xl font-black text-gray-800">${c.value}</p>
+                <p class="text-xs text-gray-400">${c.label}</p>
             </div>
-        </td>
-        <td class="p-4 text-right font-bold text-slate-600">${new Intl.NumberFormat('vi-VN').format(o.tamUng)}</td>
-        <td class="p-4 text-right font-black ${congNo > 0 ? 'text-red-500' : 'text-green-600'}">
-            ${new Intl.NumberFormat('vi-VN').format(congNo)}
-        </td>
-        <td class="p-4 text-center">
-            <div class="flex justify-center gap-1">
-                <button onclick="exportQuote(${o.id})" class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Báo giá">
-                    <i class="fas fa-file-pdf"></i>
-                </button>
-                <button onclick="openModal(${o.id})" class="text-yellow-500 hover:bg-yellow-50 p-2 rounded-lg transition" title="Sửa">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button onclick="deleteOrder(${o.id})" class="text-red-300 hover:text-red-500 p-2 rounded-lg transition" title="Xóa">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </td>`;
-    tbody.appendChild(tr);
-        });
-    } catch (e) { console.error("Lỗi load table:", e); }
+        </div>`).join('');
 }
 
-async function handleSaveOrder(e) {
-    e.preventDefault();
+// ---- CANH BAO DON QUA HAN CHUA CHOT ----
+function renderOverdueBanner() {
+    const box = document.getElementById('overdueBanner');
+    const list = allOrders.filter(o => o.quaHan);
+    if (!list.length) { box.classList.add('hidden'); return; }
+    const days = list[0].warnDays || 10;
+    const holding = list.filter(o => o.tamXuat).length;
+    box.innerHTML = `
+        <div>
+            <p class="font-bold text-amber-800 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>${list.length} đơn đã quá ${days} ngày chưa chốt${holding ? ` (${holding} đơn đang giữ vật tư tạm xuất)` : ''}</p>
+            <p class="text-xs text-amber-700 mt-0.5">Kiểm tra với khách rồi chuyển sang "Đã chốt" hoặc "Không chốt". Vật tư tạm xuất chỉ trả lại kho khi đơn Không chốt hoặc Hủy.</p>
+        </div>
+        <button onclick="document.getElementById('filterStage').value='__quaHan'; currentPage=1; renderTable()" class="bg-amber-500 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-amber-600">Xem các đơn này</button>`;
+    box.classList.remove('hidden');
+}
 
-    // Hiển thị Loading chuyên nghiệp
-    Swal.fire({
-        title: 'Đang xử lý...',
-        html: 'Đang lưu đơn và khởi tạo cấu trúc thư mục Drive mẫu...',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
+// ---- TABLE ----
+function renderTable() {
+    const q = document.getElementById('filterSearch').value.toLowerCase();
+    const chot = document.getElementById('filterChot').value;
+    const stage = document.getElementById('filterStage').value;
+    const donhang = document.getElementById('filterDonHang').value;
+    const loai = document.getElementById('filterLoai').value;
+
+    let filtered = allOrders.filter(o => {
+        const matchQ = !q || (o.maDH||'').toLowerCase().includes(q) || (o.tenMach||'').toLowerCase().includes(q) || (o.customerName||'').toLowerCase().includes(q);
+        const matchChot = !chot || o.ttChotDon === chot;
+        const matchDH = !donhang || o.ttDonHang === donhang;
+        const matchLoai = !loai ||
+            (loai==='rnd' && o.loaiDV === 'rnd') ||
+            (loai==='sx' && o.loaiDV === 'sx') ||
+            (loai==='pcb' && o.soLuongPCB > 0) ||
+            (loai==='lk' && o.soLuongLK > 0) ||
+            (loai==='gc' && o.soLuongGiaCong > 0);
+        return matchQ && matchChot && matchDH && matchLoai && (!stage || (stage === '__quaHan' ? o.quaHan : o.giaiDoan === stage));
     });
 
-    const checkedItems = Array.from(document.querySelectorAll('input[name="dv_item"]:checked')).map(cb => cb.value);
-    
-    const data = {
-        id: document.getElementById('dh_id').value || null,
-        maDH: document.getElementById('previewMaDH').innerText,
-        maKH: document.getElementById('maKH').value,
-        tenMach: document.getElementById('tenMach').value,
-        loaiDV: document.getElementById('loaiDV').value,
-        dauViec: checkedItems,
-        ngayTao: document.getElementById('ngayTao').value,
-        ngayChot: document.getElementById('ngayChot').value,
-        leadtime: parseInt(document.getElementById('leadtime').value) || 0,
-        ngayBanGiao: document.getElementById('ngayBanGiao').value,
-        ttQuyTrinh: document.getElementById('ttQuyTrinh').value,
-        giaThietKe: parseFloat(document.getElementById('giaThietKe').value) || 0,
-        heSoSale: parseFloat(document.getElementById('heSoSale').value) || 1,
-        vat: parseFloat(document.getElementById('vat').value) || 0,
-        chietKhau: parseFloat(document.getElementById('chietKhau').value) || 0,
-        noteDH: document.getElementById('noteDH').value,
-        giaBao: updateGiaBao(),
-        tamUng: parseFloat(document.getElementById('tamUng').value) || 0,
-        ttChotDon: document.getElementById('ttChotDon').value,
-        ttQuyTrinh: document.getElementById('ttQuyTrinh').value,
-        lyDoHuy: document.getElementById('lyDoHuy').value,
-        // Gửi kèm ID cũ nếu có
-        folderId: document.getElementById('folderId_hidden')?.value,
-        inputFolderId: document.getElementById('inputFolderId_hidden')?.value,
-        outputFolderId: document.getElementById('outputFolderId_hidden')?.value
-        
-    };
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = 1;
+    const paged = filtered.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
 
-    try {
-        const response = await fetch('/api/orders/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        const res = await response.json();
+    const tbody = document.getElementById('order-tbody');
+    tbody.innerHTML = paged.length === 0
+        ? `<tr><td colspan="11" class="text-center py-10 text-gray-400">Không có đơn hàng nào</td></tr>`
+        : paged.map(o => {
+            const chotBadge = CHOT_BADGE[o.ttChotDon||''] || 'bg-gray-100 text-gray-500';
+            const pipelineBadge = PIPELINE_BADGE[o.ttDonHang||''] || 'bg-gray-100 text-gray-500';
+            const gia = o.giaBao ? new Intl.NumberFormat('vi-VN').format(o.giaBao) : '---';
+            return `<tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="openEdit(${o.id})">
+                <td class="px-4 py-3 font-bold text-blue-700">${o.maDH}${TYPE_BADGE[o.loaiDV] || ''}${o.vip ? ' <span class="bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 text-[10px] font-bold" title="Lô hàng khách VIP"><i class="fas fa-crown"></i> VIP</span>' : ''}</td>
+                <td class="px-4 py-3 text-gray-600">${o.customerName||o.maKH||''}</td>
+                <td class="px-4 py-3 font-medium">${o.tenMach||''}</td>
+                <td class="px-4 py-3 text-center">${o.soLuongPCB > 0 ? `<span class="bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 text-xs font-bold">${o.soLuongPCB}</span>` : '<span class="text-gray-300">-</span>'}</td>
+                <td class="px-4 py-3 text-center">${o.soLuongLK > 0 ? `<span class="bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 text-xs font-bold">${o.soLuongLK}</span>` : '<span class="text-gray-300">-</span>'}</td>
+                <td class="px-4 py-3 text-center">${o.soLuongGiaCong > 0 ? `<span class="bg-orange-100 text-orange-700 rounded px-1.5 py-0.5 text-xs font-bold">${o.soLuongGiaCong}</span>` : '<span class="text-gray-300">-</span>'}</td>
+                <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${STAGE_BADGE[o.giaiDoan] || chotBadge}">${o.giaiDoan || o.ttChotDon || 'Chờ'}</span>${(o.choBaoGia||[]).length && o.giaiDoan === 'Chờ bộ phận báo giá' ? `<span class="block text-[10px] text-amber-600 mt-1">Chờ: ${o.choBaoGia.join(', ')}</span>` : ''}${o.quaHan ? `<span class="block text-[10px] font-bold text-red-600 mt-1" title="Kiểm tra với khách và chuyển trạng thái đơn nếu cần"><i class="fas fa-exclamation-triangle mr-1"></i>${o.soNgayCho} ngày chưa chốt</span>` : ''}${((o.chungTu || {}).thieu || []).length ? `<span class="block text-[10px] text-pink-600 mt-0.5" title="Chứng từ của đơn đã chốt chưa hoàn tất"><i class="fas fa-file-contract mr-1"></i>Thiếu: ${o.chungTu.thieu.map(t => t.split(' ')[0] + ' ' + (t.split(' ')[1] || '')).join(', ')}</span>` : ''}${o.tamXuat ? `<span class="block text-[10px] text-indigo-600 mt-0.5" title="Kho đang tạm xuất vật tư cho đơn này; tự tái nhập khi đơn Không chốt hoặc Hủy">Kho giữ ${o.tamXuat} mã</span>` : ''}</td>
+                <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${pipelineBadge}">${o.ttDonHang||'Mới'}</span></td>
+                <td class="px-4 py-3 text-right font-semibold">${gia}</td>
+                <td class="px-4 py-3 text-gray-400 text-xs">${(o.ngayTao||'').slice(0,10)}</td>
+                <td class="px-4 py-3 text-center" onclick="event.stopPropagation()">
+                    <button onclick="openEdit(${o.id})" title="Sửa" class="text-blue-500 hover:text-blue-700 mr-2"><i class="fas fa-edit"></i></button>
+                    <button onclick="reorderFrom(${o.id})" title="Đặt lại: tạo đơn mới giống đơn này" class="text-emerald-500 hover:text-emerald-700 mr-2"><i class="fas fa-redo"></i></button>
+                    <button onclick="confirmDelete(${o.id},'${o.maDH}')" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
 
-        if (res.success) {
-            // Cập nhật lại Link vào hidden để nút bấm có tác dụng ngay mà không cần tải lại trang
-            document.getElementById('inputFolderId_hidden').value = res.inputFolderId;
-            document.getElementById('outputFolderId_hidden').value = res.outputFolderId;
-
-    // Cập nhật link trực tiếp vào nút bấm
-    const btnIn = document.getElementById('btnOpenInput');
-    const btnOut = document.getElementById('btnOpenOutput');
-    
-    if (res.inputFolderId) {
-        btnIn.href = `https://drive.google.com/drive/folders/${res.inputFolderId}`;
-        btnIn.classList.remove('opacity-20', 'pointer-events-none');
-    }
-    if (res.outputFolderId) {
-        btnOut.href = `https://drive.google.com/drive/folders/${res.outputFolderId}`;
-        btnOut.classList.remove('opacity-20', 'pointer-events-none');
-    }
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Hoàn tất!',
-                text: 'Folder đơn hàng và file requirements đã sẵn sàng.',
-                showConfirmButton: true,
-                confirmButtonText: 'Mở Folder Input ngay'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    openDriveFolder('input');
-                }
-            });
-            
-            renderTable();
-        } else {
-            Swal.fire("Lỗi", res.error, "error");
-        }
-    } catch (err) {
-        Swal.fire("Lỗi hệ thống", "Kết nối server thất bại", "error");
-    }
+    // Pagination
+    document.getElementById('paginationBar').innerHTML = `
+        <span>Hiển thị ${Math.min((currentPage-1)*PAGE_SIZE+1, total)}–${Math.min(currentPage*PAGE_SIZE, total)} / ${total} đơn</span>
+        <div class="flex gap-1">
+            ${currentPage > 1 ? `<button onclick="goPage(${currentPage-1})" class="px-3 py-1 border rounded hover:bg-gray-100">‹</button>` : ''}
+            ${Array.from({length: totalPages}, (_,i) => `<button onclick="goPage(${i+1})" class="px-3 py-1 border rounded ${i+1===currentPage?'bg-blue-600 text-white':' hover:bg-gray-100'}">${i+1}</button>`).join('')}
+            ${currentPage < totalPages ? `<button onclick="goPage(${currentPage+1})" class="px-3 py-1 border rounded hover:bg-gray-100">›</button>` : ''}
+        </div>`;
 }
+function goPage(p) { currentPage = p; renderTable(); }
 
-function editOrder(id) {
-    const order = currentOrders.find(o => o.id === id);
-    if (!order) return;
-
-    // 1. Đổ dữ liệu vào các ô input (giữ nguyên các phần cũ của bạn)
-    document.getElementById('dh_id').value = order.id;
-    document.getElementById('maKH').value = order.maKH;
-    document.getElementById('tenMach').value = order.tenMach;
-    // ... các trường khác ...
-
-    // 2. Gán giá trị vào các ô Hidden (Để khi Save không bị mất link trên DB)
-    document.getElementById('folderId_hidden').value = order.folderId || '';
-    document.getElementById('inputFolderId_hidden').value = order.inputFolderId || '';
-    document.getElementById('outputFolderId_hidden').value = order.outputFolderId || '';
-
-    // 3. CẬP NHẬT LINK CHO NÚT BẤM (FIX LỖI MẤT LINK)
-    const btnIn = document.getElementById('btnOpenInput');
-    const btnOut = document.getElementById('btnOpenOutput');
-
-    if (order.inputFolderId && order.inputFolderId !== 'null') {
-        // Nếu có ID, gắn link và hiện nút
-        btnIn.href = `https://drive.google.com/drive/folders/${order.inputFolderId}`;
-        btnIn.classList.remove('opacity-20', 'pointer-events-none');
-    } else {
-        // Nếu không có, làm mờ nút
-        btnIn.href = "#";
-        btnIn.classList.add('opacity-20', 'pointer-events-none');
-    }
-
-    if (order.outputFolderId && order.outputFolderId !== 'null') {
-        btnOut.href = `https://drive.google.com/drive/folders/${order.outputFolderId}`;
-        btnOut.classList.remove('opacity-20', 'pointer-events-none');
-    } else {
-        btnOut.href = "#";
-        btnOut.classList.add('opacity-20', 'pointer-events-none');
-    }
-
-    openModal(); // Cuối cùng mới mở Modal
-}
-
-function addNewOrder() {
-    document.getElementById('formOrder').reset();
-    document.getElementById('dh_id').value = ''; // Xóa ID
+// ---- MODAL ----
+function openModal() {
+    document.getElementById('modalDH').style.display = 'flex';
+    document.getElementById('formDH').reset();
+    document.getElementById('dh_id').value = '';
+    syncTabs();
+    document.getElementById('dh_maDH').value = '';
     document.getElementById('folderId_hidden').value = '';
     document.getElementById('inputFolderId_hidden').value = '';
     document.getElementById('outputFolderId_hidden').value = '';
-    document.getElementById('previewMaDH').innerText = 'DH-' + Date.now(); // Tạo mã mới
+    document.getElementById('documentFolderId_hidden').value = '';
+    document.getElementById('btnDelete').classList.add('hidden');
+    document.getElementById('modalTitle').textContent = 'Tạo đơn hàng mới';
+    document.getElementById('dh_ngayTao').value = new Date().toISOString().split('T')[0];
+    document.getElementById('dh_soLuongPCB').value = 0;
+    document.getElementById('dh_soLuongLK').value = 0;
+    document.getElementById('dh_soLuongGiaCong').value = 0;
+    document.getElementById('dh_heSoSale').value = 1;
+    document.getElementById('dh_vat').value = 0;
+    document.getElementById('dh_chietKhau').value = 0;
+    document.getElementById('dh_tamUng').value = 0;
+    document.getElementById('dh_giaThietKe').value = 0;
+    document.querySelector('input[name="ttChotDon"][value="Chờ phản hồi"]').checked = true;
+    updateDriveDisplay();
+    updateCostDisplay(0,0,0);
+    calcTongCong();
+    selectedPipeline = 'Chờ báo giá';
+    orderItems = [blankItem()];
+    itemsLocked = false;
+    servicesFromItems();
+    renderOrderItems();
+    document.getElementById('btnReorder').classList.add('hidden');
+    onKhachHangChange();
+    showQuoteWarning(null);
+    updatePaymentButtons(null);
+    renderDocBadges(null);
+    fillSaleAndBrand(CURRENT_USER_NAME, CURRENT_USER_BRAND || (brandOptions.length === 1 ? brandOptions[0].id : null));
+    document.getElementById('modalSubtitle').textContent = 'Hệ thống H-TECH ERP';
+    // Trang nay chi tao 1 loai don: an lua chon loai con lai
+    setOrderType(PAGE_TYPE, false);
+    document.querySelectorAll('input[name="loaiDV"]').forEach(r => { const other = r.value !== PAGE_TYPE; r.disabled = other; const card = r.closest('label'); if (card) card.style.display = other ? 'none' : ''; });
+    switchTab(1);
+}
+
+function openEdit(id) {
+    const o = allOrders.find(x => x.id === id);
+    if (!o) return;
     openModal();
+    document.getElementById('dh_id').value = o.id;
+    syncTabs();
+    document.getElementById('dh_maDH').value = o.maDH;
+    document.getElementById('modalTitle').textContent = `Đơn hàng: ${o.maDH}`;
+    document.getElementById('dh_maKH').value = o.maKH || '';
+    document.getElementById('dh_tenMach').value = o.tenMach || '';
+    document.getElementById('dh_ngayTao').value = (o.ngayTao||'').slice(0,10);
+    document.getElementById('dh_ngayChot').value = (o.ngayChot||'').slice(0,10);
+    document.getElementById('dh_leadtime').value = o.leadtime || '';
+    document.getElementById('dh_ngayBanGiao').value = (o.ngayBanGiao||'').slice(0,10);
+    document.getElementById('dh_soLuongPCB').value = o.soLuongPCB || 0;
+    document.getElementById('dh_soLuongLK').value = o.soLuongLK || 0;
+    document.getElementById('dh_soLuongGiaCong').value = o.soLuongGiaCong || 0;
+    document.getElementById('dh_ghiChuKyThuat').value = o.ghiChuKyThuat || '';
+    document.getElementById('dh_ttQuyTrinh').value = o.ttQuyTrinh || 'Đang xử lý';
+    document.getElementById('dh_noteDH').value = o.noteDH || '';
+    document.getElementById('dh_driveLink').value = o.driveLink || '';
+    document.getElementById('folderId_hidden').value = o.folderId || '';
+    document.getElementById('inputFolderId_hidden').value = o.inputFolderId || '';
+    document.getElementById('outputFolderId_hidden').value = o.outputFolderId || '';
+    document.getElementById('documentFolderId_hidden').value = o.documentFolderId || '';
+    document.getElementById('dh_heSoSale').value = o.heSoSale || 1;
+    document.getElementById('dh_giaBao').value = o.giaBao || 0;
+    document.getElementById('dh_vat').value = o.vat || 0;
+    document.getElementById('dh_chietKhau').value = o.chietKhau || 0;
+    document.getElementById('dh_tamUng').value = o.tamUng || 0;
+    document.getElementById('dh_ngayBanGiaoThucTe').value = (o.ngayBanGiaoThucTe||'').slice(0,10);
+    document.getElementById('dh_hangMucBanGiao').value = o.hangMucBanGiao || '';
+    document.getElementById('dh_ttNghiemThu').value = o.ttNghiemThu || '';
+    document.getElementById('dh_ttThanhToan').value = o.ttThanhToan || '';
+    document.getElementById('dh_ghiChuNghiemThu').value = o.ghiChuNghiemThu || '';
+    document.getElementById('dh_noiDungPhatSinh').value = o.noiDungPhatSinh || '';
+    const ttChot = o.ttChotDon || 'Chờ phản hồi';
+    const radioChot = document.querySelector(`input[name="ttChotDon"][value="${ttChot}"]`);
+    if (radioChot) radioChot.checked = true;
+    toggleLyDoHuy(ttChot);
+    document.getElementById('dh_lyDoHuy').value = o.lyDoHuy || '';
+    updateDriveDisplay(o.folderId, o.inputFolderId, o.outputFolderId, o.documentFolderId);
+    updateCostDisplay(o.giaCostPCB||0, o.giaCostLK||0, o.giaCostGiaCong||0);
+    document.getElementById('dh_giaThietKe').value = o.giaThietKe || 0;
+    calcTongCong();
+    selectedPipeline = o.ttDonHang || 'Chờ báo giá';
+    orderItems = (o.items || []).map(it => ({ ...it }));
+    if (!orderItems.length) orderItems = [blankItem()];
+    itemsLocked = o.ttChotDon === 'Đã chốt';
+    servicesFromItems();
+    renderOrderItems();
+    onKhachHangChange();
+    setOrderType(o.loaiDV === 'rnd' ? 'rnd' : 'sx', true);
+    document.querySelectorAll('input[name="loaiDV"]').forEach(r => { const card = r.closest('label'); if (card) card.style.display = r.checked ? '' : 'none'; });
+    showQuoteWarning(o);
+    updatePaymentButtons(o);
+    renderDocBadges(o);
+    fillSaleAndBrand(o.saleName || '', o.brandId);
+    document.getElementById('modalSubtitle').textContent = 'Giai đoạn: ' + (o.giaiDoan || '');
+    document.getElementById('btnDelete').classList.remove('hidden');
+    document.getElementById('btnReorder').classList.remove('hidden');
 }
 
-// Hàm phụ để cập nhật link nút bấm Drive ngay khi mở Modal sửa
-function updateDriveButtons(inputID, outputID) {
-    const btnIn = document.getElementById('btnOpenInput');
-    const btnOut = document.getElementById('btnOpenOutput');
-
-    if (inputID && inputID !== 'null') {
-        btnIn.onclick = () => window.open(`https://drive.google.com/drive/folders/${inputID}`, '_blank');
-        btnIn.classList.remove('opacity-20', 'pointer-events-none');
-    } else {
-        btnIn.onclick = () => Swal.fire("Thông báo", "Đơn cũ chưa có Folder Input", "info");
-        btnIn.classList.add('opacity-20');
-    }
-
-    if (outputID && outputID !== 'null') {
-        btnOut.onclick = () => window.open(`https://drive.google.com/drive/folders/${outputID}`, '_blank');
-        btnOut.classList.remove('opacity-20', 'pointer-events-none');
-    } else {
-        btnOut.classList.add('opacity-20');
-    }
+// DAT LAI: mo form tao don MOI voi du lieu cua don cu (khach, loai mach, so luong, ghi chu...). Gia cost khong mang theo -> cac bo phan bao gia lai nhu don moi.
+function reorderFrom(id) {
+    const o = allOrders.find(x => x.id === (id || Number(document.getElementById('dh_id').value)));
+    if (!o) return;
+    openModal();
+    const set = (elId, v) => { document.getElementById(elId).value = v === null || v === undefined ? '' : v; };
+    set('dh_maKH', o.maKH); set('dh_tenMach', o.tenMach); set('dh_leadtime', o.leadtime); set('dh_ghiChuKyThuat', o.ghiChuKyThuat);
+    set('dh_noteDH', `Đặt lại từ đơn ${o.maDH}` + (o.noteDH && !/^Đặt lại từ đơn/.test(o.noteDH) ? ' · ' + o.noteDH : ''));
+    set('dh_vat', o.vat || 0); set('dh_chietKhau', o.chietKhau || 0); set('dh_heSoSale', o.heSoSale || 1);
+    orderItems = (o.items || []).map(it => ({ id: null, tenMach: it.tenMach, soLuongPCB: it.soLuongPCB || 0, soLuongLK: it.soLuongLK || 0, soLuongGiaCong: it.soLuongGiaCong || 0 }));
+    if (!orderItems.length) orderItems = [blankItem()];
+    servicesFromItems();
+    renderOrderItems();
+    fillSaleAndBrand(CURRENT_USER_NAME, CURRENT_USER_BRAND || o.brandId); // don dat lai thuoc ve sale dang tao
+    onKhachHangChange();
+    calcTongCong();
+    document.getElementById('modalTitle').textContent = `Đặt lại đơn ${o.maDH} (đơn mới)`;
+    document.getElementById('modalSubtitle').textContent = 'Kiểm tra số lượng rồi bấm Lưu · các bộ phận sẽ báo giá lại';
 }
 
-// Hàm mở folder
-function openDriveFolder(type) {
-    const id = type === 'input' 
-        ? document.getElementById('inputFolderId_hidden').value 
-        : document.getElementById('outputFolderId_hidden').value;
-
-    if (!id || id === 'null') {
-        Swal.fire("Thông báo", "Thư mục này chưa được khởi tạo cho đơn hàng cũ.", "info");
-        return;
-    }
-    window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
+function closeModal() {
+    document.getElementById('modalDH').style.display = 'none';
 }
 
-async function deleteOrder(id) {
-    if(!confirm("Xác nhận xóa?")) return;
+// ---- THU TIEN (Sale va Ke toan deu ghi nhan duoc; tien ve TK cong ty hoac TK ca nhan) ----
+function currentOrder() {
+    const id = Number(document.getElementById('dh_id').value);
+    return allOrders.find(x => x.id === id);
+}
+function updatePaymentButtons(o) {
+    const canCollect = !!o && o.ttChotDon === 'Đã chốt' && o.ttQuyTrinh !== 'Hủy đơn';
+    document.getElementById('btnThuTien').classList.toggle('hidden', !(canCollect && o.conNo > 0));
+    document.getElementById('btnLichSuThu').classList.toggle('hidden', !canCollect);
+    document.getElementById('thuTienHint').classList.toggle('hidden', canCollect);
+}
+function collectForCurrentOrder() {
+    const o = currentOrder();
+    if (!o) return;
+    openCollectPayment(o, async () => { await loadAll(); openEdit(o.id); switchTab(3); });
+}
+function historyForCurrentOrder() {
+    const o = currentOrder();
+    if (o) showOrderPayments(o);
+}
+
+// ---- SALE PHU TRACH + THUONG HIEU (dung cho bao cao kinh doanh) ----
+// Sale phu trach va thuong hieu di theo TAI KHOAN sale (khong chon theo tung don). Chi Admin doi duoc tren don.
+const IS_ADMIN = <%= (user && user.allRoles && user.allRoles.includes('Admin')) ? 'true' : 'false' %>;
+const CURRENT_USER_BRAND = <%= (user && Number(user.brandId)) || 'null' %>;
+const CURRENT_USER_NAME = <%- JSON.stringify((user && user.name) || '').replace(/</g, '\\u003c') %>;
+let saleOptions = [], brandOptions = [];
+async function loadSaleAndBrandOptions() {
+    if (saleOptions.length || brandOptions.length) return;
     try {
-        const response = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
-        const res = await response.json();
-        if(res.success) renderTable();
-    } catch (e) { alert("Lỗi khi xóa!"); }
+        const [users, brands] = await Promise.all([fetch('/api/users').then(r => r.json()), fetch('/api/settings/brands').then(r => r.json())]);
+        saleOptions = (Array.isArray(users) ? users : []).filter(u => u.status !== 0 && (u.roles || []).some(r => r === 'Sale' || r === 'Admin')).map(u => u.name);
+        brandOptions = Array.isArray(brands) ? brands : [];
+    } catch (e) { /* khong tai duoc danh sach thi van tao don binh thuong */ }
+}
+function fillSaleAndBrand(saleName, brandId) {
+    const names = [...new Set([...saleOptions, saleName, CURRENT_USER_NAME].filter(Boolean))];
+    document.getElementById('dh_saleName').innerHTML = names.map(n => `<option value="${esc(n)}" ${n === saleName ? 'selected' : ''}>${esc(n)}</option>`).join('');
+    document.getElementById('dh_brandId').innerHTML = '<option value="">— Chưa chọn —</option>' + brandOptions.map(b => `<option value="${b.id}" ${Number(brandId) === b.id ? 'selected' : ''}>${esc(b.company || b.code || ('Thương hiệu ' + b.id))}</option>`).join('');
+    document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !IS_ADMIN));
+    const brand = brandOptions.find(b => b.id === Number(brandId));
+    document.getElementById('ownerInfo').innerHTML = `Sale phụ trách: <b>${esc(saleName || '—')}</b> · Thương hiệu: <b>${esc(brand ? (brand.company || brand.code || '') : 'chưa gán cho tài khoản')}</b>`;
 }
 
+// ---- CHUNG TU: hop dong, hoa don, bien ban (Sale va Ke toan cung cap nhat) ----
+function renderDocBadges(o) {
+    const box = document.getElementById('docBadges');
+    if (!o || !o.chungTu) { box.innerHTML = ''; document.getElementById('docHint').classList.remove('hidden'); return; }
+    document.getElementById('docHint').classList.add('hidden');
+    box.innerHTML = ['hopdong', 'po', 'hoadon', 'bienban'].map(loai => {
+        const d = o.chungTu[loai];
+        return `<div class="bg-white border rounded-lg p-3">
+            <p class="font-semibold text-gray-600 mb-1">${esc(d.label)}</p>
+            ${orderDocBadge(o, loai, 'editOrderDoc')}
+            ${d.ngay ? `<span class="ml-1 text-gray-400">${esc(d.ngay)}</span>` : ''}
+            ${d.link ? `<a href="${esc(d.link)}" target="_blank" class="ml-1 text-blue-600 hover:underline">Mở file</a>` : ''}
+        </div>`;
+    }).join('');
+}
+function editOrderDoc(id, loai) {
+    const o = allOrders.find(x => x.id === id);
+    if (!o) return;
+    openOrderDocument(o, loai, docs => { o.chungTu = docs; renderDocBadges(o); renderTable(); });
+}
 
-
-// 1. Cập nhật hàm mở Modal để hiển thị trạng thái thiết kế
-function openModal(id = null) {
-    populateBrands();
-    document.getElementById('modalDH').classList.remove('hidden');
-    
-    // Lấy các element link và hidden
-    const btnIn = document.getElementById('btnOpenInput');
-    const btnOut = document.getElementById('btnOpenOutput');
-    const hiddenIn = document.getElementById('inputFolderId_hidden');
-    const hiddenOut = document.getElementById('outputFolderId_hidden');
-
-    if(id) {
-        // --- LOGIC SỬA ĐƠN ---
-        const o = currentOrders.find(x => x.id == id);
-        if(!o) return;
-
-        document.getElementById('ttChotDon').value = o.ttChotDon || 'Mới khởi tạo';
-        document.getElementById('ttQuyTrinh').value = o.ttQuyTrinh || 'Đang review';
-        document.getElementById('lyDoHuy').value = o.lyDoHuy || '';
-        
-        document.getElementById('dh_id').value = o.id;
-        document.getElementById('loaiDV').value = o.loaiDV;
-        document.getElementById('maKH').value = o.maKH;
-        document.getElementById('tenMach').value = o.tenMach;
-        document.getElementById('ngayTao').value = o.ngayTao;
-        document.getElementById('ngayChot').value = o.ngayChot;
-        document.getElementById('leadtime').value = o.leadtime;
-        document.getElementById('giaThietKe').value = o.giaThietKe;
-        document.getElementById('heSoSale').value = o.heSoSale;
-        document.getElementById('vat').value = o.vat || 0;
-        document.getElementById('chietKhau').value = o.chietKhau || 0;
-        document.getElementById('tamUng').value = o.tamUng || 0;
-        document.getElementById('noteDH').value = o.noteDH || '';
-        
-        hiddenIn.value = o.inputFolderId || '';
-        hiddenOut.value = o.outputFolderId || '';
-
-        // Cập nhật Folder INPUT
-        if (o.inputFolderId && o.inputFolderId !== 'null') {
-            btnIn.href = `https://drive.google.com/drive/folders/${o.inputFolderId}`;
-            btnIn.classList.remove('opacity-20', 'pointer-events-none');
-        } else {
-            btnIn.href = "#";
-            btnIn.classList.add('opacity-20', 'pointer-events-none');
-        }
-
-        // Cập nhật Folder OUTPUT (Sửa lỗi dẫn đến folder INPUT)
-        if (o.outputFolderId && o.outputFolderId !== 'null') {
-            btnOut.href = `https://drive.google.com/drive/folders/${o.outputFolderId}`;
-            btnOut.classList.remove('opacity-20', 'pointer-events-none');
-        } else {
-            btnOut.href = "#";
-            btnOut.classList.add('opacity-20', 'pointer-events-none');
-        }
-
-        const viewTK = document.getElementById('viewTTThietKe');
-        viewTK.innerText = o.ttThietKe || "Chờ triển khai";
-        viewTK.className = `text-xs font-black uppercase ${o.ttThietKe === 'Đã hoàn thành' ? 'text-green-600' : 'text-blue-500'}`;
-        
-        renderServiceCheckboxes(o.dauViec);
-    } else {
-        // --- LOGIC THÊM MỚI ---
-        // 1. Lưu lại giá trị maKH hiện tại (do window.onload gán vào trước đó)
-        const savedMaKH = document.getElementById('maKH').value;
-
-        document.getElementById('formDH').reset();
-        
-        // 2. Sau khi reset, gán lại mã KH nếu có
-        if (savedMaKH) {
-            document.getElementById('maKH').value = savedMaKH;
-        }
-
-        document.getElementById('dh_id').value = '';
-        hiddenIn.value = '';
-        hiddenOut.value = '';
-        btnIn.classList.add('opacity-20', 'pointer-events-none');
-        btnOut.classList.add('opacity-20', 'pointer-events-none');
-        document.getElementById('ngayTao').valueAsDate = new Date();
-        document.getElementById('viewTTThietKe').innerText = "Chưa có đơn";
-        
-        // Set mặc định cho đơn mới
-        document.getElementById('ttChotDon').value = 'Mới khởi tạo';
-        document.getElementById('ttQuyTrinh').value = 'Đang review';
-        
-        renderServiceCheckboxes();
+// ---- CAC LOAI MACH CUA DON (don sx) ----
+let orderItems = [];
+let itemsLocked = false;
+// Khach dat hang muc nao (PCB / linh kien / san xuat): hang muc khong tick -> so luong 0 -> khong vao luong bao gia / mua hang / san xuat cua bo phan do
+const SERVICES = ['soLuongPCB', 'soLuongLK', 'soLuongGiaCong'];
+let services = { soLuongPCB: true, soLuongLK: true, soLuongGiaCong: true };
+function servicesFromItems() {
+    SERVICES.forEach(f => { services[f] = orderItems.some(it => (it[f] || 0) > 0); });
+    if (!SERVICES.some(f => services[f])) SERVICES.forEach(f => { services[f] = true; }); // don moi: mac dinh ca 3, Sale bo tick cai khong dat
+}
+function setService(f, on) {
+    if (itemsLocked) return renderOrderItems();
+    if (!on && SERVICES.filter(x => services[x]).length === 1) {
+        Swal.fire({ icon: 'info', title: 'Cần ít nhất một hạng mục', text: 'Đơn phải có PCB, linh kiện hoặc sản xuất.' });
+        return renderOrderItems();
     }
-    
-    toggleCancelNote();
-    updateMaDH();
-    calculateDeadline();
-    updateGiaBao();
+    services[f] = on;
+    orderItems.forEach(it => { it[f] = on ? (it[f] || Math.max(it.soLuongPCB || 0, it.soLuongLK || 0, it.soLuongGiaCong || 0)) : 0; });
+    renderOrderItems();
 }
+const blankItem = () => ({ id: null, tenMach: '', soLuongPCB: 0, soLuongLK: 0, soLuongGiaCong: 0, on: { soLuongPCB: true, soLuongLK: true, soLuongGiaCong: true } });
 
-// 2. Hàm Báo giá nhanh
-function exportQuote(id = null) {
-    const finalId = id || document.getElementById('dh_id').value;
-    const brandId = document.getElementById('selectBrand').value || 1;
-
-    if (!finalId) {
-        Swal.fire("Chú ý", "Vui lòng lưu đơn trước khi xem báo giá!", "warning");
-        return;
-    }
-
-    // Gửi kèm tham số brandId qua Query String
-    const url = `/api/orders/export-pdf/${finalId}?brandId=${brandId}`;
-    window.open(url, '_blank');
+function renderOrderItems() {
+    const dis = itemsLocked ? 'disabled' : '';
+    const inp = 'border rounded-lg px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100';
+    const orderId = document.getElementById('dh_id').value, hasDrive = !!document.getElementById('inputFolderId_hidden').value;
+    const FOLDER = { soLuongPCB: ['in-pcb', 'PCB'], soLuongLK: ['in-bom', 'BOM'], soLuongGiaCong: ['in-smt', 'SMT'] };
+    document.getElementById('orderItemsBody').innerHTML = orderItems.map((it, i) => {
+        if (!it.on) it.on = { soLuongPCB: (it.soLuongPCB || 0) > 0, soLuongLK: (it.soLuongLK || 0) > 0, soLuongGiaCong: (it.soLuongGiaCong || 0) > 0 };
+        const cost = (it.giaCostPCB || 0) + (it.giaCostLK || 0) + (it.giaCostGiaCong || 0);
+        const waiting = [['PCB', it.soLuongPCB, it.giaCostPCB], ['LK', it.soLuongLK, it.giaCostLK], ['SX', it.soLuongGiaCong, it.giaCostGiaCong]]
+            .filter(([, q, c]) => q > 0 && !(c > 0)).map(([label]) => label);
+        // Moi hang muc: o tick (khach co dat hang muc nay cho mach nay khong) + so luong
+        const cell = f => `<td class="px-3 py-1 text-right whitespace-nowrap"><input type="checkbox" ${dis} ${it.on[f] ? 'checked' : ''} onchange="setItemService(${i}, '${f}', this.checked)" title="Khách có đặt hạng mục này cho mạch này" class="mr-1 align-middle">
+            <input ${dis} ${it.on[f] ? '' : 'disabled'} type="number" min="0" value="${it.on[f] ? (it[f] || '') : ''}" placeholder="${it.on[f] ? 'SL' : '—'}" onchange="setOrderItem(${i}, '${f}', this.value)" class="${inp} w-20 text-right font-bold align-middle"></td>`;
+        const folders = it.id && orderId && hasDrive ? SERVICES.filter(f => (it[f] || 0) > 0).map(f => `<a href="/api/orders/${orderId}/folder/${FOLDER[f][0]}?line=${it.id}" target="_blank" title="Thư mục ${FOLDER[f][1]} riêng của mạch này" class="inline-block px-2 py-0.5 mr-1 rounded border text-[11px] font-bold text-blue-700 hover:bg-blue-50"><i class="fas fa-folder-open mr-1"></i>${FOLDER[f][1]}</a>`).join('')
+            : `<span class="text-[11px] text-gray-400">${it.id ? 'đơn chưa có thư mục Drive' : 'có sau khi lưu đơn'}</span>`;
+        return `<tr class="border-t">
+            <td class="px-3 py-1"><input ${dis} value="${esc(it.tenMach)}" onchange="setOrderItem(${i}, 'tenMach', this.value)" placeholder="VD: Mạch nguồn 12V" class="${inp} w-full min-w-[200px]"></td>
+            ${cell('soLuongPCB')}${cell('soLuongLK')}${cell('soLuongGiaCong')}
+            <td class="px-3 py-1 whitespace-nowrap">${folders}</td>
+            <td class="px-3 py-1 text-right text-xs whitespace-nowrap">${cost > 0 ? `<b>${new Intl.NumberFormat('vi-VN').format(cost)} đ</b>` : '<span class="text-gray-300">—</span>'}${it.id && waiting.length ? `<span class="block text-amber-600">Chờ: ${waiting.join(', ')}</span>` : ''}</td>
+            <td class="px-3 py-1 text-center">${itemsLocked || orderItems.length < 2 ? '' : `<button type="button" onclick="removeOrderItem(${i})" class="text-red-400 hover:text-red-600" title="Xóa loại mạch này"><i class="fas fa-trash"></i></button>`}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('btnAddItem').classList.toggle('hidden', itemsLocked);
+    document.getElementById('itemsLockedNote').classList.toggle('hidden', !itemsLocked);
+    syncItemTotals();
 }
-
-// Tại don-hang.ejs
-async function handleUpload(orderId, folderId) {
-    console.log("Đang upload vào Folder ID:", folderId); // Kiểm tra log F12 xem có ID không
-    if (!folderId || folderId === 'null') {
-        alert("Đơn hàng này chưa có Folder ID trên Drive!");
-        return;
-    }
-    // ... code upload tiếp theo
+// Tick / bo tick 1 hang muc cua RIENG 1 loai mach. Tick thi lay san so luong cua hang muc khac cung dong.
+function setItemService(i, f, on) {
+    const it = orderItems[i];
+    it.on[f] = on;
+    it[f] = on ? (it[f] || Math.max(it.soLuongPCB || 0, it.soLuongLK || 0, it.soLuongGiaCong || 0)) : 0;
+    renderOrderItems();
 }
-
-// Thêm vào trong script
-async function populateBrands() {
-    try {
-        const res = await fetch('/api/brands'); // Giả định bạn đã có API này
-        const brands = await res.json();
-        const select = document.getElementById('selectBrand');
-        
-        if (brands.length > 0) {
-            select.innerHTML = brands.map(b => `<option value="${b.id}">${b.company}</option>`).join('');
-        } else {
-            select.innerHTML = '<option value="1">Brand Mặc Định</option>';
-        }
-    } catch (e) {
-        console.error("Lỗi load Brand:", e);
+function setOrderItem(i, key, value) {
+    orderItems[i][key] = key === 'tenMach' ? value.trim() : Math.max(0, parseInt(value, 10) || 0);
+    renderOrderItems();
+}
+function addOrderItem() { const last = orderItems[orderItems.length - 1]; const it = blankItem(); if (last && last.on) it.on = { ...last.on }; orderItems.push(it); renderOrderItems(); } // dong moi tick giong dong tren
+function removeOrderItem(i) { orderItems.splice(i, 1); renderOrderItems(); }
+// Tong so luong cua don = cong cac loai mach (ghi vao 3 o an de phan con lai cua form dung nhu cu)
+function syncItemTotals() {
+    for (const f of ['soLuongPCB', 'soLuongLK', 'soLuongGiaCong']) {
+        document.getElementById('dh_' + f).value = orderItems.reduce((s, it) => s + (it[f] || 0), 0);
     }
 }
 
-function toggleCancelNote() {
-    const status = document.getElementById('ttQuyTrinh').value;
-    const box = document.getElementById('cancelNoteBox');
-    if (status === 'Hủy đơn') {
+// Nhac Sale khi con bo phan chua bao gia cost (chua the bao khach / chot don)
+function showQuoteWarning(o) {
+    const box = document.getElementById('quoteWarning');
+    const waiting = o ? (o.choBaoGia || []) : null;
+    const decided = o && (o.ttChotDon === 'Đã chốt' || o.ttChotDon === 'Không chốt');
+    if (!o) {
+        document.getElementById('quoteWarningText').textContent = 'Sau khi lưu, đơn sẽ được chuyển cho các bộ phận báo giá cost. Khi đủ báo giá, bạn nhân hệ số để ra giá báo khách.';
+        box.classList.remove('hidden');
+    } else if (waiting.length && !decided) {
+        document.getElementById('quoteWarningText').textContent = 'Đang chờ báo giá cost từ bộ phận: ' + waiting.join(', ') + '. Chưa thể báo khách hoặc chốt đơn.';
         box.classList.remove('hidden');
     } else {
         box.classList.add('hidden');
-        document.getElementById('lyDoHuy').value = ''; // Reset khi không hủy
     }
 }
 
-
-window.onload = async () => {
-    // Tải dữ liệu
-    await populateCustomers(); 
-    await renderTable();
-    await populateBrands();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const maKHFromUrl = urlParams.get('addFor');
-
-    if (maKHFromUrl) {
-        // Bước 1: Gán giá trị vào select trước khi mở modal
-        const selectKH = document.getElementById('maKH');
-        if (selectKH) {
-            selectKH.value = maKHFromUrl;
+// ---- TABS ----
+function switchTab(n) {
+    [1,2,3,4].forEach(i => {
+        document.getElementById(`tab-${i}`).classList.toggle('hidden', i !== n);
+        const btn = document.getElementById(`tab-btn-${i}`);
+        if (i === n) {
+            btn.className = 'tab-btn px-4 py-2 text-sm font-semibold rounded-t-lg border border-b-0 border-blue-500 bg-blue-50 text-blue-700';
+        } else {
+            btn.className = 'tab-btn px-4 py-2 text-sm font-semibold rounded-t-lg text-gray-500 hover:bg-gray-50 border border-transparent';
         }
+    });
+    syncTabs();
+}
+// Don chua luu chi co buoc 1 (thong tin). Bao gia, chot don, tien do chi co sau khi don da tao.
+function syncTabs() {
+    const isNew = !document.getElementById('dh_id').value;
+    [2, 3, 4].forEach(i => document.getElementById(`tab-btn-${i}`).classList.toggle('hidden', isNew));
+    document.getElementById('newOrderHint').classList.toggle('hidden', !isNew);
+}
+// Leadtime (ngay) -> ngay ban giao du kien = ngay chot (chua chot thi hom nay) + leadtime
+function leadtimeToDate() {
+    const days = parseInt(document.getElementById('dh_leadtime').value, 10);
+    if (!(days > 0)) return;
+    const base = document.getElementById('dh_ngayChot').value ? new Date(document.getElementById('dh_ngayChot').value) : new Date();
+    base.setDate(base.getDate() + days);
+    document.getElementById('dh_ngayBanGiao').value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+}
 
-        // Bước 2: Mở modal (Hàm openModal bây giờ đã biết giữ lại giá trị maKH)
-        openModal(); 
+// ---- PIPELINE ----
+let selectedPipeline = 'Chờ báo giá';
+function renderPipelineButtons(current) {
+    selectedPipeline = current || 'Chờ báo giá';
+    const steps = PIPELINE_BY_TYPE[currentOrderType()].slice();
+    // Don cu co trang thai khong nam trong danh sach -> van hien de khong bi mat khi luu
+    if (!steps.includes(selectedPipeline)) steps.unshift(selectedPipeline);
+    document.getElementById('pipelineButtons').innerHTML = steps.map(s => {
+        const active = s === selectedPipeline;
+        const badge = PIPELINE_BADGE[s] || 'bg-gray-100 text-gray-600';
+        const base = active ? 'ring-2 ring-offset-1 ring-blue-500 ' : '';
+        return `<button type="button" onclick="selectPipeline('${s}')" class="${base}${badge} rounded-lg px-3 py-2 text-xs font-bold transition border border-transparent hover:opacity-80">${s}</button>`;
+    }).join('');
+}
+function selectPipeline(s) { selectedPipeline = s; renderPipelineButtons(s); }
 
-        // Bước 3: Ép một lần nữa cho chắc chắn sau khi Form render xong
-        setTimeout(() => {
-            if (selectKH && selectKH.value !== maKHFromUrl) {
-                selectKH.value = maKHFromUrl;
-                updateMaDH();
-            }
-        }, 500);
+// ---- COST / CALC ----
+function updateCostDisplay(pcb, lk, gc) {
+    const fmt = v => new Intl.NumberFormat('vi-VN').format(v||0) + ' đ';
+    document.getElementById('display_costPCB').textContent = fmt(pcb);
+    document.getElementById('display_costLK').textContent = fmt(lk);
+    document.getElementById('display_costGC').textContent = fmt(gc);
+    const total = (pcb||0) + (lk||0) + (gc||0);
+    document.getElementById('display_totalCost').textContent = fmt(total);
+    return total;
+}
 
-        // Làm sạch URL
-        window.history.replaceState({}, document.title, window.location.pathname);
+function calcGiaBao() {
+    const total = currentOrderType() === 'rnd'
+        ? (parseFloat(document.getElementById('dh_giaThietKe').value) || 0)
+        : (parseFloat(document.getElementById('display_totalCost').textContent.replace(/[^0-9]/g,'')) || 0);
+    const heso = parseFloat(document.getElementById('dh_heSoSale').value) || 1;
+    document.getElementById('dh_giaBao').value = Math.round(total * heso);
+    calcTongCong();
+}
+
+function calcTongCong() {
+    const giaBao = parseFloat(document.getElementById('dh_giaBao').value) || 0;
+    const vat = parseFloat(document.getElementById('dh_vat').value) || 0;
+    const ck = parseFloat(document.getElementById('dh_chietKhau').value) || 0;
+    const tong = giaBao + giaBao*vat/100 - giaBao*ck/100;
+    document.getElementById('display_tongCong').textContent = new Intl.NumberFormat('vi-VN').format(Math.round(tong)) + ' đ';
+}
+
+// ---- DRIVE ----
+function updateDriveDisplay(fid, iid, oid, did) {
+    const setLink = (displayId, linkId, val) => {
+        const el = document.getElementById(displayId);
+        const lnk = document.getElementById(linkId);
+        if (val) {
+            el.textContent = val.slice(0,20) + '...';
+            lnk.href = `https://drive.google.com/drive/folders/${val}`;
+            lnk.classList.remove('hidden');
+        } else {
+            el.textContent = 'Chưa có';
+            lnk.classList.add('hidden');
+        }
+    };
+    // Thu muc tung bo phan trong "2. OUTPUT" (tu tao khi mo lan dau)
+    let box = document.getElementById('deptFolderLinks');
+    if (!box) { box = document.createElement('div'); box.id = 'deptFolderLinks'; box.className = 'mt-3 flex flex-wrap gap-2 items-center text-xs'; document.getElementById('link_documentFolderId').parentNode.parentNode.insertAdjacentElement('afterend', box); }
+    const orderId = document.getElementById('dh_id').value;
+    const type = (document.querySelector('input[name="loaiDV"]:checked') || document.getElementById('loaiDV') || {}).value;
+    const depts = type === 'rnd' ? [['thietke', 'Thiết kế']] : [['pcb', 'PCB'], ['linhkien', 'Linh kiện'], ['sanxuat', 'Sản xuất'], ['kho', 'Kho - Giao hàng']];
+    const ins = type === 'rnd' ? [['in-design', 'Design']] : [['in-bom', 'BOM'], ['in-pcb', 'PCB'], ['in-smt', 'SMT']];
+    box.innerHTML = (oid && orderId) ? '<span class="font-semibold text-gray-500">Trong INPUT (yêu cầu của khách):</span>' + ins.map(d => `<a href="/api/orders/${orderId}/folder/${d[0]}" target="_blank" class="px-2 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 font-bold hover:bg-yellow-100"><i class="fas fa-folder mr-1"></i>${d[1]}</a>`).join('')
+        + '<span class="font-semibold text-gray-500 ml-3">Trong OUTPUT (từng bộ phận):</span>' + depts.map(d => `<a href="/api/orders/${orderId}/folder/${d[0]}" target="_blank" class="px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200 font-bold hover:bg-green-100"><i class="fas fa-folder mr-1"></i>${d[1]}</a>`).join('') : '';
+    setLink('display_folderId','link_folderId', fid);
+    setLink('display_inputFolderId','link_inputFolderId', iid);
+    setLink('display_outputFolderId','link_outputFolderId', oid);
+    setLink('display_documentFolderId','link_documentFolderId', did);
+}
+
+function toggleLyDoHuy(val) {
+    document.getElementById('lyDoHuyWrap').classList.toggle('hidden', val !== 'Không chốt');
+}
+document.querySelectorAll('input[name="ttChotDon"]').forEach(r => r.addEventListener('change', e => toggleLyDoHuy(e.target.value)));
+
+// ---- SAVE ----
+async function handleSaveOrder(e) {
+    e.preventDefault();
+    const ttChotDonEl = document.querySelector('input[name="ttChotDon"]:checked');
+    const loaiDV = currentOrderType();
+    const isRnd = loaiDV === 'rnd';
+    const qty = id => isRnd ? 0 : (parseInt(document.getElementById(id).value) || 0);
+    if (!isRnd && !itemsLocked) {
+        syncItemTotals();
+        const noQty = orderItems.find(it => it.on && SERVICES.some(f => it.on[f] && !((it[f] || 0) > 0)));
+        if (noQty) { switchTab(1); return Swal.fire({ icon: 'warning', title: 'Thiếu số lượng', text: `Mạch "${noQty.tenMach || '(chưa đặt tên)'}": hạng mục đã tick cần có số lượng lớn hơn 0, hoặc bỏ tick.` }); }
+        const bad = orderItems.find(it => !it.tenMach || (it.soLuongPCB || 0) + (it.soLuongLK || 0) + (it.soLuongGiaCong || 0) === 0);
+        if (bad) {
+            switchTab(1);
+            return Swal.fire({ icon:'warning', title:'Thiếu thông tin loại mạch', text:'Mỗi loại mạch cần có tên và số lượng PCB, linh kiện hoặc sản xuất.' });
+        }
     }
-};
-</script>
+    const payload = {
+        id: document.getElementById('dh_id').value || null,
+        maDH: document.getElementById('dh_maDH').value || null,
+        maKH: document.getElementById('dh_maKH').value,
+        tenMach: document.getElementById('dh_tenMach').value,
+        ngayTao: document.getElementById('dh_ngayTao').value,
+        ngayChot: document.getElementById('dh_ngayChot').value,
+        leadtime: document.getElementById('dh_leadtime').value,
+        ngayBanGiao: document.getElementById('dh_ngayBanGiao').value,
+        soLuongPCB: qty('dh_soLuongPCB'),
+        soLuongLK: qty('dh_soLuongLK'),
+        soLuongGiaCong: qty('dh_soLuongGiaCong'),
+        giaThietKe: isRnd ? (parseFloat(document.getElementById('dh_giaThietKe').value) || 0) : 0,
+        ghiChuKyThuat: document.getElementById('dh_ghiChuKyThuat').value,
+        ttQuyTrinh: document.getElementById('dh_ttQuyTrinh').value,
+        noteDH: document.getElementById('dh_noteDH').value,
+        saleName: document.getElementById('dh_saleName').value,
+        brandId: document.getElementById('dh_brandId').value || null,
+        folderId: document.getElementById('folderId_hidden').value || null,
+        inputFolderId: document.getElementById('inputFolderId_hidden').value || null,
+        outputFolderId: document.getElementById('outputFolderId_hidden').value || null,
+        documentFolderId: document.getElementById('documentFolderId_hidden').value || null,
+        heSoSale: parseFloat(document.getElementById('dh_heSoSale').value) || 1,
+        giaBao: parseFloat(document.getElementById('dh_giaBao').value) || 0,
+        vat: parseFloat(document.getElementById('dh_vat').value) || 0,
+        chietKhau: parseFloat(document.getElementById('dh_chietKhau').value) || 0,
+        tamUng: parseFloat(document.getElementById('dh_tamUng').value) || 0,
+        ttChotDon: ttChotDonEl ? ttChotDonEl.value : 'Chờ phản hồi',
+        lyDoHuy: document.getElementById('dh_lyDoHuy').value,
+        ttDonHang: selectedPipeline,
+        ngayBanGiaoThucTe: document.getElementById('dh_ngayBanGiaoThucTe').value,
+        hangMucBanGiao: document.getElementById('dh_hangMucBanGiao').value,
+        ttNghiemThu: document.getElementById('dh_ttNghiemThu').value,
+        ttThanhToan: document.getElementById('dh_ttThanhToan').value,
+        ghiChuNghiemThu: document.getElementById('dh_ghiChuNghiemThu').value,
+        noiDungPhatSinh: document.getElementById('dh_noiDungPhatSinh').value,
+        dauViec: [],
+        items: isRnd ? undefined : orderItems.map(it => ({ id: it.id, tenMach: it.tenMach, soLuongPCB: it.soLuongPCB || 0, soLuongLK: it.soLuongLK || 0, soLuongGiaCong: it.soLuongGiaCong || 0 })),
+        loaiDV
+    };
 
+    try {
+        const r = await fetch('/api/orders/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const result = await r.json();
+        if (!result.success) throw new Error(result.error);
+
+        if (!payload.id && result.folderId) {
+            document.getElementById('folderId_hidden').value = result.folderId || '';
+            document.getElementById('inputFolderId_hidden').value = result.inputFolderId || '';
+            document.getElementById('outputFolderId_hidden').value = result.outputFolderId || '';
+            document.getElementById('documentFolderId_hidden').value = result.documentFolderId || '';
+            updateDriveDisplay(result.folderId, result.inputFolderId, result.outputFolderId, result.documentFolderId);
+        }
+        await Swal.fire({ icon:'success', title:'Đã lưu!', text: (result.maDH ? `Mã ĐH: ${result.maDH}` : 'Cập nhật thành công') + (result.stockNote ? ' — ' + result.stockNote : ''), timer: result.stockNote ? 3500 : 1500, showConfirmButton:false });
+        closeModal();
+        loadAll();
+    } catch(err) {
+        Swal.fire({ icon:'error', title:'Lỗi', text: err.message });
+    }
+}
+
+// ---- DELETE ----
+async function confirmDelete(id, maDH) {
+    const result = await Swal.fire({ icon:'warning', title:`Xóa đơn ${maDH}?`, text:'Thao tác không thể hoàn tác!', showCancelButton:true, confirmButtonColor:'#ef4444', confirmButtonText:'Xóa', cancelButtonText:'Hủy' });
+    if (!result.isConfirmed) return;
+    const r = await fetch(`/api/orders/${id}`, { method:'DELETE' });
+    const res = await r.json();
+    if (res.success) { closeModal(); loadAll(); }
+    else Swal.fire({ icon:'error', title:'Không xóa được', text: res.error || '' });
+}
+async function deleteCurrentOrder() {
+    const id = document.getElementById('dh_id').value;
+    const maDH = document.getElementById('dh_maDH').value;
+    if (id) await confirmDelete(id, maDH);
+}
+
+// ---- PDF ----
+function exportPDF() {
+    const id = document.getElementById('dh_id').value;
+    if (!id) { Swal.fire({ icon:'warning', title:'Chưa lưu đơn hàng', text:'Vui lòng lưu trước khi xuất PDF' }); return; }
+    // Thuong hieu la lua chon khi xuat bao gia: mac dinh theo don (tai khoan sale), co the doi cho lan xuat nay
+    const cur = document.getElementById('dh_brandId').value;
+    if (brandOptions.length < 2) return window.open(`/api/orders/export-pdf/${id}${cur ? '?brandId=' + cur : ''}`, '_blank');
+    Swal.fire({ title: 'Xuất báo giá với thương hiệu nào?', input: 'select', inputOptions: Object.fromEntries(brandOptions.map(b => [b.id, b.company || b.code])), inputValue: cur || brandOptions[0].id,
+        showCancelButton: true, confirmButtonText: 'Xuất PDF', cancelButtonText: 'Hủy' }).then(r => { if (r.isConfirmed) window.open(`/api/orders/export-pdf/${id}?brandId=${r.value}`, '_blank'); });
+}
+
+// ---- CUSTOMERS CHANGE ----
+// Hien thong tin khach hang da chon ngay duoi o chon
+function onKhachHangChange() {
+    const c = allCustomers.find(x => x.maKH === document.getElementById('dh_maKH').value);
+    document.getElementById('khInfo').textContent = c ? [c.tenKH, c.sdt, c.diaChi].filter(Boolean).join(' · ') : '';
+}
+
+// ---- INIT ----
+window.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</main>
 <%- include('../partials/footer') %>

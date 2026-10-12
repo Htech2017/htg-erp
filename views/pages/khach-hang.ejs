@@ -1,20 +1,13 @@
 <%- include('../partials/header') %>
 <%- include('../partials/sidebar') %>
 
-<script src="/js/auth-db.js"></script>
 <main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
     <div class="max-w-[1600px] mx-auto">
 <div class="flex justify-between items-center mb-8">
     <h1 class="text-2xl font-bold text-gray-800">Quản lý Khách hàng</h1>
     <div class="flex gap-2">
-    <a href="/api/customers/template" class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-200 transition flex items-center gap-2 text-sm font-medium">
-        <i class="fas fa-download"></i> Tải mẫu
-    </a>
-
     <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" onchange="handleImportExcel(event)">
-    <button onclick="document.getElementById('excelInput').click()" class="bg-emerald-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-emerald-700 transition flex items-center gap-2">
-        <i class="fas fa-file-excel"></i> Import Excel
-    </button>
+    <a href="/nhap-xuat-du-lieu?e=customers" class="bg-emerald-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-emerald-700 transition flex items-center gap-2"><i class="fas fa-file-excel"></i> Nhập / xuất Excel</a>
     
     <button onclick="openModal()" class="bg-blue-600 text-white px-5 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition">
         + Thêm Khách hàng
@@ -57,7 +50,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm mb-1 font-medium">Nick name</label>
-                    <input type="text" id="nick_name" maxlength="10" class="w-full border rounded p-2 outline-none focus:border-blue-500 uppercase" required>
+                    <input type="text" id="nick_name" maxlength="5" minlength="5" class="w-full border rounded p-2 outline-none focus:border-blue-500 uppercase" required>
                 </div>
                 <div>
                     <label class="block text-sm mb-1 font-medium">Số điện thoại</label>
@@ -84,6 +77,7 @@
                     placeholder="0" value="0">
                 <p class="text-[9px] text-gray-400 mt-1 italic">* Số tiền khách còn nợ từ hệ thống cũ tính đến thời điểm hiện tại.</p>
             </div>
+            <div id="khAddr" class="col-span-12"></div>
             <div class="flex justify-end space-x-3 pt-4 border-t mt-4">
                 <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Hủy</button>
                 <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">Lưu thông tin</button>
@@ -98,16 +92,17 @@ let currentCustomers = []; // Biến tạm lưu danh sách để dùng cho hàm 
 // --- 1. RENDER BẢNG ---
 // Thay vì dùng: const db = await getDB(); (Gây lỗi 404)
 // Hãy dùng:
+
 async function renderTable() {
     try {
         const response = await fetch('/api/customers');
         const customers = await response.json();
-        currentCustomers = customers;
+        currentCustomers = customers; // Lưu tạm để dùng cho sửa    
 
         const tbody = document.getElementById('customer-tbody');
         tbody.innerHTML = customers.map(kh => {
             // Log thử để bạn kiểm tra tên cột thực tế từ DB
-            console.log("Dữ liệu 1 dòng khách:", kh); 
+            //console.log("Dữ liệu 1 dòng khách:", kh); 
 
             // Trong hàm renderTable(), đoạn map customers:
         return `
@@ -131,6 +126,12 @@ async function renderTable() {
                             <i class="fas fa-plus-circle"></i>
                         </button>
 
+                        <button onclick="openCustomerFolder('${kh.customerFolderId}')" 
+                                class="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white w-8 h-8 rounded-lg transition-all flex items-center justify-center shadow-sm" 
+                                title="Mở thư mục Google Drive của khách này">
+                            <i class="fab fa-google-drive"></i>
+                        </button>
+
                         <button onclick="editCustomer(${kh.id})" class="text-blue-500 hover:text-blue-700 p-2">
                             <i class="fas fa-edit"></i>
                         </button>
@@ -151,7 +152,7 @@ async function renderTable() {
 function updateMaKH() {
     const nick = document.getElementById('nick_name').value.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '') || 'NICK';
     const sdt = document.getElementById('sdt').value.replace(/\D/g, '').slice(-5) || 'SDT';
-    document.getElementById('previewMaKH').innerText = `${nick}_${sdt}`;
+    document.getElementById('previewMaKH').innerText = `${nick}${sdt}`;
 }
 
 document.getElementById('nick_name').addEventListener('input', updateMaKH);
@@ -163,12 +164,14 @@ function openModal() {
     document.getElementById('modalTitle').innerText = "Thêm khách hàng mới";
     document.getElementById('formKH').reset();
     document.getElementById('kh_id').value = '';
+    addrOf = null; drawAddr();
     updateMaKH();
 }
 
 function closeModal() {
     document.getElementById('modalKH').classList.add('hidden');
 }
+
 
 async function editCustomer(id) {
     const kh = currentCustomers.find(c => c.id === id);
@@ -178,6 +181,7 @@ async function editCustomer(id) {
     document.getElementById('modalTitle').innerText = "Sửa thông tin khách hàng";
     
     document.getElementById('kh_id').value = kh.id;
+    loadAddr(kh.maKH);
     document.getElementById('nick_name').value = kh.nick_name;
     document.getElementById('tenKH').value = kh.tenKH;
     document.getElementById('sdt').value = kh.sdt;
@@ -191,6 +195,31 @@ async function editCustomer(id) {
     }
     
     updateMaKH();
+}
+
+// --- DIA CHI NHAN HANG (nhieu noi nhan / 1 khach) - dung khi tao chuyen giao hang ---
+let addrOf = null, addrList = [];
+async function loadAddr(maKH) { addrOf = maKH; const r = await fetch(`/api/customers/${encodeURIComponent(maKH)}/addresses`); addrList = r.ok ? await r.json() : []; drawAddr(); }
+function drawAddr() {
+    const box = document.getElementById('khAddr');
+    if (!addrOf) { box.innerHTML = '<p class="text-xs text-gray-400 italic">Địa chỉ nhận hàng: lưu khách hàng trước, sau đó mở lại để thêm các nơi nhận.</p>'; return; }
+    const inp = 'border rounded px-2 py-1.5 text-sm outline-none focus:border-blue-500';
+    box.innerHTML = `<div class="border rounded-xl p-3 bg-slate-50">
+        <div class="flex items-center justify-between mb-2"><p class="text-[10px] font-black text-teal-700 uppercase"><i class="fas fa-map-marker-alt mr-1"></i>Địa chỉ nhận hàng (dùng khi giao hàng)</p>
+            <button type="button" onclick="addrList.push({ label: '', receiver: '', phone: '', address: '', isDefault: addrList.length ? 0 : 1 }); drawAddr()" class="text-xs font-bold text-blue-600 hover:underline">+ Thêm nơi nhận</button></div>
+        ${addrList.map((a, i) => `<div class="grid grid-cols-12 gap-2 mb-2 items-center">
+            <input value="${esc(a.label || '')}" onchange="addrList[${i}].label = this.value" placeholder="Tên gợi nhớ (Kho HN, Nhà máy...)" class="${inp} col-span-3">
+            <input value="${esc(a.address || '')}" onchange="addrList[${i}].address = this.value" placeholder="Địa chỉ nhận *" class="${inp} col-span-4">
+            <input value="${esc(a.receiver || '')}" onchange="addrList[${i}].receiver = this.value" placeholder="Người nhận" class="${inp} col-span-2">
+            <input value="${esc(a.phone || '')}" onchange="addrList[${i}].phone = this.value" placeholder="SĐT" class="${inp} col-span-2">
+            <span class="col-span-1 flex items-center gap-2"><input type="radio" name="addrDef" ${a.isDefault ? 'checked' : ''} onchange="addrList.forEach((x, j) => x.isDefault = j === ${i} ? 1 : 0)" title="Mặc định"><button type="button" onclick="addrList.splice(${i}, 1); drawAddr()" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button></span></div>`).join('') || '<p class="text-xs text-gray-400 italic mb-2">Chưa có nơi nhận nào. Khi giao hàng sẽ dùng địa chỉ chung của khách.</p>'}
+        <button type="button" onclick="saveAddr()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 text-white hover:bg-teal-700">Lưu địa chỉ nhận hàng</button> <span class="text-[11px] text-gray-400">Chấm tròn = nơi nhận mặc định.</span></div>`;
+}
+async function saveAddr() {
+    const r = await (await fetch(`/api/customers/${encodeURIComponent(addrOf)}/addresses`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ list: addrList }) })).json();
+    if (!r.success) return Swal.fire('Lỗi', r.error || 'Không lưu được', 'error');
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2000, showConfirmButton: false, title: `Đã lưu ${r.count} địa chỉ nhận hàng` });
+    loadAddr(addrOf);
 }
 
 // --- 4. LƯU (THÊM/SỬA) ---
@@ -221,6 +250,15 @@ async function handleSaveCustomer(event) {
         old_debt: parseFloat(elOldDebt.value) || 0
     };
 
+    Swal.fire({
+        title:  'Đang khởi khách hàng...',
+        html: 'Hệ thống đang cập nhật thư mục Google Drive. <br> Vui lòng đợi trong giây lát!',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading(); // Hiển thị vòng xoay loading
+        }
+    });
+
     try {
         const response = await fetch('/api/customers/save', {
             method: 'POST',
@@ -231,11 +269,23 @@ async function handleSaveCustomer(event) {
         const result = await response.json();
         
         if (result.success) {
-            alert("Đã lưu thành công!"); // Thêm thông báo để biết là đã xong
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công!',
+                text: 'Thư mục Drive đã được khởi tạo.',
+                timer: 2000,
+                showConfirmButton: false
+            });
             closeModal(); // Bạn đang dùng closeModal() chứ không phải closeCustomerModal()
             renderTable(); 
         } else {
-            alert("Lỗi từ Server: " + result.error);
+            Swal.fire({
+                icon: 'fail',
+                title: 'Thất bại!',
+                text: result.error || 'Có lỗi xảy ra khi lưu khách hàng.',
+                timer: 2000,
+                showConfirmButton: false
+            });
         }
     } catch (e) {
         console.error("Lỗi khi lưu:", e);
@@ -302,7 +352,18 @@ async function handleImportExcel(event) {
 function createOrderForKH(maKH) {
     if (!maKH) return alert("Khách hàng này chưa có mã!");
     // Chuyển hướng sang trang đơn hàng kèm query string ?maKH=...
-    window.location.href = `/don-hang?addFor=${encodeURIComponent(maKH)}`;
+    // Chon loai don roi mo san form tao don, khach hang da duoc dien
+    Swal.fire({ title: 'Tạo đơn hàng cho ' + maKH, text: 'Chọn loại đơn', icon: 'question', showDenyButton: true, showCancelButton: true,
+        confirmButtonText: 'PCB / Linh kiện / Sản xuất', denyButtonText: 'R&D', cancelButtonText: 'Hủy' }).then(r => {
+        if (r.isConfirmed) window.location.href = `/don-hang/san-xuat?addFor=${encodeURIComponent(maKH)}`;
+        else if (r.isDenied) window.location.href = `/don-hang/rnd?addFor=${encodeURIComponent(maKH)}`;
+    });
+}
+
+function openCustomerFolder(customerFolderId) {
+    if (!customerFolderId||customerFolderId === 'null') return alert("Khách hàng này chưa có thư mục Google Drive!");
+    // Mở thư mục Google Drive của khách hàng trong tab mới
+    window.open(`https://drive.google.com/drive/folders/${encodeURIComponent(customerFolderId)}`, '_blank');
 }
 // --- KHỞI CHẠY ---
 window.onload = renderTable;

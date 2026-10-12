@@ -1,0 +1,146 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1300px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center gap-3">
+    <button onclick="goBack()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-white border text-slate-700 hover:bg-slate-50"><i class="fas fa-arrow-left mr-1"></i>Quay lại</button>
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight"><i class="fas fa-file-excel text-emerald-600 mr-2"></i>Nhập / xuất dữ liệu</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Excel (.xlsx, .xls), .csv hoặc .txt · file của bạn không cần đúng mẫu: chọn file rồi ghép cột với trường tương ứng</p>
+    </div>
+</div>
+
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+    <p class="text-xs font-black text-gray-400 uppercase">1. Chọn danh sách</p>
+    <div id="ioEntities" class="flex flex-wrap gap-2"></div>
+    <p id="ioNote" class="text-xs text-gray-500"></p>
+</div>
+
+<div id="ioExport" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3"></div>
+<div id="ioImport" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3"></div>
+<div id="ioMap"></div>
+<div id="ioResult"></div>
+
+</div>
+</main>
+
+<script>
+const Q = new URLSearchParams(location.search);
+let E = [], cur = null, file = null, parsed = null, mapping = {}, products = [];
+let opt = { update: false, productId: Number(Q.get('productId')) || 0, note: '', sheet: '' };
+const inp = 'border rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-400';
+const btn = 'px-4 py-2 rounded-lg text-sm font-bold';
+function goBack() {
+    if (cur && cur.key === 'vip-bom' && opt.productId) return location.href = '/don-hang/vip#product/' + opt.productId;
+    if (history.length > 1) history.back(); else location.href = '/';
+}
+async function init() {
+    E = await (await fetch('/api/io/entities')).json();
+    if (E.some(e => e.key === 'vip-bom')) { const r = await fetch('/api/vip'); if (r.ok) products = (await r.json()).products; }
+    cur = E.find(e => e.key === Q.get('e')) || E[0] || null;
+    renderAll();
+}
+function pickEntity(key) { cur = E.find(e => e.key === key); file = null; parsed = null; mapping = {}; document.getElementById('ioResult').innerHTML = ''; renderAll(); }
+function renderAll() {
+    if (!cur) { document.getElementById('ioEntities').innerHTML = '<p class="text-sm text-gray-500">Tài khoản của bạn chưa có danh sách nào được nhập / xuất.</p>'; return; }
+    document.getElementById('ioEntities').innerHTML = E.map(e => `<button onclick="pickEntity('${e.key}')" class="px-4 py-2 rounded-xl text-sm font-bold border ${e.key === cur.key ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-gray-600 hover:bg-gray-50'}">${esc(e.label)}</button>`).join('');
+    document.getElementById('ioNote').innerText = cur.keyNote || '';
+    const pid = cur.key === 'vip-bom' && opt.productId ? '&productId=' + opt.productId : '';
+    document.getElementById('ioExport').innerHTML = `<p class="text-xs font-black text-gray-400 uppercase">2. Xuất dữ liệu đang có</p>
+        <div class="flex flex-wrap gap-2 items-center">
+            ${cur.canRead ? `<a href="/api/io/export/${cur.key}?format=xlsx${pid}" class="${btn} bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-file-excel mr-1"></i>Xuất Excel (.xlsx)</a>
+            <a href="/api/io/export/${cur.key}?format=txt${pid}" class="${btn} bg-white border text-gray-700 hover:bg-gray-50"><i class="fas fa-file-alt mr-1"></i>Xuất .txt (tab)</a>` : '<span class="text-xs text-gray-400">Bạn không có quyền xuất danh sách này.</span>'}
+            ${cur.canWrite ? `<a href="/api/io/export/${cur.key}?template=1" class="${btn} bg-white border text-gray-700 hover:bg-gray-50"><i class="fas fa-download mr-1"></i>Tải file mẫu (chỉ có tiêu đề cột)</a>` : ''}
+        </div>
+        <p class="text-[11px] text-gray-400">Các cột: ${cur.fields.map(f => esc(f.label) + (f.required ? ' *' : '')).join(' · ')}</p>`;
+    renderImport();
+}
+function renderImport() {
+    const box = document.getElementById('ioImport');
+    if (!cur.canWrite) { box.innerHTML = '<p class="text-xs font-black text-gray-400 uppercase">3. Nhập từ file</p><p class="text-sm text-gray-500">Bạn không có quyền nhập danh sách này.</p>'; document.getElementById('ioMap').innerHTML = ''; return; }
+    const bom = cur.key === 'vip-bom';
+    box.innerHTML = `<p class="text-xs font-black text-gray-400 uppercase">3. Nhập từ file</p>
+        ${bom ? `<div class="grid grid-cols-12 gap-3">
+            <label class="text-xs font-bold text-gray-600 col-span-12 md:col-span-5">Nhập BOM cho mã mạch<select onchange="opt.productId = Number(this.value) || 0; renderAll()" class="mt-1 w-full ${inp} bg-white font-normal">
+                <option value="0">-- theo cột "Khách hàng" + "Mã mạch" trong file (nhiều mã mạch 1 file) --</option>
+                ${products.map(p => `<option value="${p.id}" ${p.id === opt.productId ? 'selected' : ''}>${esc((p.tenKH || p.maKH) + ' · ' + p.label)} (rev ${p.rev}, ${p.bom.length} dòng BOM)</option>`).join('')}</select></label>
+            <label class="text-xs font-bold text-gray-600 col-span-12 md:col-span-7">Nội dung thay đổi thiết kế <span class="font-normal text-gray-400">(ghi vào lịch sử của mã mạch; bỏ trống thì ghi "Nhập BOM từ file ...")</span>
+                <input value="${esc(opt.note)}" onchange="opt.note = this.value" placeholder="VD: Khách gửi BOM bản V2, đổi U3, thêm C15" class="mt-1 w-full ${inp} font-normal"></label></div>` : ''}
+        <div class="flex flex-wrap items-center gap-3">
+            <input type="file" id="ioFile" accept=".xlsx,.xls,.csv,.txt,.tsv" class="hidden" onchange="chooseFile(this.files[0])">
+            <button onclick="document.getElementById('ioFile').click()" class="${btn} bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-upload mr-1"></i>Chọn file</button>
+            <span class="text-sm text-gray-600">${file ? '<b>' + esc(file.name) + '</b>' + (parsed ? ` · ${parsed.total} dòng dữ liệu · tiêu đề ở dòng ${parsed.headerRow + 1}` : '') : 'Chưa chọn file'}</span>
+            ${parsed && parsed.sheets.length > 1 ? `<select onchange="opt.sheet = this.value; chooseFile(file)" class="${inp} bg-white">${parsed.sheets.map(s => `<option ${s === opt.sheet ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>` : ''}
+            ${cur.key === 'orders' || bom ? '' : `<label class="text-xs font-bold text-gray-700 flex items-center gap-1 cursor-pointer"><input type="checkbox" ${opt.update ? 'checked' : ''} onchange="opt.update = this.checked"> Dòng đã có thì cập nhật (không tick: bỏ qua dòng đã có)</label>`}
+        </div>`;
+    renderMap();
+}
+function form(extra) {
+    const fd = new FormData();
+    fd.append('file', file); fd.append('entity', cur.key); fd.append('sheet', opt.sheet || '');
+    for (const [k, v] of Object.entries(extra || {})) fd.append(k, v);
+    return fd;
+}
+async function chooseFile(f) {
+    if (!f) return;
+    file = f; parsed = null; document.getElementById('ioResult').innerHTML = '';
+    const res = await (await fetch('/api/io/parse', { method: 'POST', body: form() })).json();
+    if (!res.success) { file = null; Swal.fire('Không đọc được file', res.error || '', 'error'); return renderImport(); }
+    parsed = res; mapping = { ...res.mapping }; if (!opt.sheet && res.sheets.length) opt.sheet = res.sheets[0];
+    renderImport();
+}
+function renderMap() {
+    const box = document.getElementById('ioMap');
+    if (!parsed) { box.innerHTML = ''; return; }
+    const first = parsed.sample[0] || [];
+    const fixedProduct = cur.key === 'vip-bom' && opt.productId;
+    const fields = cur.fields.filter(f => !(fixedProduct && ['maKH', 'maMach'].includes(f.key)));
+    const missing = fields.filter(f => f.required && mapping[f.key] === undefined && !(cur.key === 'vip-bom' && f.key === 'maKH'));
+    box.innerHTML = `<div class="bg-white rounded-2xl border border-blue-200 shadow-sm p-5 space-y-3">
+        <p class="text-xs font-black text-gray-400 uppercase">4. Ghép cột trong file với trường của phần mềm <span class="normal-case font-normal text-gray-500">· đã tự gợi ý, hãy kiểm tra lại</span></p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">${fields.map(f => `<div class="flex items-center gap-2 text-sm">
+            <span class="w-44 shrink-0 font-bold ${f.required ? 'text-gray-800' : 'text-gray-500'}">${esc(f.label)}${f.required ? ' *' : ''}</span>
+            <select onchange="setMap('${f.key}', this.value)" class="${inp} bg-white w-56 py-1 ${mapping[f.key] === undefined ? (f.required ? 'bg-red-50 border-red-300' : 'text-gray-400') : ''}"><option value="">-- không dùng --</option>${parsed.headers.map((h, i) => `<option value="${i}" ${mapping[f.key] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
+            <span class="text-xs text-gray-400 truncate">${mapping[f.key] === undefined ? '' : 'vd: ' + esc(first[mapping[f.key]] ?? '')}</span></div>`).join('')}</div>
+        <div class="overflow-x-auto border rounded-lg"><table class="w-full text-xs"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500 text-left"><tr>${parsed.headers.map((h, i) => { const f = cur.fields.find(x => mapping[x.key] === i); return `<th class="p-2 whitespace-nowrap">${esc(h)}<span class="block normal-case ${f ? 'text-blue-600' : 'text-gray-300'}">${f ? '→ ' + esc(f.label) : 'không dùng'}</span></th>`; }).join('')}</tr></thead>
+            <tbody>${parsed.sample.map(r => `<tr class="border-t">${parsed.headers.map((h, i) => `<td class="p-2 whitespace-nowrap max-w-[260px] truncate">${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+        <p class="text-[11px] text-gray-400">Xem trước ${parsed.sample.length}/${parsed.total} dòng.</p>
+        ${missing.length ? `<p class="text-sm text-red-600 font-bold">Chưa ghép cột bắt buộc: ${missing.map(f => esc(f.label)).join(', ')}</p>` : ''}
+        <div class="flex flex-wrap gap-2">
+            <button onclick="runImport(true)" class="${btn} bg-slate-700 text-white hover:bg-slate-800"><i class="fas fa-search mr-1"></i>Kiểm tra trước (không ghi)</button>
+            <button onclick="runImport(false)" class="${btn} bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-file-import mr-1"></i>Nhập dữ liệu</button>
+        </div></div>`;
+}
+function setMap(key, value) {
+    if (value === '') delete mapping[key];
+    else { for (const k of Object.keys(mapping)) if (mapping[k] === Number(value)) delete mapping[k]; mapping[key] = Number(value); } // 1 cot chi ghep 1 truong
+    renderMap();
+}
+async function runImport(dryRun) {
+    if (!dryRun) {
+        const ok = await Swal.fire({ title: `Nhập ${parsed.total} dòng vào "${cur.label}"?`, text: 'Nên bấm "Kiểm tra trước" để xem kết quả trước khi ghi.', icon: 'question', showCancelButton: true, confirmButtonText: 'Nhập dữ liệu', cancelButtonText: 'Đóng' });
+        if (!ok.isConfirmed) return;
+    }
+    const box = document.getElementById('ioResult');
+    box.innerHTML = '<div class="bg-white rounded-2xl p-6 text-center text-gray-400 border border-gray-100"><i class="fas fa-spinner fa-spin mr-2"></i>Đang xử lý...</div>';
+    const res = await (await fetch('/api/io/import', { method: 'POST', body: form({ mapping: JSON.stringify(mapping), headerRow: parsed.headerRow, update: opt.update ? '1' : '0', dryRun: dryRun ? '1' : '0', productId: cur.key === 'vip-bom' ? opt.productId : 0, note: opt.note }) })).json();
+    if (!res.success) { box.innerHTML = ''; return Swal.fire('Lỗi', res.error || 'Không nhập được', 'error'); }
+    const A = { new: ['Thêm mới', 'text-emerald-700 bg-emerald-50'], update: ['Cập nhật', 'text-blue-700 bg-blue-50'], skip: ['Bỏ qua', 'text-gray-500 bg-gray-100'], error: ['Lỗi', 'text-red-700 bg-red-50'] };
+    const chip = k => `<span class="px-3 py-1 rounded-lg text-sm font-bold ${A[k][1]}">${A[k][0]}: ${res.count[k]}</span>`;
+    box.innerHTML = `<div class="bg-white rounded-2xl border ${dryRun ? 'border-slate-300' : 'border-emerald-300'} shadow-sm p-5 space-y-3">
+        <p class="text-sm font-bold text-slate-700">${dryRun ? '<i class="fas fa-search mr-1"></i>Kết quả KIỂM TRA (chưa ghi gì vào phần mềm)' : '<i class="fas fa-check-circle text-emerald-600 mr-1"></i>Đã nhập xong'} <span class="font-normal text-xs text-gray-500">· ${res.total} dòng trong file</span></p>
+        <div class="flex flex-wrap gap-2">${chip('new')}${chip('update')}${chip('skip')}${chip('error')}</div>
+        <div class="overflow-x-auto border rounded-lg max-h-[420px] overflow-y-auto"><table class="w-full text-xs"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500 text-left sticky top-0"><tr><th class="p-2 w-24">Dòng file</th><th class="p-2 w-24">Kết quả</th><th class="p-2">Nội dung</th><th class="p-2">Lý do lỗi</th></tr></thead>
+            <tbody>${res.results.map(r => `<tr class="border-t"><td class="p-2 text-gray-500">${esc(r.rows)}</td><td class="p-2"><span class="px-1.5 py-0.5 rounded font-bold ${A[r.action][1]}">${A[r.action][0]}</span></td><td class="p-2 text-gray-700">${esc(r.label || '')}</td><td class="p-2 text-red-600">${esc(r.error || '')}</td></tr>`).join('')}</tbody></table></div>
+        ${dryRun && (res.count.new + res.count.update) ? `<button onclick="runImport(false)" class="${btn} bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-file-import mr-1"></i>Nhập dữ liệu (${res.count.new + res.count.update} mục hợp lệ)</button>` : ''}
+        ${!dryRun && cur.key === 'vip-bom' && opt.productId ? `<a href="/don-hang/vip#product/${opt.productId}" class="${btn} inline-block bg-blue-600 text-white hover:bg-blue-700">Mở lại mã mạch để xem BOM</a>` : ''}
+    </div>`;
+    if (!dryRun && cur.key === 'vip-bom') { const r = await fetch('/api/vip'); if (r.ok) products = (await r.json()).products; }
+    box.scrollIntoView && box.scrollIntoView({ behavior: 'smooth' });
+}
+window.onload = init;
+</script>
+
+<%- include('../partials/footer') %>

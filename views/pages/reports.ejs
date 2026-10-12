@@ -1,137 +1,528 @@
 <%- include('../partials/header') %>
 <%- include('../partials/sidebar') %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-<main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
+<main class="flex-1 p-8 overflow-y-auto bg-gray-50 custom-scrollbar">
     <div class="max-w-[1600px] mx-auto">
-
-<div class="mb-8">
-    <h1 class="text-2xl font-bold text-gray-800">Báo cáo & Phân tích</h1>
-    <p class="text-sm text-gray-500">Dữ liệu kinh doanh thời gian thực hệ thống H-TECH</p>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-        <div class="relative z-10">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tổng doanh thu</p>
-            <h3 id="repRevenue" class="text-2xl font-black text-blue-600">0 đ</h3>
+        
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Báo cáo & Thống kê</h1>
+                <p class="text-sm text-gray-500 font-medium">Doanh thu, Công nợ & Phân bổ thưởng</p>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-200">
+                <select id="filterType" onchange="updateFilterInputs()" class="bg-white border-gray-200 rounded-xl p-2 text-sm font-bold text-gray-700 outline-none">
+                    <option value="month">Theo Tháng</option>
+                    <option value="quarter">Theo Quý</option>
+                    <option value="year">Theo Năm</option>
+                </select>
+                
+                <div id="inputContainer" class="flex items-center gap-2">
+                    <input type="month" id="filterMonth" class="bg-white border border-gray-200 rounded-xl p-2 text-sm font-bold text-gray-700 outline-none">
+                </div>
+                
+                <button onclick="loadReport()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold shadow-md hover:bg-blue-700 transition">
+                    <i class="fas fa-search mr-2"></i>Xem
+                </button>
+            </div>
         </div>
-        <i class="fas fa-money-bill-wave absolute -right-4 -bottom-4 text-6xl text-blue-50 opacity-50"></i>
-    </div>
 
-    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-        <div class="relative z-10">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Thực thu (Tạm ứng)</p>
-            <h3 id="repCollected" class="text-2xl font-black text-emerald-600">0 đ</h3>
+        <!-- ===== CHI SO CHINH CUA KY ===== -->
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Doanh thu đã chốt</p>
+                <p id="kpiRevenue" class="text-2xl font-black text-slate-800 mt-1">0 đ</p>
+                <p class="text-[11px] text-gray-400 mt-1">Tổng giá trị báo giá: <span id="lblTotalRev">0 đ</span></p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lợi nhuận gộp</p>
+                <p id="kpiProfit" class="text-2xl font-black text-slate-800 mt-1">0 đ</p>
+                <p class="text-[11px] text-gray-400 mt-1">Biên lợi nhuận: <span id="kpiMargin">—</span></p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tỷ lệ chốt đơn</p>
+                <p id="kpiWinRate" class="text-2xl font-black text-slate-800 mt-1">—</p>
+                <p class="text-[11px] text-gray-400 mt-1"><span id="kpiOrders">0 / 0</span> đơn báo giá</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Đã thu</p>
+                <p id="kpiCollected" class="text-2xl font-black text-slate-800 mt-1">0 đ</p>
+                <p class="text-[11px] text-gray-400 mt-1">trên các đơn đã chốt trong kỳ</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Khách còn nợ</p>
+                <p id="lblTotalDebt" class="text-2xl font-black text-slate-800 mt-1">0 đ</p>
+                <p class="text-[11px] text-gray-400 mt-1"><a href="#" onclick="switchReportTab('debt'); return false;" class="text-blue-600 hover:underline">Xem theo khách hàng</a></p>
+            </div>
         </div>
-        <i class="fas fa-hand-holding-usd absolute -right-4 -bottom-4 text-6xl text-emerald-50 opacity-50"></i>
-    </div>
 
-    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-        <div class="relative z-10">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tổng nợ chưa thu</p>
-            <h3 id="repDebt" class="text-2xl font-black text-red-500">0 đ</h3>
+        <!-- ===== TAB: moi lan chi xem 1 nhom thong tin ===== -->
+        <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+            <div id="reportTabs" class="flex flex-wrap gap-1 bg-gray-200 p-1 rounded-xl">
+                <button data-tab="overview" onclick="switchReportTab('overview')" class="rtab px-4 py-2 text-xs font-bold rounded-lg">Tổng quan</button>
+                <button data-tab="dept" onclick="switchReportTab('dept')" class="rtab px-4 py-2 text-xs font-bold rounded-lg">Theo bộ phận</button>
+                <button data-tab="sale" onclick="switchReportTab('sale')" class="rtab px-4 py-2 text-xs font-bold rounded-lg">Theo Sale</button>
+                <button data-tab="brand" onclick="switchReportTab('brand')" class="rtab px-4 py-2 text-xs font-bold rounded-lg">Theo thương hiệu</button>
+                <button data-tab="debt" onclick="switchReportTab('debt')" class="rtab px-4 py-2 text-xs font-bold rounded-lg">Công nợ</button>
+                <button data-tab="bonus" onclick="switchReportTab('bonus')" class="rtab px-4 py-2 text-xs font-bold rounded-lg">Thưởng</button>
+            </div>
+            <button onclick="exportBusinessExcel()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700"><i class="fas fa-file-excel mr-1"></i>Xuất Excel</button>
         </div>
-        <i class="fas fa-exclamation-triangle absolute -right-4 -bottom-4 text-6xl text-red-50 opacity-50"></i>
-    </div>
 
-    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-        <div class="relative z-10">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tỷ lệ chốt đơn</p>
-            <h3 id="repWinRate" class="text-2xl font-black text-purple-600">0%</h3>
+        <!-- TAB Tong quan: 3 bieu do thanh ngang, so chi tiet nam o cac tab ben canh -->
+        <div id="rtab-overview" class="rpane">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <div class="flex justify-between items-baseline mb-4"><h3 class="text-sm font-bold text-slate-800">Doanh thu theo bộ phận</h3><a href="#" onclick="switchReportTab('dept'); return false;" class="text-[11px] text-blue-600 hover:underline">Chi tiết</a></div>
+                    <div id="barsDept"></div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <div class="flex justify-between items-baseline mb-4"><h3 class="text-sm font-bold text-slate-800">Doanh thu theo Sale</h3><a href="#" onclick="switchReportTab('sale'); return false;" class="text-[11px] text-blue-600 hover:underline">Chi tiết</a></div>
+                    <div id="barsSale"></div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <div class="flex justify-between items-baseline mb-4"><h3 class="text-sm font-bold text-slate-800">Doanh thu theo thương hiệu</h3><a href="#" onclick="switchReportTab('brand'); return false;" class="text-[11px] text-blue-600 hover:underline">Chi tiết</a></div>
+                    <div id="barsBrand"></div>
+                </div>
+            </div>
+            <p class="text-[11px] text-gray-400 mt-4">Doanh thu = giá báo (chưa VAT) của đơn đã chốt tạo trong kỳ. Lợi nhuận gộp = doanh thu − cost. Di chuột vào từng thanh để xem cost và lợi nhuận.</p>
         </div>
-        <i class="fas fa-chart-line absolute -right-4 -bottom-4 text-6xl text-purple-50 opacity-50"></i>
-    </div>
-</div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h3 class="font-bold text-gray-800 mb-4 flex items-center">
-            <i class="fas fa-users-cog mr-2 text-blue-500"></i> Danh sách khách hàng còn nợ
-        </h3>
-        <table class="w-full text-left text-sm">
-            <thead class="bg-gray-50 border-b">
-                <tr>
-                    <th class="p-3 text-gray-500">Khách hàng</th>
-                    <th class="p-3 text-right text-gray-500">Tổng nợ</th>
-                    <th class="p-3 text-center text-gray-500">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody id="topDebtTable"></tbody>
-        </table>
-    </div>
+        <div id="rtab-dept" class="rpane hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="overflow-x-auto"><table class="w-full text-left"><thead id="bizHeadDept"></thead><tbody id="bizDept" class="text-sm"></tbody></table></div>
+                <p class="px-4 py-3 text-[11px] text-gray-400 border-t">Đơn PCB / linh kiện / sản xuất: doanh thu được chia cho Mua hàng và Sản xuất theo tỷ lệ cost của từng phần.</p>
+            </div>
+        </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center">
-         <h3 class="font-bold text-gray-800 mb-6 self-start">Cơ cấu trạng thái đơn</h3>
-         <canvas id="orderChart" width="250" height="250"></canvas>
+        <div id="rtab-sale" class="rpane hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="overflow-x-auto"><table class="w-full text-left"><thead id="bizHeadSale"></thead><tbody id="bizSale" class="text-sm"></tbody></table></div>
+            </div>
+        </div>
+
+        <div id="rtab-brand" class="rpane hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="overflow-x-auto"><table class="w-full text-left"><thead id="bizHeadBrand"></thead><tbody id="bizBrand" class="text-sm"></tbody></table></div>
+            </div>
+        </div>
+
+        <div id="rtab-debt" class="rpane hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-4xl">
+                <div class="p-4 border-b"><h3 class="text-sm font-bold text-slate-800">Khách hàng còn nợ</h3><p class="text-[11px] text-gray-400">Chỉ tính đơn đã chốt, trên tổng tiền khách phải trả (gồm VAT, chiết khấu).</p></div>
+                <div class="max-h-[60vh] overflow-y-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 sticky top-0 text-[10px] font-black text-slate-500 uppercase border-b">
+                            <tr><th class="p-4">Khách hàng</th><th class="p-4">SĐT</th><th class="p-4 text-right">Số tiền nợ</th></tr>
+                        </thead>
+                        <tbody id="debtTbody" class="text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="rtab-bonus" class="rpane hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden self-start">
+                    <div class="p-4 border-b"><h3 class="text-sm font-bold text-slate-800">Doanh thu theo nhân viên thiết kế</h3><p class="text-[11px] text-gray-400">Chỉ tính đơn Nghiên cứu phát triển. Dùng làm căn cứ thưởng nhân viên thiết kế.</p></div>
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-black text-slate-500 uppercase border-b">
+                            <tr><th class="p-4">Nhân viên</th><th class="p-4 text-center">Số lượng đơn</th><th class="p-4 text-right">Doanh thu mang lại</th></tr>
+                        </thead>
+                        <tbody id="designerTbody" class="text-sm"></tbody>
+                    </table>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 self-start">
+                    <h3 class="text-sm font-bold text-slate-800">Tính thưởng</h3>
+                    <p class="text-[11px] text-gray-400 mb-4">Tính trên tổng giá trị báo giá của kỳ, xuất phiếu chi thưởng ra Excel / PDF.</p>
+                    <div class="space-y-3">
+                        <label class="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">Thưởng Sale (% tổng DT)
+                            <input type="number" id="salePercent" value="2" class="w-24 border border-gray-200 rounded-lg p-2 font-bold text-center outline-none">
+                        </label>
+                        <label class="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">Thưởng Trưởng BP TK (% tổng DT)
+                            <input type="number" id="headPercent" value="1" class="w-24 border border-gray-200 rounded-lg p-2 font-bold text-center outline-none">
+                        </label>
+                        <label class="flex items-center justify-between gap-3 text-xs font-semibold text-gray-600">Thưởng NV thiết kế (% DT đơn giao)
+                            <input type="number" id="designerPercent" value="5" class="w-24 border border-gray-200 rounded-lg p-2 font-bold text-center outline-none">
+                        </label>
+                    </div>
+                    <button onclick="calculateBonus()" class="w-full mt-5 bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 transition">Xem bảng thưởng</button>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div id="modalBonus" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl">
+        <div class="p-5 bg-indigo-600 text-white flex justify-between items-center">
+            <span class="font-black uppercase tracking-widest text-sm" id="bonusTitle">BẢNG KÊ TIỀN THƯỞNG</span>
+            <button onclick="document.getElementById('modalBonus').classList.add('hidden')"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="p-6">
+            <div class="max-h-[60vh] overflow-y-auto mb-4 custom-scrollbar border rounded-xl">
+                <table class="w-full text-left">
+                    <thead class="bg-indigo-50 text-[10px] font-black text-indigo-800 uppercase sticky top-0">
+                        <tr>
+                            <th class="p-3">Nhóm</th>
+                            <th class="p-3">Nhân viên</th>
+                            <th class="p-3">Diễn giải</th>
+                            <th class="p-3 text-right">Mức DT tính</th>
+                            <th class="p-3 text-right">Tiền thưởng</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bonusTbody" class="text-sm"></tbody>
+                </table>
+            </div>
+            <div class="flex justify-end items-center gap-3 mt-4 border-t pt-4">
+                <div class="text-right mr-4">
+                    <span class="text-xs text-gray-500 font-bold uppercase">Tổng chi thưởng:</span>
+                    <p id="totalBonusAmount" class="text-2xl font-black text-indigo-700">0 đ</p>
+                </div>
+                
+                <button onclick="exportPDFBonus()" class="bg-red-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-red-700 transition flex items-center">
+                    <i class="fas fa-file-pdf mr-2"></i>Xuất PDF
+                </button>
+
+                <button onclick="exportExcelBonus()" class="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-emerald-700 transition flex items-center">
+                    <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
-async function loadReportData() {
+let currentReportData = null;
+let currentBonusList = [];
+let currentPeriodStr = '';
+
+window.onload = () => {
+    const today = new Date();
+    document.getElementById('filterMonth').value = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
+    loadReport();
+};
+
+function formatVND(num) { return new Intl.NumberFormat('vi-VN').format(Math.round(num || 0)) + ' đ'; }
+
+function updateFilterInputs() {
+    // Tương tự code cũ để tạo thẻ input chọn Tháng/Quý/Năm
+    const type = document.getElementById('filterType').value;
+    const container = document.getElementById('inputContainer');
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    if (type === 'month') container.innerHTML = `<input type="month" id="filterMonth" value="${yyyy}-${(today.getMonth() + 1).toString().padStart(2, '0')}" class="bg-white border border-gray-200 rounded-xl p-2 text-sm font-bold text-gray-700 outline-none">`;
+    else if (type === 'quarter') container.innerHTML = `<select id="filterQuarter" class="bg-white border rounded-xl p-2 text-sm font-bold"><option value="1">Quý 1</option><option value="2">Quý 2</option><option value="3">Quý 3</option><option value="4">Quý 4</option></select><input type="number" id="filterYear" value="${yyyy}" class="w-24 bg-white border rounded-xl p-2 text-sm font-bold">`;
+    else container.innerHTML = `<input type="number" id="filterYear" value="${yyyy}" class="w-32 bg-white border rounded-xl p-2 text-sm font-bold">`;
+}
+
+function getDateRange() {
+    const type = document.getElementById('filterType').value;
+    let startDate, endDate, titleStr;
+    if (type === 'month') {
+        const val = document.getElementById('filterMonth').value;
+        startDate = `${val}-01`; endDate = `${val}-${new Date(val.split('-')[0], val.split('-')[1], 0).getDate()}`;
+        titleStr = `Tháng ${val.split('-')[1]}/${val.split('-')[0]}`;
+    } else if (type === 'quarter') {
+        const q = parseInt(document.getElementById('filterQuarter').value), y = document.getElementById('filterYear').value;
+        startDate = `${y}-${((q - 1) * 3 + 1).toString().padStart(2, '0')}-01`;
+        endDate = `${y}-${(q * 3).toString().padStart(2, '0')}-${new Date(y, q * 3, 0).getDate()}`;
+        titleStr = `Quý ${q}/${y}`;
+    } else {
+        const y = document.getElementById('filterYear').value;
+        startDate = `${y}-01-01`; endDate = `${y}-12-31`; titleStr = `Năm ${y}`;
+    }
+    return { startDate, endDate, titleStr };
+}
+
+async function loadReport() {
+    const { startDate, endDate } = getDateRange();
+    Swal.fire({ title: 'Đang tổng hợp...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        const res = await fetch('/api/reports/summary');
+        const res = await fetch(`/api/reports/data?startDate=${startDate}&endDate=${endDate}`);
         const data = await res.json();
-        const fmt = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' đ';
-
-        document.getElementById('repRevenue').innerText = fmt(data.totalRevenue);
-        document.getElementById('repCollected').innerText = fmt(data.totalCollected);
-        document.getElementById('repDebt').innerText = fmt(data.totalDebt);
-        document.getElementById('repWinRate').innerText = data.winRate + '%';
-
-        loadTopDebt();
-        renderChart();
-    } catch (e) { console.error(e); }
-}
-
-async function loadTopDebt() {
-    const res = await fetch('/api/customers');
-    const customers = await res.json();
-    const table = document.getElementById('topDebtTable');
-    
-    // Chỉ lấy khách hàng có nợ > 0 và sắp xếp nợ giảm dần
-    const debtors = customers
-        .filter(c => c.total_debt > 0)
-        .sort((a, b) => b.total_debt - a.total_debt);
-
-    table.innerHTML = debtors.map(c => `
-        <tr class="border-b">
-            <td class="p-3">
-                <div class="font-bold text-slate-700">${c.tenKH}</div>
-                <div class="text-[10px] text-gray-400">${c.maKH}</div>
-            </td>
-            <td class="p-3 text-right font-black text-red-500">
-                ${new Intl.NumberFormat('vi-VN').format(c.total_debt)} đ
-            </td>
-            <td class="p-3 text-center">
-                <a href="/customers" class="text-blue-500 hover:underline text-xs">Chi tiết</a>
-            </td>
-        </tr>
-    `).join('');
-}
-
-function renderChart() {
-    // Đây là mẫu vẽ biểu đồ tròn bằng Chart.js
-    const ctx = document.getElementById('orderChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Đã chốt', 'Đang review', 'Bị hủy'],
-            datasets: [{
-                data: [12, 19, 3], // Bạn có thể lấy dữ liệu thật từ API
-                backgroundColor: ['#10b981', '#3b82f6', '#ef4444'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            cutout: '70%',
-            plugins: { legend: { position: 'bottom' } }
+        if (data.success) {
+            currentReportData = data;
+            document.getElementById('lblTotalRev').innerText = formatVND(data.summary.totalRevenue);
+            document.getElementById('lblTotalDebt').innerText = formatVND(data.summary.totalDebt);
+            document.getElementById('designerTbody').innerHTML = data.designerRevenues.map(nv => `<tr class="border-b"><td class="p-4 font-bold">${nv.name}</td><td class="p-4 text-center text-blue-600 font-bold">${nv.projectCount}</td><td class="p-4 text-right text-emerald-600 font-bold">${formatVND(nv.revenue)}</td></tr>`).join('');
+            document.getElementById('debtTbody').innerHTML = data.customerDebts.map(kh => `<tr class="border-b"><td class="p-4 font-bold">${kh.tenKH}</td><td class="p-4 text-xs">${kh.sdt||'--'}</td><td class="p-4 text-right text-red-600 font-bold">${formatVND(kh.debtAmount)}</td></tr>`).join('');
+            renderBusiness(data);
+            renderOverview(data);
+            Swal.close();
+        } else {
+            Swal.fire('Lỗi', data.error || 'Lỗi lấy số liệu', 'error');
         }
+    } catch (err) { Swal.fire('Lỗi', 'Lỗi lấy số liệu', 'error'); }
+}
+
+// ----- Tab: moi lan chi hien 1 nhom thong tin; nho tab dang xem khi doi ky bao cao -----
+let currentReportTab = 'overview';
+function switchReportTab(tab) {
+    currentReportTab = tab;
+    document.querySelectorAll('.rpane').forEach(p => p.classList.toggle('hidden', p.id !== 'rtab-' + tab));
+    document.querySelectorAll('.rtab').forEach(b => {
+        const on = b.dataset.tab === tab;
+        b.classList.toggle('bg-white', on); b.classList.toggle('shadow-sm', on); b.classList.toggle('text-blue-700', on);
+        b.classList.toggle('text-gray-500', !on);
     });
 }
 
-window.onload = loadReportData;
+// ----- Tong quan: chi so chinh + 3 bieu do thanh ngang (1 mau, do dai = doanh thu) -----
+function renderOverview(data) {
+    const n = v => new Intl.NumberFormat('vi-VN').format(Math.round(v || 0));
+    const short = v => v >= 1e9 ? (v / 1e9).toFixed(v >= 1e10 ? 0 : 1).replace('.', ',') + ' tỷ' : v >= 1e6 ? (v / 1e6).toFixed(v >= 1e8 ? 0 : 1).replace('.', ',') + ' tr' : n(v);
+    const sales = data.bySale || [];
+    const sum = k => sales.reduce((s, r) => s + (r[k] || 0), 0);
+    const revenue = sum('revenue'), profit = sum('profit'), quoted = sum('quoted'), orders = sum('orders');
+    document.getElementById('kpiRevenue').textContent = n(revenue) + ' đ';
+    document.getElementById('kpiProfit').textContent = n(profit) + ' đ';
+    document.getElementById('kpiMargin').textContent = revenue > 0 ? (Math.round(profit / revenue * 1000) / 10 + '%').replace('.', ',') : '—';
+    document.getElementById('kpiWinRate').textContent = quoted > 0 ? (Math.round(orders / quoted * 1000) / 10 + '%').replace('.', ',') : '—';
+    document.getElementById('kpiOrders').textContent = `${n(orders)} / ${n(quoted)}`;
+    document.getElementById('kpiCollected').textContent = n(sum('collected')) + ' đ';
+
+    const bars = (id, rows, limit) => {
+        const box = document.getElementById(id);
+        const list = rows.filter(r => r.revenue > 0);
+        if (!list.length) { box.innerHTML = '<p class="text-xs text-gray-400 italic py-6 text-center">Chưa có đơn chốt trong kỳ</p>'; return; }
+        const shown = list.slice(0, limit);
+        const max = Math.max(...shown.map(r => r.revenue));
+        box.innerHTML = shown.map(r => `
+            <div class="mb-3" title="${esc(r.label)}\nDoanh thu: ${n(r.revenue)} đ\nCost: ${n(r.cost)} đ\nLợi nhuận gộp: ${n(r.profit)} đ (${String(r.margin).replace('.', ',')}%)\nĐơn chốt: ${r.orders} / ${r.quoted} báo giá">
+                <div class="flex justify-between items-baseline gap-2 text-xs mb-1">
+                    <span class="text-slate-700 truncate">${esc(r.label)}</span>
+                    <span class="text-slate-800 font-bold whitespace-nowrap">${short(r.revenue)}</span>
+                </div>
+                <div class="h-2 bg-slate-100 rounded-full"><div class="h-2 rounded-full bg-blue-600" style="width:${Math.max(2, r.revenue / max * 100)}%"></div></div>
+                <p class="text-[10px] text-gray-400 mt-1">Lợi nhuận ${short(r.profit)} · biên ${String(r.margin).replace('.', ',')}% · ${r.orders} đơn chốt</p>
+            </div>`).join('') + (list.length > limit ? `<p class="text-[11px] text-gray-400">và ${list.length - limit} dòng khác trong tab chi tiết</p>` : '');
+    };
+    bars('barsDept', data.byDept || [], 4);
+    bars('barsSale', sales, 6);
+    bars('barsBrand', data.byBrand || [], 6);
+    switchReportTab(currentReportTab);
+}
+
+// ----- Bao cao kinh doanh theo bo phan / Sale / thuong hieu -----
+const BIZ_TABLES = [
+    { key: 'byDept', head: 'bizHeadDept', body: 'bizDept', first: 'Bộ phận', money: false, sheet: 'Theo_bo_phan' },
+    { key: 'bySale', head: 'bizHeadSale', body: 'bizSale', first: 'Sale', money: true, sheet: 'Theo_Sale' },
+    { key: 'byBrand', head: 'bizHeadBrand', body: 'bizBrand', first: 'Thương hiệu', money: true, sheet: 'Theo_thuong_hieu' }
+];
+function renderBusiness(data) {
+    const n = v => new Intl.NumberFormat('vi-VN').format(v || 0);
+    for (const t of BIZ_TABLES) {
+        const rows = data[t.key] || [];
+        document.getElementById(t.head).innerHTML = `<tr class="bg-slate-50 text-[10px] font-black text-slate-500 uppercase border-b">
+            <th class="p-4">${t.first}</th><th class="p-4 text-center">Đơn báo giá</th><th class="p-4 text-center">Đơn chốt</th><th class="p-4 text-center">Tỷ lệ chốt</th>
+            <th class="p-4 text-right">Doanh thu</th><th class="p-4 text-right">Cost</th><th class="p-4 text-right">Lợi nhuận gộp</th><th class="p-4 text-center">Biên LN</th>
+            ${t.money ? '<th class="p-4 text-right">Đã thu</th><th class="p-4 text-right">Còn nợ</th>' : '<th class="p-4">Hoạt động trong kỳ</th>'}</tr>`;
+        const total = rows.reduce((s, r) => ({ quoted: s.quoted + r.quoted, orders: s.orders + r.orders, revenue: s.revenue + r.revenue, cost: s.cost + r.cost, profit: s.profit + r.profit, collected: s.collected + (r.collected || 0), debt: s.debt + (r.debt || 0) }),
+            { quoted: 0, orders: 0, revenue: 0, cost: 0, profit: 0, collected: 0, debt: 0 });
+        const line = (r, bold) => `<tr class="border-b ${bold ? 'bg-slate-50 font-black' : ''}">
+            <td class="p-4 font-bold">${esc(r.label)}</td><td class="p-4 text-center">${n(r.quoted)}</td><td class="p-4 text-center text-blue-600 font-bold">${n(r.orders)}</td>
+            <td class="p-4 text-center">${bold ? '' : r.winRate + '%'}</td>
+            <td class="p-4 text-right font-bold">${n(r.revenue)}</td><td class="p-4 text-right text-gray-500">${n(r.cost)}</td>
+            <td class="p-4 text-right font-bold ${r.profit < 0 ? 'text-red-600' : 'text-emerald-600'}">${n(r.profit)}</td>
+            <td class="p-4 text-center">${r.revenue > 0 ? Math.round(r.profit / r.revenue * 1000) / 10 + '%' : '—'}</td>
+            ${t.money ? `<td class="p-4 text-right text-emerald-600">${n(r.collected)}</td><td class="p-4 text-right text-red-600">${n(Math.max(0, r.debt))}</td>` : `<td class="p-4 text-xs text-gray-500">${esc(r.extra || '')}</td>`}</tr>`;
+        document.getElementById(t.body).innerHTML = rows.length
+            ? rows.map(r => line(r, false)).join('') + (t.key === 'byDept' ? '' : line({ label: 'Tổng', ...total }, true))
+            : '<tr><td colspan="10" class="p-8 text-center text-gray-300 italic">Không có đơn hàng trong kỳ</td></tr>';
+    }
+}
+function exportBusinessExcel() {
+    if (!currentReportData || !currentReportData.byDept) return Swal.fire('Chú ý', 'Hãy bấm Xem để lấy số liệu trước.', 'warning');
+    const wb = XLSX.utils.book_new();
+    for (const t of BIZ_TABLES) {
+        const rows = (currentReportData[t.key] || []).map(r => ({
+            [t.first]: r.label, 'Đơn báo giá': r.quoted, 'Đơn chốt': r.orders, 'Tỷ lệ chốt (%)': r.winRate,
+            'Doanh thu': r.revenue, 'Cost': r.cost, 'Lợi nhuận gộp': r.profit, 'Biên LN (%)': r.margin,
+            ...(t.money ? { 'Đã thu': r.collected, 'Còn nợ': Math.max(0, r.debt) } : { 'Hoạt động trong kỳ': r.extra || '' })
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), t.sheet);
+    }
+    const { titleStr } = getDateRange();
+    XLSX.writeFile(wb, `BaoCaoKinhDoanh_${String(titleStr).replace(/[^\w]+/g, '_')}.xlsx`);
+}
+
+async function calculateBonus() {
+    if (!currentReportData || currentReportData.summary.totalRevenue === 0) return Swal.fire('Cảnh báo', 'Doanh thu bằng 0!', 'warning');
+    const { titleStr } = getDateRange();
+    currentPeriodStr = titleStr;
+    const payload = {
+        monthStr: titleStr,
+        salePercent: parseFloat(document.getElementById('salePercent').value) || 0,
+        headPercent: parseFloat(document.getElementById('headPercent').value) || 0,
+        designerPercent: parseFloat(document.getElementById('designerPercent').value) || 0,
+        reportData: currentReportData
+    };
+    Swal.fire({ title: 'Đang tính toán...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    
+    try {
+        const res = await fetch('/api/reports/calculate-bonus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const result = await res.json();
+        if (result.success) {
+            currentBonusList = result.data;
+            document.getElementById('bonusTitle').innerText = `BẢNG KÊ TIỀN THƯỞNG - ${titleStr.toUpperCase()}`;
+            
+            let total = 0;
+            document.getElementById('bonusTbody').innerHTML = currentBonusList.map(b => {
+                total += b.TienThuong;
+                return `<tr class="border-b hover:bg-gray-50">
+                    <td class="p-3 text-xs font-bold text-gray-600">${b.Nhom}</td>
+                    <td class="p-3 font-bold text-indigo-700">${b.NhanVien}</td>
+                    <td class="p-3 text-xs">${b.NoiDung}</td>
+                    <td class="p-3 text-right text-xs text-gray-500">${formatVND(b.DoanhThuTinhThuong)}</td>
+                    <td class="p-3 text-right font-black text-emerald-600">${formatVND(b.TienThuong)}</td>
+                </tr>`;
+            }).join('');
+            
+            document.getElementById('totalBonusAmount').innerText = formatVND(total);
+            Swal.close();
+            document.getElementById('modalBonus').classList.remove('hidden');
+        }
+    } catch (e) { Swal.fire('Lỗi', 'Lỗi tính toán', 'error'); }
+}
+
+function exportExcelBonus() {
+    if(currentBonusList.length === 0) return;
+    // Chuẩn bị dữ liệu để xuất Excel
+    const dataToExport = currentBonusList.map(b => ({
+        'STT': b.STT,
+        'Nhóm': b.Nhom,
+        'Nhân Viên': b.NhanVien,
+        'Nội dung': b.NoiDung,
+        'Doanh thu tính thưởng (VNĐ)': b.DoanhThuTinhThuong,
+        'Số tiền chi thưởng (VNĐ)': b.TienThuong
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Bang_Thuong");
+    
+    // Tên file theo chu kỳ
+    const safePeriodStr = currentPeriodStr.replace(/\//g, '-').replace(/\s/g, '_');
+    XLSX.writeFile(wb, `DeNghiChiThuong_${safePeriodStr}.xlsx`);
+}
+
+
+// --- HÀM XUẤT PDF CHUYÊN NGHIỆP ---
+function exportPDFBonus() {
+    if(currentBonusList.length === 0) return;
+
+    Swal.fire({ title: 'Đang tạo Form PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    // 1. Tạo một container ẩn để chứa Form HTML cần in
+    const pdfContent = document.createElement('div');
+    pdfContent.style.padding = '30px 40px';
+    pdfContent.style.fontFamily = '"Times New Roman", Times, serif';
+    pdfContent.style.color = '#000';
+    pdfContent.style.backgroundColor = '#fff';
+
+    // 2. Lấy ngày tháng hiện tại
+    const today = new Date();
+    const dateStr = `Ngày ${today.getDate().toString().padStart(2, '0')} tháng ${(today.getMonth() + 1).toString().padStart(2, '0')} năm ${today.getFullYear()}`;
+
+    // 3. Tạo các dòng cho Bảng kê
+    let total = 0;
+    const trHtml = currentBonusList.map(b => {
+        total += b.TienThuong;
+        return `
+            <tr>
+                <td style="border: 1px solid #000; padding: 8px; text-align: center;">${b.STT}</td>
+                <td style="border: 1px solid #000; padding: 8px;">${b.NhanVien}</td>
+                <td style="border: 1px solid #000; padding: 8px;">${b.Nhom}</td>
+                <td style="border: 1px solid #000; padding: 8px;">${b.NoiDung}</td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: right;">${new Intl.NumberFormat('vi-VN').format(b.TienThuong)} đ</td>
+            </tr>
+        `;
+    }).join('');
+
+    const totalStr = new Intl.NumberFormat('vi-VN').format(total) + ' đ';
+
+    // 4. Nhúng dữ liệu vào Form HTML Chuẩn
+    pdfContent.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+            <div style="text-align: center; width: 40%;">
+                <h3 style="margin: 0; font-size: 15px; text-transform: uppercase;">CÔNG TY TNHH HTG</h3>
+                <p style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold; text-decoration: underline;">Phòng Kế toán - Nhân sự</p>
+            </div>
+            <div style="text-align: center; width: 60%;">
+                <h3 style="margin: 0; font-size: 15px; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h3>
+                <p style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold; text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</p>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin: 40px 0;">
+            <h2 style="margin: 0; font-size: 22px; text-transform: uppercase;">GIẤY ĐỀ NGHỊ THANH TOÁN TIỀN THƯỞNG</h2>
+            <p style="margin: 10px 0 0 0; font-size: 15px; font-style: italic;">(Kỳ tính thưởng: ${currentPeriodStr})</p>
+        </div>
+
+        <p style="font-size: 15px; margin-bottom: 10px;"><strong>Kính gửi:</strong> Ban Giám đốc Công ty</p>
+        <p style="font-size: 15px; margin-bottom: 20px; line-height: 1.5;">Căn cứ vào kết quả nghiệm thu dự án và doanh thu <strong>${currentPeriodStr}</strong>, phòng Kế toán kính đề nghị Ban Giám đốc xem xét và phê duyệt thanh toán tiền thưởng cho các cá nhân/bộ phận theo bảng kê chi tiết dưới đây:</p>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 15px;">
+            <thead>
+                <tr style="background-color: #f3f4f6;">
+                    <th style="border: 1px solid #000; padding: 10px; text-align: center; width: 5%;">STT</th>
+                    <th style="border: 1px solid #000; padding: 10px; text-align: center; width: 20%;">Nhân viên</th>
+                    <th style="border: 1px solid #000; padding: 10px; text-align: center; width: 20%;">Bộ phận</th>
+                    <th style="border: 1px solid #000; padding: 10px; text-align: center; width: 35%;">Diễn giải</th>
+                    <th style="border: 1px solid #000; padding: 10px; text-align: center; width: 20%;">Tiền thưởng</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${trHtml}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" style="border: 1px solid #000; padding: 10px; text-align: right; font-weight: bold;">TỔNG CỘNG:</td>
+                    <td style="border: 1px solid #000; padding: 10px; text-align: right; font-weight: bold;">${totalStr}</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div style="text-align: right; margin-bottom: 20px; font-size: 15px; font-style: italic;">
+            <p style="margin: 0; padding-right: 20px;">Hà Nội, ${dateStr}</p>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; text-align: center; font-size: 15px; margin-top: 10px;">
+            <div style="width: 33%;">
+                <p style="font-weight: bold; margin-bottom: 5px;">Người lập biểu</p>
+                <p style="font-style: italic; margin: 0 0 100px 0;">(Ký, ghi rõ họ tên)</p>
+            </div>
+            <div style="width: 33%;">
+                <p style="font-weight: bold; margin-bottom: 5px;">Kế toán trưởng</p>
+                <p style="font-style: italic; margin: 0 0 100px 0;">(Ký, ghi rõ họ tên)</p>
+            </div>
+            <div style="width: 33%;">
+                <p style="font-weight: bold; margin-bottom: 5px;">Giám đốc phê duyệt</p>
+                <p style="font-style: italic; margin: 0 0 100px 0;">(Ký, ghi rõ họ tên)</p>
+            </div>
+        </div>
+    `;
+
+    // 5. Cấu hình html2pdf
+    const safePeriodStr = currentPeriodStr.replace(/\//g, '-').replace(/\s/g, '_');
+    const opt = {
+        margin:       [15, 10, 15, 10], // top, left, bottom, right
+        filename:     `De_Nghi_Thanh_Toan_Thuong_${safePeriodStr}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // 6. Thực thi render PDF và tải xuống
+    html2pdf().set(opt).from(pdfContent).save().then(() => {
+        Swal.close();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã tải xuống PDF!', showConfirmButton: false, timer: 3000 });
+    });
+}
 </script>
+
+
+
 
 <%- include('../partials/footer') %>

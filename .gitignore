@@ -1,5 +1,11 @@
 node_modules/
 uploads/
+public/uploads/
 htech.db
+demo.db*
+htech.db-wal
+htech.db-shm
 credentials.json
+gittoken.txt
 .env
+*.tar.gz

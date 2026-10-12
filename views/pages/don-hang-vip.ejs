@@ -1,0 +1,326 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight"><i class="fas fa-crown text-yellow-500 mr-2"></i>Đơn hàng khách VIP</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Khách đặt gia công đều đặn · quản lý theo lô · mỗi lô gồm nhiều mã mạch, mỗi mã mạch một BOM riêng · đối chiếu kho để biết lấy kho hay mua thêm</p>
+    </div>
+    <input id="vSearch" oninput="render()" placeholder="Tìm lô, khách, sản phẩm..." class="border rounded-xl px-3 py-2 text-sm w-64">
+</div>
+
+<div id="vSummary" class="space-y-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Lô đang làm</p><p id="k-open" class="text-3xl font-black text-blue-600 mt-1">0</p></div>
+        <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Lô chưa đủ vật tư</p><p id="k-mat" class="text-3xl font-black text-amber-500 mt-1">0</p></div>
+        <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Còn phải thu</p><p id="k-debt" class="text-3xl font-black text-red-500 mt-1">0</p></div>
+        <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Sản phẩm VIP</p><p id="k-prod" class="text-3xl font-black text-gray-800 mt-1">0</p></div>
+    </div>
+    <div class="flex flex-wrap gap-2 items-center">
+        <button id="tab-lots" onclick="setTab('lots')" class="v-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-boxes mr-1"></i>Lô hàng</button>
+        <button id="tab-products" onclick="setTab('products')" class="v-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-microchip mr-1"></i>Sản phẩm VIP &amp; BOM chuẩn</button>
+        <span class="ml-auto flex gap-2">
+            <a href="/nhap-xuat-du-lieu?e=vip-products" data-role="Admin,Sale,Quản lý sản xuất,Mua hàng linh kiện,Trưởng BP Mua hàng" class="px-4 py-2 rounded-xl text-sm font-bold bg-white border text-emerald-700 hover:bg-emerald-50"><i class="fas fa-file-excel mr-1"></i>Nhập / xuất Excel</a>
+            <button onclick="openDetail('product', 0)" class="px-4 py-2 rounded-xl text-sm font-bold bg-white border text-gray-700 hover:bg-gray-50"><i class="fas fa-plus mr-1"></i>Thêm sản phẩm</button>
+            <button onclick="openDetail('newlot', 0)" class="px-4 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-plus mr-1"></i>Tạo lô mới</button>
+        </span>
+    </div>
+    <div id="vBody"></div>
+</div>
+
+<div id="vDetail" class="space-y-4" style="display:none">
+    <div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+        <button onclick="closeDetail()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại</button>
+        <h2 id="vTitle" class="font-black text-slate-800 text-lg"></h2>
+    </div>
+    <div id="vDetailBody" class="space-y-4"></div>
+</div>
+<datalist id="vItems"></datalist><datalist id="vSuppliers"></datalist>
+</div>
+</main>
+
+<script>
+let V = { products: [], lots: [], customers: [], inventory: [], suppliers: [] };
+let tab = 'lots', detail = null;
+let draft = null;      // san pham dang sua: { ...fields, bom: [] }
+let lotDraft = null;   // lo dang tao: { maKH, qty: { productId: so luong }, check: ket qua kiem tra vat tu }
+const n = v => (v || 0).toLocaleString('vi-VN');
+const numIn = v => { let t = String(v == null ? '' : v).trim().replace(/\s/g, ''); if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, ''); return parseFloat(t.replace(',', '.')) || 0; };
+const empty = t => `<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">${t}</div>`;
+const table = (heads, rows) => `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr>${heads.map(h => `<th class="p-3">${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một dòng để xem chi tiết và thao tác.</p></div>`;
+const row = (type, id, cells, cls) => `<tr onclick="openDetail('${type}', ${id})" class="border-b last:border-0 cursor-pointer hover:bg-blue-50/50 ${cls || ''}">${cells.map(c => `<td class="p-3 ${c[1] || ''}">${c[0]}</td>`).join('')}</tr>`;
+const matChip = (m, label) => `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mr-1 ${m.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}" title="${esc(label + ': ' + m.source + ' — ' + m.status)}">${label}</span>`;
+const matChips = b => b.mat ? matChip(b.mat.pcb, 'PCB') + matChip(b.mat.lk, 'Linh kiện') + matChip(b.mat.stencil, 'Stencil') : '—';
+const itemLabel = i => `${i.itemCode} - ${i.itemName}`;
+const hangMuc = p => [p.coPCB ? 'PCB' : '', p.coLK ? 'Linh kiện' : '', p.coSX ? 'Sản xuất' : ''].filter(Boolean).join(' + ');
+
+async function loadData() {
+    const r = await fetch('/api/vip'); V = r.ok ? await r.json() : V;
+    document.getElementById('vItems').innerHTML = V.inventory.map(i => `<option value="${esc(itemLabel(i))}">Tồn ${n(i.quantity)} ${esc(i.unit || '')}</option>`).join('');
+    document.getElementById('vSuppliers').innerHTML = V.suppliers.map(s => `<option value="${esc(s.name)}">`).join('');
+    render();
+}
+async function call(url, method, body) {
+    const result = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+    if (!result.success) { Swal.fire('Lỗi', result.error || 'Không thực hiện được', 'error'); return null; }
+    return result;
+}
+function setTab(t) { tab = t; detail = null; render(); }
+function closeDetail() { detail = null; draft = null; lotDraft = null; bomImp = null; render(); }
+function openDetail(type, id) {
+    detail = { type, id };
+    if (type === 'product') {
+        const p = V.products.find(x => x.id === id);
+        draft = p ? JSON.parse(JSON.stringify(p)) : { id: 0, maKH: '', maMach: '', rev: 1, revisions: [], tenMach: '', coPCB: 0, coLK: 1, coSX: 1, giaPCB: 0, giaGiaCong: 0, giaBan: 0, ghiChu: '', active: 1, bom: [] };
+        if (!draft.maMach) draft.maMach = draft.tenMach || '';
+        draft.changeNote = '';
+        draft.bom = (draft.bom || []).map(l => { const it = V.inventory.find(i => i.id === l.itemId); return { ...l, name: it ? itemLabel(it) : l.name }; });
+    }
+    if (type === 'newlot') lotDraft = { maKH: '', qty: {}, check: null };
+    render(); document.querySelector('main').scrollTop = 0;
+}
+
+function render() {
+    const open = V.lots.filter(l => !['Hoàn thành', 'Đã hủy', 'Không chốt'].includes(l.giaiDoan));
+    document.getElementById('k-open').innerText = open.length;
+    document.getElementById('k-mat').innerText = open.filter(l => l.boards.some(b => b.mat && !b.mat.ready && !(b.dispatch && b.dispatch.status === 'Hoàn thành'))).length;
+    document.getElementById('k-debt').innerText = n(V.lots.reduce((s, l) => s + (l.ttQuyTrinh === 'Hủy đơn' ? 0 : Math.max(0, l.conNo)), 0));
+    document.getElementById('k-prod').innerText = V.products.filter(p => p.active).length;
+    document.querySelectorAll('.v-tab').forEach(b => { const on = b.id === 'tab-' + tab; b.className = 'v-tab px-4 py-2 rounded-xl text-sm font-bold border ' + (on ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-gray-500 hover:bg-gray-50'); });
+    const made = detail ? ({ lot: detailLot, product: detailProduct, newlot: detailNewLot }[detail.type](detail.id)) : null;
+    if (detail && !made) detail = null;
+    document.getElementById('vSummary').style.display = made ? 'none' : '';
+    document.getElementById('vDetail').style.display = made ? '' : 'none';
+    if (made) { document.getElementById('vTitle').innerHTML = made.title; document.getElementById('vDetailBody').innerHTML = made.html; return; }
+    const q = document.getElementById('vSearch').value.trim().toLowerCase();
+    const hit = (...p) => !q || p.join(' ').toLowerCase().includes(q);
+    document.getElementById('vBody').innerHTML = tab === 'lots' ? listLots(hit) : listProducts(hit);
+}
+
+// ---------- Bang tong hop ----------
+function listLots(hit) {
+    const list = V.lots.filter(l => hit(l.maDH, l.tenKH, ...l.boards.map(b => b.tenMach)));
+    if (!list.length) return empty('Chưa có lô hàng nào. Khai báo sản phẩm VIP rồi bấm "Tạo lô mới".');
+    return table(['Lô', 'Khách hàng', 'Sản phẩm trong lô', 'Ngày tạo', 'Giao dự kiến', 'Vật tư đủ', 'Sản xuất xong', 'Giá trị', 'Còn phải thu', 'Giai đoạn'], list.map(l => {
+        const ready = l.boards.filter(b => b.mat && b.mat.ready).length, done = l.boards.filter(b => b.dispatch && b.dispatch.status === 'Hoàn thành').length;
+        return row('lot', l.id, [[`<b class="text-blue-700 whitespace-nowrap">${esc(l.maDH)}</b>`], [esc(l.tenKH), 'text-gray-700'],
+            [l.boards.map(b => `${esc(b.tenMach)} × ${n(b.qty)}`).join('<br>'), 'text-xs text-gray-600'], [esc((l.ngayTao || '').slice(0, 10)), 'text-xs text-gray-500'], [esc(l.ngayBanGiao || '—'), 'text-xs text-gray-600'],
+            [`${ready}/${l.boards.length} mạch`, 'font-bold ' + (ready === l.boards.length ? 'text-emerald-600' : 'text-amber-600')], [`${done}/${l.boards.length} mạch`, 'font-bold ' + (done === l.boards.length ? 'text-emerald-600' : 'text-gray-500')],
+            [n(l.tongCong) + ' đ', 'text-right font-bold whitespace-nowrap'], [l.conNo > 0 ? n(l.conNo) + ' đ' : '—', 'text-right whitespace-nowrap ' + (l.conNo > 0 ? 'text-red-600 font-bold' : 'text-gray-300')], [esc(l.giaiDoan), 'text-xs text-gray-600 whitespace-nowrap']]);
+    }).join(''));
+}
+function listProducts(hit) {
+    const list = V.products.filter(p => hit(p.maMach, p.tenMach, p.tenKH, p.maKH));
+    if (!list.length) return empty('Chưa có sản phẩm VIP nào. Bấm "Thêm sản phẩm" để khai báo mạch và BOM chuẩn.');
+    return table(['Khách hàng', 'Mã mạch', 'Tên mạch', 'Thiết kế', 'Hạng mục', 'Số dòng BOM', 'Giá bán / sp', 'Kho hiện đủ làm', 'Trạng thái'], list.map(p => row('product', p.id, [
+        [esc(p.tenKH || p.maKH), 'text-gray-700'], [`<b>${esc(p.maMach || p.tenMach)}</b>`], [esc(p.tenMach), 'text-gray-600'], [`rev ${p.rev}${p.revisions[0] && p.rev > 1 ? `<span class="block text-[10px] text-gray-400">${esc((p.revisions[0].ngay || '').slice(0, 10))}</span>` : ''}`, 'text-xs font-bold text-violet-700'], [hangMuc(p), 'text-xs text-gray-600'],
+        [p.coLK ? (p.bom.length || '<span class="text-red-600 font-bold">chưa có BOM</span>') : '—', 'text-right'], [p.giaBan > 0 ? n(p.giaBan) + ' đ' : '<span class="text-red-600 text-xs font-bold">chưa có giá</span>', 'text-right font-bold'],
+        [p.coLK && p.stockSets !== null ? `<b class="${p.stockSets > 0 ? 'text-emerald-600' : 'text-red-600'}">${n(p.stockSets)} bộ</b> <span class="text-[11px] text-gray-400">· giới hạn bởi ${esc(p.stockLimit)}</span>` : '<span class="text-gray-300">—</span>'],
+        [p.active ? '<span class="text-emerald-600 font-bold text-xs">Đang dùng</span>' : '<span class="text-gray-400 text-xs">Ngừng</span>']], p.active ? '' : 'opacity-60')).join(''));
+}
+
+// ---------- Chi tiet lo ----------
+function detailLot(id) {
+    const l = V.lots.find(x => x.id === id);
+    if (!l) return null;
+    const cell = (a, b) => `<div><p class="text-[10px] font-black text-gray-400 uppercase">${a}</p><p class="font-semibold text-gray-800 mt-0.5">${b}</p></div>`;
+    const btn = 'px-3 py-1.5 rounded-lg text-xs font-bold';
+    return { title: `Lô ${esc(l.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(l.tenKH)} · ${esc(l.giaiDoan)}</span>`, html: `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            ${cell('Ngày tạo', esc((l.ngayTao || '').slice(0, 10)))}${cell('Giao dự kiến', esc(l.ngayBanGiao || '—'))}${cell('Giá trị lô', n(l.tongCong) + ' đ')}${cell('Đã thu', n(l.daThu) + ' đ')}${cell('Còn phải thu', `<span class="${l.conNo > 0 ? 'text-red-600' : ''}">${n(l.conNo)} đ</span>`)}
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="/dieu-hanh-mua-linh-kien#order/${l.id}" class="${btn} bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-layer-group mr-1"></i>Mua thêm, soạn kho và nhặt linh kiện theo BOM</a>
+            <a href="/dieu-phoi-san-xuat" class="${btn} bg-white border hover:bg-gray-50"><i class="fas fa-project-diagram mr-1"></i>Điều phối sản xuất</a>
+            <a href="/api/orders/${l.id}/folder/root" target="_blank" class="${btn} bg-white border hover:bg-gray-50"><i class="fas fa-folder-open mr-1"></i>Thư mục của lô</a>
+            ${l.conNo > 0 ? `<button onclick="collect(${l.id})" class="${btn} bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-hand-holding-usd mr-1"></i>Thu tiền</button>` : ''}
+            ${l.ttDonHang === 'Hoàn thành' ? '' : `<button onclick="delivered(${l.id})" class="${btn} bg-white border text-emerald-700 hover:bg-emerald-50"><i class="fas fa-truck mr-1"></i>Đã giao hàng xong</button>`}
+        </div>
+        ${table(['Sản phẩm (mạch)', 'Số lượng', 'Vật tư', 'Linh kiện', 'Xưởng', 'Tiến độ sản xuất'], l.boards.map(b => `<tr class="border-b last:border-0">
+            <td class="p-3 font-bold text-gray-700">${esc(b.tenMach)}${revNote(b)}</td><td class="p-3 font-bold">${n(b.qty)}</td><td class="p-3">${matChips(b)}</td>
+            <td class="p-3 text-xs text-gray-600">${b.mat ? esc(b.mat.lk.source + ' · ' + b.mat.lk.status) : '—'}</td>
+            <td class="p-3 text-xs">${b.dispatch ? esc(b.dispatch.workshopName || '') : '<span class="text-amber-600">chưa điều phối</span>'}</td>
+            <td class="p-3 text-xs">${b.dispatch ? esc(b.dispatch.status) + ' · ' + (b.dispatch.progress || 0) + '%' : '—'}</td></tr>`).join('')).replace('Bấm vào một dòng để xem chi tiết và thao tác.', 'Mỗi mạch một BOM riêng: linh kiện mua về được nhặt theo từng mạch ở trang Điều hành mua linh kiện.')}` };
+}
+// Lo lam theo thiet ke (rev) nao; canh bao neu sau do khach da doi thiet ke
+function revNote(b) {
+    if (!b.vipRev) return '';
+    const p = V.products.find(x => x.id === b.vipProductId);
+    const newer = p && p.rev > b.vipRev ? p.revisions.filter(r => r.rev > b.vipRev) : [];
+    return `<span class="block text-[11px] font-normal text-violet-700">Thiết kế rev ${b.vipRev}</span>` + (newer.length ? `<span class="block text-[11px] font-normal text-red-600"><i class="fas fa-exclamation-triangle mr-1"></i>Mã mạch đã đổi thiết kế sau khi tạo lô (hiện rev ${p.rev}): ${esc(newer.map(r => r.noiDung).join('; '))}</span>` : '');
+}
+function collect(id) { const l = V.lots.find(x => x.id === id); openCollectPayment({ id: l.id, maDH: l.maDH, vat: l.vat, tongCong: l.tongCong, daThu: l.daThu, conNo: l.conNo }, loadData); }
+async function delivered(id) {
+    const r = await Swal.fire({ title: 'Xác nhận đã giao hàng xong lô này?', icon: 'question', showCancelButton: true, confirmButtonText: 'Đã giao xong', cancelButtonText: 'Đóng' });
+    if (!r.isConfirmed) return;
+    const res = await (await fetch(`/api/orders/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ttDonHang: 'Hoàn thành' }) })).json();
+    if (!res.success) return Swal.fire('Lỗi', res.error || 'Không cập nhật được', 'error');
+    loadData();
+}
+</script>
+<script>
+// ---------- San pham VIP + BOM chuan ----------
+function detailProduct(id) {
+    const p = draft; if (!p) return null;
+    const inp = 'border rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-400';
+    const f = (key, label, cls, extra) => `<label class="text-xs font-bold text-gray-600 ${cls}">${label}<input value="${esc(p[key] === 0 ? '' : (p[key] ?? ''))}" onchange="draft['${key}'] = ${extra === 'num' ? 'numIn(this.value)' : 'this.value'}; ${extra === 'num' ? 'render()' : ''}" class="mt-1 w-full ${inp} ${extra === 'num' ? 'text-right' : ''} font-normal"></label>`;
+    const chk = (key, label) => `<label class="text-xs font-bold text-gray-700 flex items-center gap-1 cursor-pointer"><input type="checkbox" ${p[key] ? 'checked' : ''} onchange="draft['${key}'] = this.checked ? 1 : 0; render()"> ${label}</label>`;
+    const costLK = p.bom.reduce((s, l) => s + (l.khachCap ? 0 : (l.perSet || 0) * (l.buyPrice || 0)), 0);
+    const cost = (p.coPCB ? p.giaPCB : 0) + (p.coLK ? costLK : 0) + (p.coSX ? p.giaGiaCong : 0);
+    return { title: id ? `Mã mạch ${esc(p.maMach)} <span class="font-normal text-sm text-violet-700">· thiết kế rev ${p.rev}</span>` : 'Thêm sản phẩm VIP (mã mạch)', html: `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <div class="grid grid-cols-12 gap-3">
+                <label class="text-xs font-bold text-gray-600 col-span-12 md:col-span-4">Khách hàng *<select onchange="draft.maKH = this.value" class="mt-1 w-full ${inp} bg-white font-normal"><option value="">-- chọn khách --</option>${V.customers.map(c => `<option value="${esc(c.maKH)}" ${c.maKH === p.maKH ? 'selected' : ''}>${esc(c.tenKH)} (${esc(c.maKH)})</option>`).join('')}</select></label>
+                ${f('maMach', 'Mã mạch (mã khách gọi) *', 'col-span-6 md:col-span-2')}
+                ${f('tenMach', 'Tên mạch / mô tả', 'col-span-12 md:col-span-4')}
+                ${f('giaBan', 'Giá bán / 1 sp (đ) *', 'col-span-6 md:col-span-2', 'num')}
+            </div>
+            <div class="flex flex-wrap items-end gap-x-6 gap-y-2">
+                <div><p class="text-xs font-bold text-gray-600 mb-1">Khách đặt hạng mục</p><div class="flex gap-4">${chk('coPCB', 'PCB')}${chk('coLK', 'Linh kiện')}${chk('coSX', 'Sản xuất')}</div></div>
+                ${p.coPCB ? f('giaPCB', 'Giá PCB / 1 sp (đ)', 'w-40', 'num') : ''}
+                ${p.coSX ? f('giaGiaCong', 'Giá gia công / 1 sp (đ)', 'w-44', 'num') : ''}
+                <div class="text-xs text-gray-500">Cost ước tính / sp: <b class="text-gray-800">${n(Math.round(cost))} đ</b> · Lãi gộp / sp: <b class="${p.giaBan - cost >= 0 ? 'text-emerald-600' : 'text-red-600'}">${n(Math.round(p.giaBan - cost))} đ</b></div>
+            </div>
+            ${f('ghiChu', 'Ghi chú', 'block')}
+        </div>
+        ${p.coLK ? `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><p class="text-xs font-black text-gray-400 uppercase">BOM của mã mạch này (định mức cho 1 sản phẩm)</p><span class="flex flex-wrap gap-3 items-center"><input type="file" id="bomFile" accept=".xlsx,.xls,.csv,.txt,.tsv" class="hidden" onchange="bomChoose(this.files[0])"><button onclick="document.getElementById('bomFile').click()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-file-import mr-1"></i>Nhập cả danh sách từ Excel / txt</button>${id ? `<a href="/api/io/export/vip-bom?productId=${id}" class="text-xs font-bold text-gray-600 hover:underline"><i class="fas fa-file-export mr-1"></i>Xuất BOM</a>` : ''}<button onclick="draft.bom.push({ itemId: null, name: '', perSet: 1, buyPrice: 0, supplier: '', khachCap: false }); render()" class="text-xs font-bold text-blue-600 hover:underline"><i class="fas fa-plus mr-1"></i>Thêm dòng</button></span></div>
+            ${bomImportHtml()}
+            <div class="overflow-x-auto"><table class="w-full text-xs"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2">Linh kiện (chọn trong kho hoặc gõ tên)</th><th class="p-2 text-right">Định mức / sp</th><th class="p-2 text-right">Tồn kho</th><th class="p-2 text-right">Giá mua</th><th class="p-2">Nguồn mua</th><th class="p-2 text-center">Khách cấp</th><th class="p-2"></th></tr></thead>
+            <tbody>${p.bom.map((l, i) => { const it = V.inventory.find(x => x.id === l.itemId); return `<tr class="border-b last:border-0 ${l.khachCap ? 'bg-sky-50' : ''}">
+                <td class="p-2"><input list="vItems" value="${esc(l.name || '')}" onchange="setBom(${i}, 'name', this.value)" placeholder="Mã / tên linh kiện" class="${inp} w-80 py-1">${l.name && !l.itemId ? '<span class="block text-[10px] text-amber-600">Không có trong kho: luôn phải mua</span>' : ''}</td>
+                <td class="p-2 text-right"><input value="${l.perSet || ''}" onchange="setBom(${i}, 'perSet', this.value)" class="${inp} w-20 py-1 text-right"></td>
+                <td class="p-2 text-right ${it && it.quantity > 0 ? 'text-emerald-600 font-bold' : 'text-gray-400'}">${it ? n(it.quantity) + ' ' + esc(it.unit || '') : '—'}</td>
+                <td class="p-2 text-right">${l.khachCap ? '—' : `<input value="${l.buyPrice || ''}" onchange="setBom(${i}, 'buyPrice', this.value)" class="${inp} w-24 py-1 text-right ${l.buyPrice > 0 ? '' : 'bg-amber-50'}">`}</td>
+                <td class="p-2">${l.khachCap ? '<b class="text-sky-700">Khách gửi sang</b>' : `<input list="vSuppliers" value="${esc(l.supplier || '')}" onchange="setBom(${i}, 'supplier', this.value)" placeholder="LCSC, Digikey..." class="${inp} w-36 py-1">`}</td>
+                <td class="p-2 text-center"><input type="checkbox" ${l.khachCap ? 'checked' : ''} onchange="setBom(${i}, 'khachCap', this.checked)"></td>
+                <td class="p-2 text-center"><button onclick="draft.bom.splice(${i}, 1); render()" class="text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button></td></tr>`; }).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-400 italic">Chưa có dòng nào. Bấm "Thêm dòng".</td></tr>'}</tbody></table></div>
+            <p class="text-[11px] text-gray-400 mt-2">Giá mua dùng khi kho thiếu phải mua thêm. Tick "Khách cấp" cho linh kiện khách gửi sang.</p></div>` : ''}
+        ${id ? `<div class="bg-white rounded-2xl border border-violet-200 shadow-sm p-5 space-y-3">
+            <p class="text-xs font-black text-gray-400 uppercase">Thay đổi thiết kế <span class="normal-case font-normal text-gray-500">· cùng mã mạch nhưng khách đổi thiết kế (đổi BOM, đổi mạch, đổi linh kiện thay thế...)</span></p>
+            <label class="text-xs font-bold text-gray-600 block">Nội dung thay đổi lần này <span class="font-normal text-gray-400">(bắt buộc khi sửa BOM; có ghi thì khi lưu sẽ thành rev ${p.rev + 1})</span>
+                <input value="${esc(p.changeNote || '')}" onchange="draft.changeNote = this.value" placeholder="VD: Khách đổi U3 sang STM32G030, thêm tụ C15 100nF, PCB bản V2..." class="mt-1 w-full ${inp} font-normal"></label>
+            ${(p.revisions || []).length ? `<table class="w-full text-xs"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2 w-16">Rev</th><th class="p-2 w-28">Ngày</th><th class="p-2">Nội dung thay đổi</th><th class="p-2 w-40">Người ghi</th></tr></thead><tbody>
+                ${p.revisions.map(r => `<tr class="border-b last:border-0"><td class="p-2 font-bold text-violet-700">rev ${r.rev}</td><td class="p-2 text-gray-500">${esc((r.ngay || '').slice(0, 10))}</td><td class="p-2 text-gray-700">${esc(r.noiDung || '')}</td><td class="p-2 text-gray-500">${esc(r.nguoi || '')}</td></tr>`).join('')}</tbody></table>` : '<p class="text-xs text-gray-400 italic">Chưa có lịch sử thay đổi.</p>'}
+        </div>` : ''}
+        <div class="flex flex-wrap items-center gap-3">
+            <button onclick="saveProduct()" class="px-5 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-save mr-1"></i>Lưu sản phẩm</button>
+            ${id ? `<label class="text-xs font-bold text-gray-600 flex items-center gap-1"><input type="checkbox" ${p.active ? 'checked' : ''} onchange="draft.active = this.checked ? 1 : 0"> Đang dùng (cho phép tạo lô)</label>` : ''}
+        </div>` };
+}
+// ---------- Nhap ca danh sach BOM tu file: chon file -> ghep cot voi truong -> dua vao bang BOM (chua luu, xem lai roi moi luu) ----------
+let bomImp = null; // { file, parsed, mapping, sheet }
+const BOM_IMP_FIELDS = [['linhKien', 'Linh kiện (tên / giá trị) *'], ['perSet', 'Định mức / sp *'], ['maHang', 'Mã hàng kho'], ['mpn', 'Mã NSX'], ['package', 'Kiểu chân'], ['buyPrice', 'Giá mua'], ['supplier', 'Nguồn mua'], ['khachCap', 'Khách cấp (x)']];
+async function bomChoose(file, sheet) {
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file); fd.append('entity', 'vip-bom'); fd.append('sheet', sheet || '');
+    const res = await (await fetch('/api/io/parse', { method: 'POST', body: fd })).json();
+    if (!res.success) return Swal.fire('Không đọc được file', res.error || '', 'error');
+    bomImp = { file, parsed: res, mapping: { ...res.mapping }, sheet: sheet || res.sheets[0] || '' };
+    render();
+}
+function bomImportHtml() {
+    if (!bomImp) return '';
+    const p = bomImp.parsed, first = p.sample[0] || [], sel = 'border rounded px-2 py-1 text-xs bg-white w-full mt-1';
+    return `<div class="border border-emerald-300 bg-emerald-50/40 rounded-xl p-3 mb-3 space-y-2">
+        <p class="text-xs font-bold text-slate-700"><i class="fas fa-file-excel text-emerald-600 mr-1"></i>${esc(bomImp.file.name)} <span class="font-normal text-gray-500">· ${p.total} dòng · tiêu đề ở dòng ${p.headerRow + 1} · chọn cột trong file ứng với từng trường (đã gợi ý sẵn)</span>
+            ${p.sheets.length > 1 ? `<select onchange="bomChoose(bomImp.file, this.value)" class="ml-2 border rounded px-2 py-1 text-xs bg-white">${p.sheets.map(x => `<option ${x === bomImp.sheet ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">${BOM_IMP_FIELDS.map(([k, label]) => `<label class="text-[11px] font-bold text-gray-600">${label}<select onchange="bomMap('${k}', this.value)" class="${sel} ${bomImp.mapping[k] === undefined && label.endsWith('*') ? 'border-red-400 bg-red-50' : ''}"><option value="">-- không dùng --</option>${p.headers.map((h, i) => `<option value="${i}" ${bomImp.mapping[k] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
+            <span class="block font-normal text-gray-400 truncate">${bomImp.mapping[k] === undefined ? '&nbsp;' : 'vd: ' + esc(first[bomImp.mapping[k]] ?? '')}</span></label>`).join('')}</div>
+        <div class="flex flex-wrap items-center gap-2"><button onclick="bomApply()" class="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-check mr-1"></i>Đưa vào bảng BOM</button>
+            <button onclick="bomImp = null; render()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border hover:bg-gray-50">Bỏ qua</button>
+            <span class="text-[11px] text-gray-500">${draft.bom.length ? `Sẽ THAY ${draft.bom.length} dòng BOM đang có. ` : ''}Linh kiện được dò với kho theo mã hàng / mã NSX / tên gọi đã ghi nhớ. Chưa lưu cho tới khi bấm "Lưu sản phẩm".</span></div></div>`;
+}
+function bomMap(key, value) {
+    if (value === '') delete bomImp.mapping[key];
+    else { for (const k of Object.keys(bomImp.mapping)) if (bomImp.mapping[k] === Number(value)) delete bomImp.mapping[k]; bomImp.mapping[key] = Number(value); }
+    render();
+}
+async function bomApply() {
+    const fd = new FormData(); fd.append('file', bomImp.file); fd.append('sheet', bomImp.sheet || ''); fd.append('headerRow', bomImp.parsed.headerRow); fd.append('mapping', JSON.stringify(bomImp.mapping)); fd.append('maKH', draft.maKH || '');
+    const res = await (await fetch('/api/io/preview-bom', { method: 'POST', body: fd })).json();
+    if (!res.success) return Swal.fire('Chưa nhập được', res.error || '', 'error');
+    const old = draft.bom; // giu gia mua / nguon mua dang co cua dung linh kien neu file khong co
+    draft.bom = res.lines.map(l => { const o = old.find(x => (l.itemId ? x.itemId === l.itemId : !x.itemId && x.name === l.name)); return { ...l, buyPrice: l.buyPrice || (o ? o.buyPrice : 0), supplier: l.supplier || (o ? o.supplier : '') }; });
+    draft.coLK = 1; bomImp = null; render();
+    Swal.fire({ icon: res.errors.length ? 'warning' : 'success', title: `Đã đưa ${res.lines.length} linh kiện vào BOM`, html: `${res.matched} mã khớp kho, ${res.lines.length - res.matched} mã không có trong kho (luôn phải mua).${res.errors.length ? '<br><br><b>Dòng bị bỏ qua:</b><br>' + res.errors.map(esc).join('<br>') : ''}<br><br>Kiểm tra lại bảng rồi bấm "Lưu sản phẩm"${draft.id ? ' (ghi nội dung thay đổi thiết kế nếu BOM khác trước)' : ''}.` });
+}
+function setBom(i, key, value) {
+    const l = draft.bom[i];
+    if (key === 'name') { const it = V.inventory.find(x => itemLabel(x) === String(value).trim()); l.name = String(value).trim(); l.itemId = it ? it.id : null; if (it && !l.buyPrice && it.unitCost > 0) l.buyPrice = Math.round(it.unitCost); }
+    else if (key === 'khachCap') l.khachCap = !!value;
+    else if (key === 'supplier') l.supplier = String(value).trim();
+    else l[key] = Math.max(0, numIn(value));
+    render();
+}
+async function saveProduct() {
+    const res = await call('/api/vip/products/save', 'POST', { ...draft, id: draft.id || undefined });
+    if (!res) return;
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2000, showConfirmButton: false, title: 'Đã lưu sản phẩm VIP' });
+    detail = null; draft = null; tab = 'products'; loadData();
+}
+
+// ---------- Tao lo moi: chon san pham + so luong -> kiem tra vat tu theo tung BOM -> tao lo ----------
+function detailNewLot() {
+    const d = lotDraft; if (!d) return null;
+    const inp = 'border rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-400';
+    const custs = V.customers.filter(c => V.products.some(p => p.active && p.maKH === c.maKH));
+    const prods = V.products.filter(p => p.active && p.maKH === d.maKH);
+    const c = d.check;
+    return { title: 'Tạo lô hàng mới', html: `
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <div class="grid grid-cols-12 gap-3">
+                <label class="text-xs font-bold text-gray-600 col-span-12 md:col-span-5">Khách hàng VIP *<select onchange="lotDraft.maKH = this.value; lotDraft.qty = {}; lotDraft.check = null; render()" class="mt-1 w-full ${inp} bg-white font-normal"><option value="">-- chọn khách --</option>${custs.map(x => `<option value="${esc(x.maKH)}" ${x.maKH === d.maKH ? 'selected' : ''}>${esc(x.tenKH)} (${esc(x.maKH)})</option>`).join('')}</select></label>
+                <label class="text-xs font-bold text-gray-600 col-span-6 md:col-span-2">Giao dự kiến<input type="date" value="${esc(d.ngayBanGiao || '')}" onchange="lotDraft.ngayBanGiao = this.value" class="mt-1 w-full ${inp} font-normal"></label>
+                <label class="text-xs font-bold text-gray-600 col-span-6 md:col-span-1">VAT (%)<input value="${d.vat || 0}" onchange="lotDraft.vat = numIn(this.value)" class="mt-1 w-full ${inp} text-right font-normal"></label>
+                <label class="text-xs font-bold text-gray-600 col-span-12 md:col-span-4">Ghi chú lô<input value="${esc(d.note || '')}" onchange="lotDraft.note = this.value" class="mt-1 w-full ${inp} font-normal"></label>
+            </div>
+            ${!custs.length ? '<p class="text-sm text-amber-600">Chưa có sản phẩm VIP nào đang dùng. Hãy khai báo ở tab "Sản phẩm VIP & BOM chuẩn" trước.</p>' : ''}
+            ${d.maKH ? `<table class="w-full text-sm"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2">Mã mạch</th><th class="p-2">Hạng mục</th><th class="p-2 text-right">Giá bán / sp</th><th class="p-2 text-right">Kho đủ làm</th><th class="p-2 text-right">Số lượng lô này</th></tr></thead>
+                <tbody>${prods.map(p => `<tr class="border-b last:border-0"><td class="p-2 font-bold text-gray-700">${esc(p.label)} <span class="text-[11px] font-normal text-violet-700">rev ${p.rev}</span>${p.coLK && !p.bom.length ? '<span class="block text-[11px] font-normal text-red-600">chưa có BOM</span>' : ''}</td><td class="p-2 text-xs text-gray-500">${hangMuc(p)}</td><td class="p-2 text-right">${n(p.giaBan)} đ</td>
+                    <td class="p-2 text-right text-xs">${p.coLK && p.stockSets !== null ? n(p.stockSets) + ' bộ' : '—'}</td>
+                    <td class="p-2 text-right"><input value="${d.qty[p.id] || ''}" placeholder="0" onchange="lotDraft.qty[${p.id}] = Math.round(numIn(this.value)); lotDraft.check = null; render()" class="${inp} w-28 text-right font-bold"></td></tr>`).join('')}</tbody></table>
+                <button onclick="checkLot()" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-700 text-white hover:bg-slate-800"><i class="fas fa-search mr-1"></i>Kiểm tra vật tư</button>` : ''}
+        </div>
+        ${c ? `<div class="bg-white rounded-2xl border border-blue-200 shadow-sm p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <p class="text-sm font-bold text-slate-700">Kết quả đối chiếu với kho <span class="font-normal text-xs text-gray-500">· giá trị lô ${n(c.revenue)} đ · cần mua thêm khoảng ${n(c.buyAmount)} đ</span></p>
+                <button onclick="createLot()" class="px-5 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-check mr-1"></i>Tạo lô</button>
+            </div>
+            <p class="text-[11px] text-gray-500 mb-2">Mỗi mạch một bảng theo BOM riêng, không gộp. Khi tạo lô, phần "lấy kho" được giữ ngay cho lô; phần "mua thêm" vào danh sách đặt hàng ở trang Điều hành mua linh kiện.</p>
+            ${c.boards.map(b => `<p class="text-sm font-bold text-slate-700 mt-3 mb-1"><i class="fas fa-microchip mr-1 text-slate-400"></i>${esc(b.tenMach)} × ${n(b.qty)} <span class="font-normal text-xs text-gray-500">· ${b.rows.length ? `${b.fromStockN} mã lấy kho · <span class="${b.toBuyN ? 'text-red-600 font-bold' : ''}">${b.toBuyN} mã phải mua thêm</span>${b.khachN ? ` · ${b.khachN} mã khách cấp` : ''}` : 'không có hạng mục linh kiện'}</span></p>
+                ${b.rows.length ? `<table class="w-full text-xs border"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500 text-left"><tr><th class="p-2">Linh kiện</th><th class="p-2 text-right">Cần</th><th class="p-2 text-right">Kho còn</th><th class="p-2 text-right">Lấy kho</th><th class="p-2 text-right">Mua thêm</th><th class="p-2">Nguồn</th><th class="p-2 text-right">Tiền mua</th></tr></thead><tbody>
+                ${b.rows.map(r => `<tr class="border-t ${r.khachCap ? 'bg-sky-50' : (r.toBuy > 0 ? 'bg-red-50/40' : '')}"><td class="p-2">${esc(r.name)}</td><td class="p-2 text-right font-bold">${n(r.need)}</td><td class="p-2 text-right text-gray-500">${r.itemId ? n(r.stock) : '—'}</td>
+                    <td class="p-2 text-right text-emerald-600">${r.fromStock ? n(r.fromStock) : '—'}</td><td class="p-2 text-right font-bold ${r.toBuy > 0 ? 'text-red-600' : 'text-gray-300'}">${r.toBuy ? n(r.toBuy) : '—'}</td>
+                    <td class="p-2">${r.khachCap ? '<b class="text-sky-700">Khách cấp</b>' : (r.toBuy > 0 ? esc(r.supplier || 'chưa chọn NCC') : 'kho')}</td><td class="p-2 text-right">${r.amount ? n(r.amount) : '—'}</td></tr>`).join('')}</tbody></table>` : ''}`).join('')}
+        </div>` : ''}` };
+}
+const lotItems = () => Object.entries(lotDraft.qty).filter(([, q]) => q > 0).map(([productId, qty]) => ({ productId: Number(productId), qty }));
+async function checkLot() {
+    if (!lotItems().length) return Swal.fire('Chưa nhập số lượng', 'Nhập số lượng cho ít nhất một sản phẩm.', 'info');
+    const res = await call('/api/vip/check', 'POST', { items: lotItems() });
+    if (res) { lotDraft.check = res; render(); }
+}
+async function createLot() {
+    const d = lotDraft;
+    const ok = await Swal.fire({ title: 'Tạo lô hàng?', text: 'Lô được tạo ở trạng thái đã chốt; phần lấy kho được giữ cho lô, phần thiếu vào danh sách cần mua.', icon: 'question', showCancelButton: true, confirmButtonText: 'Tạo lô', cancelButtonText: 'Đóng' });
+    if (!ok.isConfirmed) return;
+    const res = await call('/api/vip/lots', 'POST', { maKH: d.maKH, items: lotItems(), ngayBanGiao: d.ngayBanGiao, vat: d.vat, note: d.note });
+    if (!res) return;
+    lotDraft = null; tab = 'lots'; detail = { type: 'lot', id: res.id };
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 3000, showConfirmButton: false, title: 'Đã tạo lô ' + res.maDH });
+    loadData();
+}
+window.onload = async () => {
+    await loadData();
+    const m = location.hash.match(/^#product\/(\d+)$/); // quay lai tu trang nhap BOM
+    if (m && V.products.some(p => p.id === Number(m[1]))) { tab = 'products'; openDetail('product', Number(m[1])); }
+};
+</script>
+
+<%- include('../partials/footer') %>

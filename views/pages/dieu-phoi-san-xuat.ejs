@@ -1,0 +1,206 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<main class="flex-1 p-6 overflow-y-auto bg-gray-100 custom-scrollbar">
+<div class="max-w-[1500px] mx-auto space-y-4">
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-black text-gray-800 tracking-tight">Điều phối sản xuất</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Giao từng loại mạch của đơn đã chốt cho một xưởng · tài khoản xưởng chỉ thấy việc của xưởng mình</p>
+    </div>
+    <input id="dpSearch" oninput="render()" placeholder="Tìm mã đơn, mạch, khách, xưởng..." class="border rounded-xl px-3 py-2 text-sm w-72">
+</div>
+
+<div id="dpSummary" class="space-y-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button onclick="setTab('pending')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Chờ điều phối</p><p id="k-pending" class="text-3xl font-black text-red-500 mt-1">0</p></button>
+        <button onclick="setTab('jobs')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Đang ở các xưởng</p><p id="k-open" class="text-3xl font-black text-blue-600 mt-1">0</p></button>
+        <button onclick="setTab('jobs')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Trễ hạn</p><p id="k-late" class="text-3xl font-black text-orange-500 mt-1">0</p></button>
+        <button onclick="setTab('ws')" class="text-left bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p class="text-[9px] font-black text-gray-400 uppercase">Xưởng đang hoạt động</p><p id="k-ws" class="text-3xl font-black text-emerald-600 mt-1">0</p></button>
+    </div>
+    <div class="flex flex-wrap gap-2 items-center">
+        <button id="tab-pending" onclick="setTab('pending')" class="dp-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-inbox mr-1"></i>Chờ điều phối</button>
+        <button id="tab-jobs" onclick="setTab('jobs')" class="dp-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-tasks mr-1"></i>Việc đã giao</button>
+        <button id="tab-ws" onclick="setTab('ws')" class="dp-tab px-4 py-2 rounded-xl text-sm font-bold border"><i class="fas fa-industry mr-1"></i>Các xưởng</button>
+        <button onclick="openDetail('wsNew', 0)" class="ml-auto px-4 py-2 rounded-xl text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700"><i class="fas fa-plus mr-1"></i>Thêm xưởng</button>
+    </div>
+    <div id="dpBody"></div>
+</div>
+
+<div id="dpDetail" class="space-y-4" style="display:none">
+    <div class="flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3">
+        <button onclick="closeDetail()" class="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-700 hover:bg-slate-200"><i class="fas fa-arrow-left mr-1"></i>Quay lại</button>
+        <h2 id="dpTitle" class="font-black text-slate-800 text-lg"></h2>
+    </div>
+    <div id="dpDetailBody" class="space-y-4"></div>
+</div>
+</div>
+</main>
+
+<script>
+let D = { workshops: [], pending: [], dispatches: [], statuses: [] };
+let tab = 'pending', detail = null;
+const n = v => (v || 0).toLocaleString('vi-VN');
+const ST = { 'Đã giao xưởng': 'bg-slate-200 text-slate-700', 'Đang sản xuất': 'bg-blue-100 text-blue-700', 'Tạm dừng': 'bg-amber-100 text-amber-700', 'Hoàn thành': 'bg-emerald-100 text-emerald-700' };
+const chip = s => `<span class="px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap ${ST[s] || 'bg-gray-100 text-gray-500'}">${esc(s)}</span>`;
+const empty = t => `<div class="bg-white rounded-2xl p-10 text-center text-gray-400 italic border border-gray-100">${t}</div>`;
+const table = (heads, rows) => `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead class="bg-slate-50 text-[10px] uppercase text-gray-500 text-left"><tr>${heads.map(h => `<th class="p-3">${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="px-4 py-2 text-xs text-gray-400 border-t">Bấm vào một dòng để xem chi tiết và thao tác.</p></div>`;
+const row = (type, id, cells, cls) => `<tr onclick="openDetail('${type}', ${id})" class="border-b last:border-0 cursor-pointer hover:bg-blue-50/50 ${cls || ''}">${cells.map(c => `<td class="p-3 ${c[1] || ''}">${c[0]}</td>`).join('')}</tr>`;
+const bar = pct => `<div class="flex items-center gap-2"><div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-[70px]"><div class="h-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-blue-400'}" style="width:${pct}%"></div></div><span class="text-[11px] font-bold">${pct}%</span></div>`;
+// Tinh trang vat tu san xuat: PCB · linh kien · stencil (x.mat tu may chu)
+const matDot = (m, label) => `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${m.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}" title="${esc(label + ': ' + m.source + ' — ' + m.status)}"><i class="fas ${m.ready ? 'fa-check' : 'fa-hourglass-half'}"></i>${label}</span>`;
+const kit = x => x.mat ? [matDot(x.mat.pcb, 'PCB'), matDot(x.mat.lk, 'Linh kiện'), matDot(x.mat.stencil, 'Stencil')].join(' ') : '—';
+// Bang chi tiet vat tu + cap nhat cac muc nhap tay (PCB / linh kien khach cap, stencil)
+function matPanel(x) {
+    const m = x.mat; if (!m) return '';
+    const sel = (key, cur, list) => `<select data-mat="${key}" class="border rounded-lg px-2 py-1 text-xs font-bold" ${D.canMaterials ? '' : 'disabled'}>${list.map(v => `<option ${v === cur ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+    const line = (label, part, editor) => `<tr class="border-b last:border-0"><td class="p-2 font-bold text-gray-700">${label}</td><td class="p-2 text-gray-600">${esc(part.source)}</td><td class="p-2">${editor || esc(part.status)}</td><td class="p-2">${part.ready ? '<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle mr-1"></i>Sẵn sàng</span>' : '<span class="text-amber-600 font-bold"><i class="fas fa-hourglass-half mr-1"></i>Chưa đủ</span>'}</td></tr>`;
+    return `<div class="bg-white rounded-2xl border ${m.ready ? 'border-emerald-200' : 'border-amber-200'} shadow-sm p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><p class="text-xs font-black text-gray-400 uppercase">Tình trạng vật tư cho sản xuất</p>${m.ready ? '<span class="text-xs font-bold text-emerald-600">Đủ vật tư, có thể sản xuất</span>' : '<span class="text-xs font-bold text-amber-600">Chưa đủ vật tư</span>'}</div>
+        <table class="w-full text-xs"><thead class="text-[10px] uppercase text-gray-400 text-left border-b"><tr><th class="p-2">Vật tư</th><th class="p-2">Nguồn</th><th class="p-2">Tình trạng</th><th class="p-2">Kết luận</th></tr></thead><tbody>
+            ${line('PCB', m.pcb, m.pcb.manual ? sel('pcbKhach', m.pcb.status, D.khachStatuses) : '')}
+            ${line('Linh kiện', m.lk, m.lk.manual ? sel('lkKhach', m.lk.status, D.khachStatuses) : esc(m.lk.status) + ` <a href="/dieu-hanh-mua-linh-kien#order/${x.orderId}" class="text-blue-600 hover:underline ml-1">xem bảng ghép bộ</a>`)}
+            ${line('Stencil', m.stencil, sel('stencil', m.stencil.status, D.stencilStatuses))}
+        </tbody></table>
+        <div class="flex flex-wrap items-center gap-2 mt-3"><input data-mat="note" value="${esc(m.note || '')}" placeholder="Ghi chú vật tư (ví dụ: khách hẹn gửi linh kiện ngày...)" class="flex-1 min-w-[220px] border rounded-lg px-2 py-1.5 text-xs" ${D.canMaterials ? '' : 'disabled'}>
+            ${D.canMaterials ? `<button onclick="saveMaterials(${x.lineId})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-white hover:bg-slate-800">Lưu tình trạng vật tư</button>` : ''}
+            ${m.updatedBy ? `<span class="text-[11px] text-gray-400">Cập nhật: ${esc(m.updatedBy)} · ${new Date(m.updatedAt).toLocaleDateString('vi-VN')}</span>` : ''}</div>
+        <p class="text-[11px] text-gray-400 mt-2">PCB và linh kiện do công ty lo thì tự lấy theo PO PCB và bảng ghép bộ linh kiện; phần khách cấp và stencil cập nhật tay ở đây.</p></div>`;
+}
+async function saveMaterials(lineId) {
+    const body = {}; document.querySelectorAll('#dpDetailBody [data-mat]').forEach(el => { body[el.dataset.mat] = el.value; });
+    if (await call('/api/dispatch/materials/' + lineId, 'PATCH', body)) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2000, showConfirmButton: false, title: 'Đã lưu tình trạng vật tư' }); loadData(); }
+}
+
+async function loadData() { const r = await fetch('/api/dispatch/board'); D = r.ok ? await r.json() : D; render(); }
+async function call(url, method, body) {
+    const result = await (await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
+    if (!result.success) { Swal.fire('Lỗi', result.error || 'Không thực hiện được', 'error'); return null; }
+    return result;
+}
+function setTab(t) { tab = t; detail = null; render(); }
+function openDetail(type, id) { detail = { type, id }; render(); document.querySelector('main').scrollTop = 0; }
+function closeDetail() { detail = null; render(); }
+
+function render() {
+    const open = D.dispatches.filter(d => d.status !== 'Hoàn thành');
+    document.getElementById('k-pending').innerText = D.pending.length;
+    document.getElementById('k-open').innerText = open.length;
+    document.getElementById('k-late').innerText = open.filter(d => d.late).length;
+    document.getElementById('k-ws').innerText = D.workshops.filter(w => w.status).length;
+    document.querySelectorAll('.dp-tab').forEach(b => { const on = b.id === 'tab-' + tab; b.className = 'dp-tab px-4 py-2 rounded-xl text-sm font-bold border ' + (on ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-gray-500 hover:bg-gray-50'); });
+    const made = detail ? ({ pending: detailPending, job: detailJob, ws: detailWorkshop, wsNew: detailWorkshop }[detail.type](detail.id)) : null;
+    if (detail && !made) detail = null;
+    document.getElementById('dpSummary').style.display = made ? 'none' : '';
+    document.getElementById('dpDetail').style.display = made ? '' : 'none';
+    if (made) { document.getElementById('dpTitle').innerHTML = made.title; document.getElementById('dpDetailBody').innerHTML = made.html; return; }
+    const q = document.getElementById('dpSearch').value.trim().toLowerCase();
+    const hit = (...p) => !q || p.join(' ').toLowerCase().includes(q);
+    document.getElementById('dpBody').innerHTML = { pending: listPending, jobs: listJobs, ws: listWorkshops }[tab](hit);
+}
+
+// ---------- Bang tong hop ----------
+function listPending(hit) {
+    const list = D.pending.filter(p => hit(p.maDH, p.tenMach, p.tenKH));
+    if (!list.length) return empty('Không còn loại mạch nào chờ điều phối.');
+    return table(['Đơn hàng', 'Loại mạch', 'Khách hàng', 'Số lượng', 'Ngày chốt', 'Bàn giao khách', 'Vật tư (PCB · linh kiện · stencil)'], list.map(p => row('pending', p.lineId, [
+        [`<b class="text-blue-700 whitespace-nowrap">${esc(p.maDH)}</b>`], [esc(p.tenMach), 'font-semibold text-gray-700'], [esc(p.tenKH || ''), 'text-gray-600'], [n(p.soLuongGiaCong), 'font-bold'],
+        [esc(p.ngayChot || '—'), 'text-xs text-gray-500'], [esc(p.ngayBanGiao || '—'), 'text-xs text-gray-600'], [kit(p)]])).join(''));
+}
+function listJobs(hit) {
+    const list = D.dispatches.filter(d => hit(d.maDH, d.tenMach, d.tenKH, d.workshopName, d.status));
+    if (!list.length) return empty('Chưa giao việc nào cho xưởng.');
+    return table(['Đơn hàng', 'Loại mạch', 'Xưởng', 'Số lượng', 'Đã làm', 'Tiến độ', 'Vật tư', 'Hạn xưởng', 'Tình trạng'], list.map(d => row('job', d.id, [
+        [`<b class="text-blue-700 whitespace-nowrap">${esc(d.maDH)}</b>`], [esc(d.tenMach), 'font-semibold text-gray-700'], [`<i class="fas fa-industry text-gray-400 mr-1"></i>${esc(d.workshopName || '')}`],
+        [n(d.quantity), 'font-bold'], [n(d.doneQty)], [bar(d.progress || 0), 'w-40'], [kit(d)], [esc(d.expectedDate || '—'), 'text-xs whitespace-nowrap ' + (d.late ? 'text-orange-600 font-bold' : 'text-gray-600')],
+        [chip(d.status) + (d.late ? ' <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-700">Trễ hạn</span>' : '')]], d.late ? 'bg-orange-50/40' : '')).join(''));
+}
+function listWorkshops(hit) {
+    const list = D.workshops.filter(w => hit(w.name, w.contact, w.capability));
+    if (!list.length) return empty('Chưa có xưởng nào. Bấm "Thêm xưởng".');
+    return table(['Xưởng', 'Phụ trách', 'Thế mạnh', 'Việc đang làm', 'Tổng số lượng đang làm', 'Trễ hạn', 'Đã xong', 'Tài khoản đăng nhập', 'Trạng thái'], list.map(w => row('ws', w.id, [
+        [`<b>${esc(w.name)}</b>`], [esc(w.contact || '') + (w.phone ? ' · ' + esc(w.phone) : ''), 'text-xs text-gray-600'], [esc(w.capability || '—'), 'text-xs text-gray-500'],
+        [w.open, 'font-bold ' + (w.open ? 'text-blue-600' : 'text-gray-300')], [n(w.openQty)], [w.lateCount || '—', w.lateCount ? 'text-orange-600 font-bold' : 'text-gray-300'], [w.done, 'text-gray-500'],
+        [w.accounts.length ? esc(w.accounts.join(', ')) : '<span class="text-red-500">chưa có</span>', 'text-xs'],
+        [w.status ? '<span class="text-emerald-600 font-bold text-xs">Hoạt động</span>' : '<span class="text-gray-400 text-xs">Ngừng</span>']], w.status ? '' : 'opacity-60')).join(''));
+}
+
+// ---------- Trang chi tiet ----------
+const wsOptions = sel => D.workshops.filter(w => w.status).map(w => `<option value="${w.id}" ${w.id === sel ? 'selected' : ''}>${esc(w.name)} — đang làm ${w.open} việc / ${n(w.openQty)} sp${w.lateCount ? ' · trễ ' + w.lateCount : ''}</option>`).join('');
+const assignForm = (lineId, cur) => `
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <p class="text-xs font-black text-gray-400 uppercase">${cur ? 'Chuyển xưởng / sửa hạn' : 'Giao cho xưởng'}</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label class="text-xs font-bold text-gray-600 md:col-span-2">Xưởng<select id="as_ws" class="mt-1 w-full border rounded-lg p-2 text-sm font-normal"><option value="">-- chọn xưởng --</option>${wsOptions(cur ? cur.workshopId : 0)}</select></label>
+            <label class="text-xs font-bold text-gray-600">Hạn xưởng hoàn thành<input id="as_date" type="date" value="${esc((cur && cur.expectedDate) || '')}" class="mt-1 w-full border rounded-lg p-2 text-sm font-normal"></label>
+        </div>
+        <label class="block text-xs font-bold text-gray-600">Ghi chú cho xưởng<input id="as_note" value="${esc((cur && cur.note) || '')}" placeholder="Yêu cầu riêng, lưu ý kỹ thuật..." class="mt-1 w-full border rounded-lg p-2 text-sm font-normal"></label>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="assign(${lineId})" class="px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700"><i class="fas fa-share mr-1"></i>${cur ? 'Lưu / chuyển xưởng' : 'Giao việc'}</button>
+            ${cur && cur.status === 'Đã giao xưởng' ? `<button onclick="unassign(${cur.id})" class="px-4 py-2 rounded-lg text-sm font-bold bg-white border text-red-600 hover:bg-red-50">Thu hồi</button>` : ''}
+        </div>
+        ${cur && cur.status !== 'Đã giao xưởng' && cur.status !== 'Hoàn thành' ? '<p class="text-[11px] text-amber-600">Xưởng đã bắt đầu làm: chuyển sang xưởng khác sẽ đặt lại tiến độ về 0.</p>' : ''}
+    </div>`;
+const info = pairs => `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">${pairs.map(p => `<div><p class="text-[10px] font-black text-gray-400 uppercase">${p[0]}</p><p class="font-semibold text-gray-800 mt-0.5">${p[1]}</p></div>`).join('')}</div>`;
+
+function detailPending(lineId) {
+    const p = D.pending.find(x => x.lineId === lineId);
+    if (!p) return null;
+    return { title: `${esc(p.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(p.tenMach)} · chờ điều phối</span>`,
+        html: info([['Khách hàng', esc(p.tenKH || '—')], ['Số lượng sản xuất', n(p.soLuongGiaCong)], ['Bàn giao khách', esc(p.ngayBanGiao || '—')], ['Vật tư', kit(p)]]) + matPanel(p) + assignForm(p.lineId, null) };
+}
+function detailJob(id) {
+    const d = D.dispatches.find(x => x.id === id);
+    if (!d) return null;
+    return { title: `${esc(d.maDH)} <span class="font-normal text-sm text-gray-500">· ${esc(d.tenMach)} · ${esc(d.workshopName || '')}</span> ${chip(d.status)}`,
+        html: info([['Xưởng', esc(d.workshopName || '')], ['Số lượng', `${n(d.doneQty)} / ${n(d.quantity)}`], ['Tiến độ', bar(d.progress || 0)], ['Hạn xưởng', `<span class="${d.late ? 'text-orange-600' : ''}">${esc(d.expectedDate || '—')}${d.late ? ' (trễ)' : ''}</span>`],
+            ['Khách hàng', esc(d.tenKH || '—')], ['Bàn giao khách', esc(d.ngayBanGiao || '—')], ['Vật tư', kit(d)], ['Giao bởi', `${esc(d.assignedBy || '')} · ${d.assignedAt ? new Date(d.assignedAt).toLocaleDateString('vi-VN') : ''}`],
+            ['Xưởng cập nhật', d.updatedAt ? `${esc(d.updatedBy || '')} · ${new Date(d.updatedAt).toLocaleDateString('vi-VN')}` : '—'], ['Ghi chú của xưởng', esc(d.workshopNote || '—')], ['Hoàn thành', d.completedAt ? new Date(d.completedAt).toLocaleDateString('vi-VN') : '—'], ['Ghi chú giao việc', esc(d.note || '—')]])
+            + matPanel(d)
+            + `<div class="flex flex-wrap gap-2"><a href="/api/orders/${d.orderId}/folder/in-smt" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder-open mr-1"></i>File SMT của khách</a><a href="/api/orders/${d.orderId}/folder/in-bom" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder-open mr-1"></i>BOM</a><a href="/api/orders/${d.orderId}/folder/in-pcb" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder-open mr-1"></i>PCB</a><a href="/api/orders/${d.orderId}/folder/sanxuat" target="_blank" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 whitespace-nowrap"><i class="fas fa-folder mr-1"></i>Thư mục Sản xuất</a></div>`
+            + (d.status === 'Hoàn thành' ? '' : assignForm(d.lineId, d)) };
+}
+function detailWorkshop(id) {
+    const w = id ? D.workshops.find(x => x.id === id) : { id: 0, name: '', status: 1, accounts: [] };
+    if (!w) return null;
+    const jobs = id ? D.dispatches.filter(d => d.workshopId === id) : [];
+    const f = (k, label, ph) => `<label class="text-xs font-bold text-gray-600">${label}<input id="ws_${k}" value="${esc(w[k] || '')}" placeholder="${ph || ''}" class="mt-1 w-full border rounded-lg p-2 text-sm font-normal"></label>`;
+    return { title: id ? `<i class="fas fa-industry text-gray-400 mr-2"></i>${esc(w.name)}` : 'Thêm xưởng mới',
+        html: `<div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">${f('name', 'Tên xưởng *')}${f('contact', 'Người phụ trách')}${f('phone', 'Điện thoại')}${f('address', 'Địa chỉ')}${f('capability', 'Thế mạnh', 'SMT, hàn tay, lắp ráp...')}${f('note', 'Ghi chú')}</div>
+            <div class="flex flex-wrap items-center gap-4">
+                <label class="text-xs font-bold text-gray-600 flex items-center gap-2"><input id="ws_status" type="checkbox" ${w.status ? 'checked' : ''}> Đang hoạt động (nhận việc mới)</label>
+                <button onclick="saveWorkshop(${id})" class="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700">Lưu thông tin xưởng</button>
+                ${id ? `<span class="text-xs text-gray-500">Tài khoản đăng nhập của xưởng: <b>${w.accounts.length ? esc(w.accounts.join(', ')) : 'chưa có'}</b> (tạo ở trang Quản lý tài khoản, vai trò "Xưởng sản xuất")</span>` : ''}
+            </div></div>`
+            + (id ? (jobs.length ? table(['Đơn hàng', 'Loại mạch', 'Số lượng', 'Đã làm', 'Tiến độ', 'Hạn xưởng', 'Tình trạng'], jobs.map(d => row('job', d.id, [[`<b class="text-blue-700">${esc(d.maDH)}</b>`], [esc(d.tenMach)], [n(d.quantity), 'font-bold'], [n(d.doneQty)], [bar(d.progress || 0), 'w-44'], [esc(d.expectedDate || '—'), d.late ? 'text-orange-600 font-bold text-xs' : 'text-xs text-gray-600'], [chip(d.status)]])).join('')) : empty('Xưởng này chưa được giao việc nào.')) : '') };
+}
+
+async function assign(lineId) {
+    const workshopId = Number(document.getElementById('as_ws').value);
+    if (!workshopId) return Swal.fire('Chưa chọn xưởng', 'Chọn xưởng nhận việc.', 'info');
+    const res = await call('/api/dispatch/assign', 'POST', { lineId, workshopId, expectedDate: document.getElementById('as_date').value, note: document.getElementById('as_note').value });
+    if (!res) return;
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2500, showConfirmButton: false, title: res.moved ? 'Đã chuyển xưởng' : 'Đã giao việc cho xưởng' });
+    if (detail && detail.type === 'pending') detail = { type: 'job', id: res.id };
+    loadData();
+}
+async function unassign(id) {
+    const r = await Swal.fire({ title: 'Thu hồi việc đã giao?', text: 'Loại mạch sẽ quay lại danh sách chờ điều phối.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Thu hồi', cancelButtonText: 'Đóng' });
+    if (!r.isConfirmed) return;
+    if (await call('/api/dispatch/assign/' + id, 'DELETE')) { detail = null; tab = 'pending'; loadData(); }
+}
+async function saveWorkshop(id) {
+    const v = k => document.getElementById('ws_' + k).value;
+    const res = await call('/api/dispatch/workshops/save', 'POST', { id: id || undefined, name: v('name'), contact: v('contact'), phone: v('phone'), address: v('address'), capability: v('capability'), note: v('note'), status: document.getElementById('ws_status').checked });
+    if (!res) return;
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2000, showConfirmButton: false, title: 'Đã lưu xưởng' });
+    detail = { type: 'ws', id: res.id }; tab = 'ws'; loadData();
+}
+window.onload = loadData;
+</script>
+
+<%- include('../partials/footer') %>

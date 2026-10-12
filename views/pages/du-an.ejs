@@ -1,391 +1,550 @@
 <%- include('../partials/header') %>
 <%- include('../partials/sidebar') %>
+
 <main class="flex-1 p-8 overflow-y-auto bg-gray-100 custom-scrollbar">
     <div class="max-w-[1600px] mx-auto">
-<div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-    <div>
-        <h1 class="text-2xl font-black text-slate-800 tracking-tight text-blue-600 uppercase">Quản lý Dự án Công Ty</h1>
-        <p class="text-sm text-gray-500 italic">Theo dõi tiến độ, đầu việc và lợi nhuận thuần dự án</p>
-    </div>
-    <button onclick="openProjectModal()" class="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95 uppercase text-xs">
-        <i class="fas fa-project-diagram mr-2"></i>Tạo Dự án mới
-    </button>
-</div>
-
-<div class="grid grid-cols-1 gap-6" id="project-list"></div>
-
-<div id="modalProject" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm overflow-y-auto">
-    <div class="bg-white rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl my-8 animate-in fade-in zoom-in duration-200">
-        <div class="bg-slate-900 p-4 text-white flex justify-between items-center">
-            <div class="flex space-x-6" id="project-tabs">
-                <button onclick="switchProjectTab('p-info')" class="text-xs font-black p-tab border-b-2 border-blue-400 text-blue-400 uppercase tracking-widest">1. Thông tin chung</button>
-                <button onclick="switchProjectTab('p-tasks')" class="text-xs font-black p-tab text-gray-400 uppercase tracking-widest">2. Đầu việc (Tasks)</button>
-                <button onclick="switchProjectTab('p-finance')" class="text-xs font-black p-tab text-gray-400 uppercase tracking-widest">3. Tài chính & Lợi nhuận</button>
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-blue-600 tracking-tight uppercase">Quản lý Dự án</h1>
+                <p class="text-sm text-gray-500 italic">Quản trị dự án & Nhật ký tài chính chi tiết</p>
             </div>
-            <button onclick="closeProjectModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-times-circle text-2xl"></i></button>
+            <button onclick="openInfoModal()" class="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-blue-700 transition-all active:scale-95 uppercase text-xs">
+                <i class="fas fa-plus-circle mr-2"></i>Khởi tạo Dự án mới
+            </button>
         </div>
 
-        <div class="p-8">
-            <div id="p-info" class="p-content block">
-                <form id="formProject" class="grid grid-cols-12 gap-8">
-                    <input type="hidden" id="p_id">
-                    <div class="col-span-12 lg:col-span-7 space-y-5">
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Tên dự án</label>
-                            <input type="text" id="p_name" class="w-full border-b-2 border-slate-100 py-2 font-black text-xl outline-none focus:border-blue-500 transition" placeholder="VD: Thiết kế hệ thống điều khiển trạm bơm...">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Khách hàng</label>
-                                <select id="p_maKH" class="w-full border-2 border-slate-100 rounded-xl p-3 font-bold text-sm bg-white outline-none focus:border-blue-500"></select>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Người chủ trì (PM)</label>
-                                <select id="p_leader" class="w-full border-2 border-slate-100 rounded-xl p-3 font-bold text-sm bg-white outline-none focus:border-blue-500"></select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Ngày bắt đầu</label>
-                                <input type="date" id="p_start" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Dự kiến kết thúc</label>
-                                <input type="date" id="p_end" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none">
-                            </div>
-                        </div>
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-900 text-[11px] font-black text-slate-300 uppercase tracking-widest">
+                        <tr>
+                            <th class="p-4">Trạng thái</th>
+                            <th class="p-4 min-w-[200px]">Dự án</th>
+                            <th class="p-4">Phân loại</th>
+                            <th class="p-4">Khách hàng</th>
+                            <th class="p-4">PM</th>
+                            <th class="p-4">Tiến độ</th>
+                            <th class="p-4 text-right">Hợp đồng</th>
+                            <th class="p-4 text-center">Xử lý</th>
+                            <th class="p-4 text-center">Quản trị</th>
+                        </tr>
+                    </thead>
+                    <tbody id="project-tbody" class="text-sm font-medium text-slate-700"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="modalInfo" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                <div class="bg-slate-900 p-5 text-white flex justify-between items-center">
+                    <span class="text-xs font-black uppercase tracking-widest">Cấu hình khung Dự án</span>
+                    <button onclick="closeModal('modalInfo')"><i class="fas fa-times-circle text-xl"></i></button>
+                </div>
+                <form id="formInfo" class="p-8 grid grid-cols-2 gap-5" onsubmit="saveProjectInfo(event)">
+                    <input type="hidden" id="info_id">
+                    
+                    <div class="col-span-2">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Tên dự án (Hiển thị)</label>
+                        <input type="text" id="info_name" oninput="autoGenFolderName(this.value)" class="w-full border-2 border-slate-100 rounded-xl p-3 font-bold outline-none focus:border-blue-500" required>
                     </div>
-                    <div class="col-span-12 lg:col-span-5 space-y-5">
-                        <div class="p-5 bg-blue-50 rounded-3xl border border-blue-100">
-                            <label class="block text-[10px] font-black text-blue-400 uppercase mb-2 italic">Giá trị hợp đồng (VNĐ)</label>
-                            <input type="number" id="p_contract_value" class="w-full bg-transparent text-3xl font-black text-blue-700 outline-none" value="0" oninput="calculateProjectProfit()">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Trạng thái dự án</label>
-                            <select id="p_status" class="w-full border-2 border-slate-100 rounded-xl p-3 font-black text-blue-600 uppercase text-xs">
-                                <option value="Khởi tạo">Khởi tạo</option>
-                                <option value="Đang triển khai">Đang triển khai</option>
-                                <option value="Đã hoàn thành">Đã hoàn thành</option>
-                                <option value="Tạm dừng">Tạm dừng</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Mô tả tóm tắt</label>
-                            <textarea id="p_desc" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm outline-none" rows="3"></textarea>
-                        </div>
+
+                    <div class="col-span-2">
+                        <label class="block text-[10px] font-black text-orange-500 uppercase mb-1 italic">Tên Folder Drive (Không dấu)</label>
+                        <input type="text" id="info_folder_name" class="w-full border-2 border-orange-50 bg-orange-50/30 rounded-xl p-3 font-mono text-xs outline-none focus:border-orange-400" required>
+                    </div>
+
+                    <div class="col-span-2 md:col-span-1">
+                        <label class="block text-[10px] font-black text-blue-500 uppercase mb-1">Phân loại Dự án</label>
+                        <select id="info_type" class="w-full border-2 border-blue-100 bg-blue-50 rounded-xl p-3 text-sm font-black text-blue-700 outline-none focus:border-blue-500">
+                            <option value="Dự án công ty">Dự án công ty</option>
+                            <option value="Dự án ngoài">Dự án ngoài (Cty & PM)</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2 md:col-span-1">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Khách hàng</label>
+                        <select id="info_maKH" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold"></select>
+                    </div>
+                    
+                    <div class="col-span-1">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Quản lý (PM)</label>
+                        <select id="info_leader" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm font-bold"></select>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Trạng thái</label>
+                        <select id="info_status" class="w-full border-2 border-slate-100 rounded-xl p-3 font-black text-slate-600 uppercase text-xs"></select>
+                    </div>
+
+                    <div class="col-span-2 mt-2">
+                        <label class="block text-[10px] font-black text-emerald-500 uppercase mb-1 italic">Giá trị hợp đồng (VNĐ)</label>
+                        <input type="text" id="info_contract" class="w-full border-2 border-emerald-100 bg-emerald-50 rounded-xl p-3 font-black text-emerald-700 text-xl" value="0" oninput="formatCurrency(this)">
+                    </div>
+
+                    <div class="col-span-1">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Bắt đầu</label>
+                        <input type="date" id="info_start" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Kết thúc</label>
+                        <input type="date" id="info_end" class="w-full border-2 border-slate-100 rounded-xl p-3 text-sm">
+                    </div>
+                    
+                    <div class="col-span-2 flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" onclick="closeModal('modalInfo')" class="text-xs font-bold text-gray-400 uppercase tracking-widest">Hủy</button>
+                        <button type="submit" class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs shadow-lg">Lưu dự án</button>
                     </div>
                 </form>
             </div>
+        </div>
 
-            <div id="p-tasks" class="p-content hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-black text-slate-700 uppercase text-xs tracking-widest">Danh sách hạng mục công việc</h3>
-                    <button onclick="addTaskRow()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-slate-200 uppercase tracking-tighter transition">+ Thêm đầu việc</button>
+        <div id="modalTasks" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-white rounded-3xl w-full max-w-7xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
+                <div class="bg-orange-500 p-5 text-white flex justify-between items-center">
+                    <span class="text-sm font-black uppercase tracking-widest">Danh sách đầu việc Dự án</span>
+                    <button onclick="closeModal('modalTasks')"><i class="fas fa-times-circle text-xl"></i></button>
                 </div>
-                <div class="overflow-hidden border border-slate-100 rounded-2xl">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase border-b">
-                            <tr>
-                                <th class="p-4">Tên đầu việc</th>
-                                <th class="p-4">Phụ trách</th>
-                                <th class="p-4">Deadline</th>
-                                <th class="p-4 text-center">Tiến độ (%)</th>
-                                <th class="p-4 text-center">Xóa</th>
-                            </tr>
-                        </thead>
-                        <tbody id="task-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="p-finance" class="p-content hidden">
-                <div class="grid grid-cols-12 gap-8">
-                    <div class="col-span-12 lg:col-span-4 bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">
-                        <h4 class="text-[10px] font-black text-blue-600 uppercase mb-4 italic flex items-center">
-                            <i class="fas fa-arrow-down mr-2"></i> Thu tiền khách hàng
-                        </h4>
-                        <div id="p_list_payments" class="space-y-2 mb-4 max-h-48 overflow-y-auto pr-2"></div>
-                        <div class="flex gap-2">
-                            <input type="date" id="add_p_pay_date" class="text-[10px] border-2 border-white rounded-xl p-2 w-28 shadow-sm">
-                            <input type="number" id="add_p_pay_amount" placeholder="Số tiền..." class="text-[10px] border-2 border-white rounded-xl p-2 flex-1 font-bold shadow-sm">
-                            <button type="button" onclick="addProjectFinance('payment')" class="bg-blue-600 text-white px-4 rounded-xl font-black shadow-lg">+</button>
-                        </div>
+                <div class="p-6">
+                    <div class="flex justify-end mb-4">
+                        <button onclick="addTaskRow()" class="bg-slate-900 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter hover:bg-black transition">+ Thêm hạng mục</button>
                     </div>
-
-                    <div class="col-span-12 lg:col-span-4 bg-red-50/50 p-6 rounded-[2rem] border border-red-100">
-                        <h4 class="text-[10px] font-black text-red-600 uppercase mb-4 italic flex items-center">
-                            <i class="fas fa-arrow-up mr-2"></i> Chi phí dự án (Vật tư, linh kiện...)
-                        </h4>
-                        <div id="p_list_expenses" class="space-y-2 mb-4 max-h-48 overflow-y-auto pr-2"></div>
-                        <div class="flex gap-2">
-                            <input type="date" id="add_p_exp_date" class="text-[10px] border-2 border-white rounded-xl p-2 w-28 shadow-sm">
-                            <input type="number" id="add_p_exp_amount" placeholder="Số tiền..." class="text-[10px] border-2 border-white rounded-xl p-2 flex-1 font-bold shadow-sm">
-                            <button type="button" onclick="addProjectFinance('expense')" class="bg-red-600 text-white px-4 rounded-xl font-black shadow-lg">+</button>
-                        </div>
+                    <div class="max-h-[60vh] overflow-y-auto border rounded-2xl custom-scrollbar">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead class="bg-slate-50 sticky top-0 z-10 text-[10px] font-black text-slate-500 uppercase border-b">
+                                <tr>
+                                    <th class="p-4 w-[40%]">Nội dung</th><th class="p-4">Bắt đầu</th><th class="p-4">Kết thúc</th>
+                                    <th class="p-4 text-center w-[100px]">Tiến độ</th><th class="p-4">Ghi chú</th><th class="p-4 text-center">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="task-tbody"></tbody>
+                        </table>
                     </div>
-
-                    <div class="col-span-12 lg:col-span-4 space-y-4">
-                        <div class="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl space-y-6 border-4 border-slate-800 relative overflow-hidden">
-                            <div class="border-b border-slate-800 pb-4">
-                                <span class="text-[9px] text-slate-500 uppercase font-black block mb-1 italic">Giá trị hợp đồng</span>
-                                <span id="res_p_contract" class="text-2xl font-black text-white">0 đ</span>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <span class="text-[9px] text-red-400 uppercase font-black block mb-1">Tổng chi phí</span>
-                                    <span id="res_p_total_exp" class="text-lg font-black text-red-500">0 đ</span>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-[9px] text-emerald-400 uppercase font-black block mb-1">Lợi nhuận thuần</span>
-                                    <span id="res_p_profit" class="text-2xl font-black text-emerald-400">0 đ</span>
-                                </div>
-                            </div>
-                            <div class="pt-4 border-t border-slate-800">
-                                <span class="text-[9px] text-blue-400 uppercase font-black block mb-1">Dư nợ khách hàng (Cần thu)</span>
-                                <span id="res_p_debt" class="text-xl font-black text-blue-400">0 đ</span>
-                            </div>
-                        </div>
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="saveTasksOnly()" class="bg-orange-500 text-white px-10 py-4 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition">Cập nhật hạng mục</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="p-6 border-t bg-slate-50 flex justify-end items-center gap-4">
-            <button onclick="closeProjectModal()" class="px-6 py-3 text-slate-400 font-bold uppercase text-[10px] hover:text-red-500 transition">Hủy bỏ</button>
-            <button onclick="saveProject()" class="bg-blue-600 text-white px-12 py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700 transition active:scale-95 uppercase text-xs tracking-widest">
-                Lưu toàn bộ dữ liệu dự án
-            </button>
+        <div id="modalFinance" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div class="bg-slate-50 rounded-2xl w-full max-w-6xl h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+                <!-- Tieu de -->
+                <div class="bg-white px-6 py-4 border-b flex justify-between items-center shrink-0">
+                    <div>
+                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest" id="fin_modal_type">Tài chính dự án</p>
+                        <h2 class="text-lg font-black text-slate-800 leading-tight" id="fin_modal_title">Nhật ký Tài chính Dự án</h2>
+                    </div>
+                    <button onclick="closeModal('modalFinance')" class="text-slate-400 hover:text-red-500"><i class="fas fa-times-circle text-2xl"></i></button>
+                </div>
+
+                <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                    <div id="fin_notice" class="hidden bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4"></div>
+
+                    <!-- ===== 3 cau hoi chinh: khach da tra chua? du an lai bao nhieu? PM con no cong ty bao nhieu? ===== -->
+                    <div id="fin_panels" class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                        <section class="bg-white rounded-2xl border border-slate-200 p-5">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-3"><i class="fas fa-user-tie mr-1"></i>1. Khách hàng</h3>
+                            <div id="fin_panel_customer"></div>
+                        </section>
+                        <section class="bg-white rounded-2xl border border-slate-200 p-5">
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-3"><i class="fas fa-chart-line mr-1"></i>2. Lãi lỗ dự án</h3>
+                            <div id="fin_panel_profit"></div>
+                        </section>
+                        <section id="box_external_summary" class="hidden bg-white rounded-2xl border border-slate-200 p-5">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-xs font-black text-slate-500 uppercase tracking-wider"><i class="fas fa-handshake mr-1"></i>3. Công ty và PM</h3>
+                                <label class="flex items-center gap-1 text-xs text-slate-500">Công ty hưởng
+                                    <input type="number" id="fin_profit_ratio" value="50" min="0" max="100" onchange="updateProfitRatio()" class="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm font-bold text-slate-800 text-center outline-none focus:ring-2 focus:ring-blue-400">%
+                                </label>
+                            </div>
+                            <div id="fin_panel_split"></div>
+                        </section>
+                    </div>
+
+                    <!-- ===== Nhat ky: moi lan xem 1 so ===== -->
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                        <div class="flex flex-wrap justify-between items-center gap-3 px-4 pt-4">
+                            <div id="fin_tabs" class="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl"></div>
+                            <button onclick="addFinanceRow(finTab)" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-900"><i class="fas fa-plus mr-1"></i>Thêm dòng</button>
+                        </div>
+                        <p id="fin_tab_hint" class="px-4 pt-2 text-xs text-slate-400"></p>
+                        <div class="p-4">
+                            <div id="fin_table_wrap" class="max-h-[38vh] overflow-y-auto border border-slate-200 rounded-xl custom-scrollbar">
+                                <table class="w-full text-left text-sm border-collapse">
+                                    <thead class="bg-slate-50 sticky top-0 text-[11px] font-bold text-slate-500 uppercase border-b">
+                                        <tr><th class="px-3 py-2 w-44">Ngày</th><th class="px-3 py-2 w-48 text-right">Số tiền (đ)</th><th class="px-3 py-2" id="fin_note_head">Ghi chú</th><th class="px-3 py-2 w-12"></th></tr>
+                                    </thead>
+                                    <tbody id="fin_rows"></tbody>
+                                    <tfoot id="fin_rows_foot"></tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 border-t bg-white flex justify-between items-center shrink-0">
+                    <p class="text-xs text-slate-400">Số liệu phía trên tự tính lại khi bạn sửa nhật ký. Bấm Lưu để ghi nhận.</p>
+                    <div class="flex gap-3">
+                        <button onclick="closeModal('modalFinance')" class="px-5 py-2.5 border rounded-xl text-sm text-slate-600 hover:bg-slate-100">Đóng</button>
+                        <button onclick="saveFinanceOnly()" class="bg-emerald-600 text-white px-8 py-2.5 rounded-xl font-bold text-sm shadow hover:bg-emerald-700 active:scale-95 transition"><i class="fas fa-save mr-1"></i>Lưu nhật ký tài chính</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</div>
-</div><main>
+</main>
 
 <script>
 let allProjects = [];
-let currentProject = { tasks: [], payments: [] };
-let currentProjectExpenses = [];
+let currentProjectId = null;
+let currentTasks = [];
+let currentPayments = [];
+let currentExpenses = [];
+let currentPmExpenses = [];
+let currentCompanyPayments = [];
 
-// --- 1. TẢI DANH SÁCH DỰ ÁN ---
+// --- UTILS ---
+function autoGenFolderName(str) {
+    let slug = str.toLowerCase().replace(/á|à|ả|ạ|ã|ă|ắ|ằ|ẳ|ẵ|ặ|â|ấ|ầ|ẩ|ẫ|ậ/gi, 'a')
+        .replace(/é|è|ẻ|ẽ|ẹ|ê|ế|ề|ể|ễ|ệ/gi, 'e').replace(/i|í|ì|ỉ|ĩ|ị/gi, 'i')
+        .replace(/ó|ò|ỏ|õ|ọ|ô|ố|ồ|ổ|ỗ|ộ|ơ|ớ|ờ|ở|ỡ|ợ/gi, 'o').replace(/ú|ù|ủ|ũ|ụ|ư|ứ|ừ|ử|ữ|ự/gi, 'u')
+        .replace(/ý|ỳ|ỷ|ỹ|ỵ/gi, 'y').replace(/đ/gi, 'd')
+        .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '-');
+    document.getElementById('info_folder_name').value = slug;
+}
+
+function formatVND(num) { return new Intl.NumberFormat('vi-VN').format(Math.round(num || 0)) + ' đ'; }
+function formatCurrency(input) {
+    let val = input.value.replace(/[^0-9]/g, '');
+    input.value = val ? new Intl.NumberFormat('vi-VN').format(val) : '';
+}
+function getRawNumber(id) {
+    const val = document.getElementById(id).value;
+    return val ? parseFloat(val.replace(/[^0-9.-]+/g,"")) : 0;
+}
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// --- 1. RENDER LIST ---
 async function renderProjects() {
     try {
         const res = await fetch('/api/projects');
         allProjects = await res.json();
-        const list = document.getElementById('project-list');
-        if (!list) return;
-        list.innerHTML = '';
-
-        if (allProjects.length === 0) {
-            list.innerHTML = `<div class="bg-white p-16 rounded-[3rem] border-4 border-dashed border-slate-100 text-center text-slate-300 font-black uppercase text-sm tracking-widest">Chưa có dự án nào được tạo.</div>`;
-            return;
-        }
-
-        allProjects.forEach(p => {
-            const paid = (p.payments || []).reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
-            const expenses = (p.project_expenses ? JSON.parse(p.project_expenses) : []).reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
-            const debt = (p.contractValue || 0) - paid;
+        const tbody = document.getElementById('project-tbody');
+        tbody.innerHTML = allProjects.map(p => {
             const tasks = p.tasks || [];
             const progress = tasks.length ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / tasks.length) : 0;
+            const typeColor = p.type === 'Dự án ngoài' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600';
 
-            list.innerHTML += `
-                <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-all group relative overflow-hidden">
-                    <div class="flex flex-col lg:flex-row justify-between gap-8">
-                        <div class="flex-1">
-                            <div class="flex items-center gap-4 mb-4">
-                                <h3 class="text-xl font-black text-slate-800 uppercase tracking-tighter">${p.name}</h3>
-                                <span class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${p.status === 'Đã hoàn thành' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}">${p.status}</span>
-                            </div>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-[11px] font-bold uppercase">
-                                <div><p class="text-slate-400 mb-1">Khách hàng</p><p class="text-slate-700">${p.tenKH || 'N/A'}</p></div>
-                                <div><p class="text-slate-400 mb-1">Chủ trì (PM)</p><p class="text-slate-700">${p.leader}</p></div>
-                                <div><p class="text-slate-400 mb-1">Thời gian</p><p class="text-slate-700">${p.start || '--'} <i class="fas fa-arrow-right mx-1 text-[8px]"></i> ${p.end || '--'}</p></div>
-                                <div><p class="text-slate-400 mb-1">Tiến độ tổng</p><p class="text-blue-600 font-black text-lg">${progress}%</p></div>
-                            </div>
+            return `
+                <tr class="border-b hover:bg-slate-50 transition-colors">
+                    <td class="p-4"><span class="px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-blue-100 text-blue-600">${p.status}</span></td>
+                    <td class="p-4 font-bold text-slate-800 text-xs uppercase">${p.name}</td>
+                    <td class="p-4"><span class="px-2 py-0.5 rounded text-[9px] font-black uppercase ${typeColor}">${p.type || 'Dự án công ty'}</span></td>
+                    <td class="p-4 text-xs text-slate-500">${p.tenKH || '---'}</td>
+                    <td class="p-4 text-xs font-bold text-slate-600">${p.leader || '--'}</td>
+                    <td class="p-4"><span class="text-[10px] font-black text-blue-600">${progress}%</span></td>
+                    <td class="p-4 text-right font-black text-slate-700 text-xs">${formatVND(p.contractValue)}</td>
+                    <td class="p-4 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="openTasksModal(${p.id})" title="Đầu việc" class="bg-orange-50 text-orange-600 w-8 h-8 rounded-lg hover:bg-orange-500 hover:text-white transition"><i class="fas fa-tasks text-[10px]"></i></button>
+                            <button onclick="openFinanceModal(${p.id})" title="Tài chính" class="bg-emerald-50 text-emerald-600 w-8 h-8 rounded-lg hover:bg-emerald-600 hover:text-white transition"><i class="fas fa-file-invoice-dollar text-[10px]"></i></button>
+                            <a href="${p.drive_folder_url || '#'}" target="_blank" title="Drive" class="bg-blue-50 text-blue-600 w-8 h-8 rounded-lg hover:bg-blue-600 hover:text-white transition flex items-center justify-center ${!p.drive_folder_url ? 'opacity-30 cursor-not-allowed' : ''}"><i class="fab fa-google-drive text-[10px]"></i></a>
                         </div>
-                        <div class="lg:w-72 bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-2 relative">
-                            <div class="flex justify-between text-[11px] font-bold"><span>Hợp đồng:</span><span class="text-slate-800">${formatVND(p.contractValue)} đ</span></div>
-                            <div class="flex justify-between text-[11px] font-bold text-red-500"><span>Chi phí:</span><span>${formatVND(expenses)} đ</span></div>
-                            <div class="flex justify-between text-sm font-black text-blue-600 border-t border-slate-200 pt-2 uppercase"><span>Còn nợ:</span><span>${formatVND(debt)} đ</span></div>
-                            <div class="flex gap-2 mt-4">
-                                <button onclick="openProjectModal(${p.id})" class="flex-1 bg-slate-900 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition active:scale-95 shadow-lg shadow-slate-200">
-                                    <i class="fas fa-edit mr-2"></i>Xử lý dự án
-                                </button>
-                                <button onclick="deleteProject(${p.id})" class="px-5 bg-red-50 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
+                    </td>
+                    <td class="p-4 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="openInfoModal(${p.id})" class="text-blue-500 hover:scale-110 transition"><i class="fas fa-edit text-xs"></i></button>
+                            <button onclick="deleteProject(${p.id})" class="text-red-300 hover:text-red-600 transition"><i class="fas fa-trash-alt text-xs"></i></button>
                         </div>
-                    </div>
-                </div>`;
-        });
+                    </td>
+                </tr>`;
+        }).join('');
     } catch (e) { console.error(e); }
 }
 
-// --- 2. TÀI CHÍNH & LỢI NHUẬN ---
-function calculateProjectProfit() {
-    const contract = parseInt(document.getElementById('p_contract_value').value) || 0;
-    const totalPaid = (currentProject.payments || []).reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
-    const totalExp = currentProjectExpenses.reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
-    
-    document.getElementById('res_p_contract').innerText = formatVND(contract) + ' đ';
-    document.getElementById('res_p_total_exp').innerText = formatVND(totalExp) + ' đ';
-    document.getElementById('res_p_profit').innerText = formatVND(contract - totalExp) + ' đ';
-    document.getElementById('res_p_debt').innerText = formatVND(contract - totalPaid) + ' đ';
-}
-
-function addProjectFinance(type) {
-    const dateInput = document.getElementById(`add_p_${type === 'payment' ? 'pay' : 'exp'}_date`);
-    const amountInput = document.getElementById(`add_p_${type === 'payment' ? 'pay' : 'exp'}_amount`);
-    const date = dateInput.value;
-    const amount = parseInt(amountInput.value);
-    
-    if(!date || !amount) return alert("Vui lòng nhập đủ thông tin mốc tài chính!");
-
-    if(type === 'payment') currentProject.payments.push({date, amount});
-    else currentProjectExpenses.push({date, amount});
-
-    renderFinanceLists();
-    calculateProjectProfit();
-    amountInput.value = '';
-}
-
-function renderFinanceLists() {
-    const draw = (list, targetId, colorClass) => {
-        document.getElementById(targetId).innerHTML = list.map((p, i) => `
-            <div class="flex justify-between bg-white p-2.5 rounded-xl text-[10px] shadow-sm border border-${colorClass}-100">
-                <span class="font-bold text-slate-500">${p.date}</span>
-                <span class="text-${colorClass}-600 font-black">${formatVND(p.amount)}</span>
-                <button type="button" onclick="${list === currentProject.payments ? 'currentProject.payments' : 'currentProjectExpenses'}.splice(${i},1); renderFinanceLists(); calculateProjectProfit();" class="text-red-300 hover:text-red-500"><i class="fas fa-times-circle"></i></button>
-            </div>
-        `).join('');
-    };
-    draw(currentProject.payments, 'p_list_payments', 'blue');
-    draw(currentProjectExpenses, 'p_list_expenses', 'red');
-}
-
-// --- 3. ĐẦU VIỆC (TASKS) ---
-function renderTasks() {
-    const tbody = document.getElementById('task-tbody');
-    tbody.innerHTML = (currentProject.tasks || []).map((t, i) => `
-        <tr class="border-b hover:bg-slate-50 transition">
-            <td class="p-3"><input type="text" value="${t.name}" onchange="currentProject.tasks[${i}].name=this.value" class="w-full bg-transparent p-1 outline-none font-bold text-slate-700"></td>
-            <td class="p-3"><input type="text" value="${t.owner}" onchange="currentProject.tasks[${i}].owner=this.value" class="w-full bg-transparent p-1 outline-none text-slate-500 font-medium"></td>
-            <td class="p-3"><input type="date" value="${t.end}" onchange="currentProject.tasks[${i}].end=this.value" class="w-full bg-transparent p-1 outline-none text-xs"></td>
-            <td class="p-3"><input type="number" value="${t.progress}" onchange="currentProject.tasks[${i}].progress=this.value; calculateProjectProgress();" class="w-full bg-transparent p-1 text-center font-black text-blue-600 outline-none"></td>
-            <td class="p-3 text-center"><button onclick="currentProject.tasks.splice(${i},1); renderTasks();" class="text-red-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button></td>
-        </tr>
-    `).join('');
-}
-function addTaskRow() {
-    if(!currentProject.tasks) currentProject.tasks = [];
-    currentProject.tasks.push({name: 'Hạng mục mới', owner: '', end: '', progress: 0});
-    renderTasks();
-}
-
-// --- 4. HÀM MỞ/LƯU MODAL ---
-async function openProjectModal(id = null) {
+// --- 2. MODAL INFO ---
+async function openInfoModal(id = null) {
     await loadSelectionData();
-    document.getElementById('modalProject').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    
+    document.getElementById('formInfo').reset();
+    document.getElementById('info_id').value = '';
+    document.getElementById('info_type').value = 'Dự án công ty'; // Default
     if(id) {
-        const found = allProjects.find(p => p.id == id);
-        currentProject = JSON.parse(JSON.stringify(found));
-        currentProjectExpenses = currentProject.project_expenses ? (typeof currentProject.project_expenses === 'string' ? JSON.parse(currentProject.project_expenses) : currentProject.project_expenses) : [];
-        
-        document.getElementById('p_id').value = currentProject.id;
-        document.getElementById('p_name').value = currentProject.name;
-        document.getElementById('p_maKH').value = currentProject.maKH || "";
-        document.getElementById('p_leader').value = currentProject.leader || "";
-        document.getElementById('p_status').value = currentProject.status;
-        document.getElementById('p_contract_value').value = currentProject.contractValue;
-        document.getElementById('p_start').value = currentProject.start;
-        document.getElementById('p_end').value = currentProject.end;
-        document.getElementById('p_desc').value = currentProject.desc;
-    } else {
-        currentProject = { tasks: [], payments: [] };
-        currentProjectExpenses = [];
-        document.getElementById('formProject').reset();
-        document.getElementById('p_id').value = '';
+        const p = allProjects.find(x => x.id == id);
+        document.getElementById('info_id').value = p.id;
+        document.getElementById('info_name').value = p.name;
+        document.getElementById('info_type').value = p.type || 'Dự án công ty';
+        document.getElementById('info_folder_name').value = p.folder_name || '';
+        document.getElementById('info_maKH').value = p.maKH;
+        document.getElementById('info_leader').value = p.leader;
+        document.getElementById('info_contract').value = new Intl.NumberFormat('vi-VN').format(p.contractValue || 0);
+        document.getElementById('info_start').value = p.start;
+        document.getElementById('info_end').value = p.end;
+        document.getElementById('info_status').value = p.status;
     }
-    renderTasks();
-    renderFinanceLists();
-    calculateProjectProfit();
-    switchProjectTab('p-info');
+    document.getElementById('modalInfo').classList.remove('hidden');
 }
 
-async function saveProject() {
+async function saveProjectInfo(e) {
+    e.preventDefault();
     const data = {
-        id: document.getElementById('p_id').value || null,
-        name: document.getElementById('p_name').value,
-        maKH: document.getElementById('p_maKH').value,
-        leader: document.getElementById('p_leader').value,
-        status: document.getElementById('p_status').value,
-        contractValue: parseInt(document.getElementById('p_contract_value').value) || 0,
-        start: document.getElementById('p_start').value,
-        end: document.getElementById('p_end').value,
-        desc: document.getElementById('p_desc').value,
-        tasks: currentProject.tasks,
-        payments: currentProject.payments,
-        project_expenses: currentProjectExpenses
+        id: document.getElementById('info_id').value || null,
+        name: document.getElementById('info_name').value,
+        type: document.getElementById('info_type').value,
+        folder_name: document.getElementById('info_folder_name').value,
+        maKH: document.getElementById('info_maKH').value,
+        leader: document.getElementById('info_leader').value,
+        contractValue: getRawNumber('info_contract'),
+        start: document.getElementById('info_start').value,
+        end: document.getElementById('info_end').value,
+        status: document.getElementById('info_status').value
     };
 
-    if(!data.name || !data.maKH) return alert("Vui lòng nhập tên dự án và chọn khách hàng!");
-
-    const res = await fetch('/api/projects/save', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
-    });
-
-    if((await res.json()).success) {
-        closeProjectModal();
-        renderProjects();
-    }
-}
-
-// --- 5. TIỆN ÍCH KHÁC ---
-async function loadSelectionData() {
-    const resKH = await fetch('/api/customers');
-    const customers = await resKH.json();
-    document.getElementById('p_maKH').innerHTML = '<option value="">-- Chọn khách hàng --</option>' + customers.map(kh => `<option value="${kh.maKH}">${kh.tenKH}</option>`).join('');
-
-    const resUsers = await fetch('/api/users');
-    const users = await resUsers.json();
-    document.getElementById('p_leader').innerHTML = '<option value="">-- Chọn chủ trì --</option>' + users.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
-}
-
-function switchProjectTab(tabId) {
-    document.querySelectorAll('.p-content').forEach(c => c.classList.replace('block', 'hidden'));
-    document.getElementById(tabId).classList.replace('hidden', 'block');
-    document.querySelectorAll('.p-tab').forEach(t => t.classList.remove('text-blue-400', 'border-blue-400'));
-    event.currentTarget.classList.add('text-blue-400', 'border-blue-400');
-}
-
-async function deleteProject(id) {
-    if (!confirm("⚠️ CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn dự án này không?\n(Dữ liệu đầu việc và tài chính sẽ mất hết, không thể khôi phục)")) return;
+    const isNew = !data.id;
+    Swal.fire({ title: isNew ? 'Tạo Drive...' : 'Cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        const res = await fetch(`/api/projects/${id}`, {
-            method: 'DELETE'
-        });
-        
+        const res = await fetch('/api/projects/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        const result = await res.json(); 
+        if (res.ok && result.success) {
+            Swal.fire({ icon: 'success', title: 'Thành công!', timer: 1500, showConfirmButton: false });
+            closeModal('modalInfo');
+            renderProjects();
+        } else { Swal.fire('Lỗi!', result.error, 'error'); }
+    } catch (err) { Swal.fire('Lỗi', 'Mất kết nối server', 'error'); }
+}
+
+// --- 3. MODAL TASKS (Giữ nguyên) ---
+function openTasksModal(id) {
+    const p = allProjects.find(x => x.id == id);
+    currentProjectId = id;
+    currentTasks = [...(p.tasks || [])];
+    renderTaskTable();
+    document.getElementById('modalTasks').classList.remove('hidden');
+}
+function renderTaskTable() {
+    document.getElementById('task-tbody').innerHTML = currentTasks.map((t, i) => `
+        <tr class="border-b hover:bg-slate-50">
+            <td class="p-3"><textarea onchange="currentTasks[${i}].name=this.value" class="w-full bg-transparent outline-none text-xs font-bold" rows="1">${t.name || ''}</textarea></td>
+            <td class="p-3"><input type="date" value="${t.start || ''}" onchange="currentTasks[${i}].start=this.value" class="text-[10px] w-full bg-transparent outline-none"></td>
+            <td class="p-3"><input type="date" value="${t.end || ''}" onchange="currentTasks[${i}].end=this.value" class="text-[10px] w-full bg-transparent outline-none"></td>
+            <td class="p-3"><input type="number" value="${t.progress || 0}" onchange="currentTasks[${i}].progress=this.value" class="w-full text-center text-blue-600 font-black text-xs bg-transparent outline-none"></td>
+            <td class="p-3"><textarea onchange="currentTasks[${i}].note=this.value" class="w-full bg-slate-100 p-1 text-[10px] italic rounded outline-none" rows="1">${t.note || ''}</textarea></td>
+            <td class="p-3 text-center"><button onclick="currentTasks.splice(${i},1); renderTaskTable();" class="text-red-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button></td>
+        </tr>`).join('');
+}
+function addTaskRow() { currentTasks.push({ name: '', start: '', end: '', progress: 0, note: '' }); renderTaskTable(); }
+async function saveTasksOnly() {
+    const p = allProjects.find(x => x.id == currentProjectId);
+    await fetch('/api/projects/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...p, tasks: currentTasks}) });
+    closeModal('modalTasks'); renderProjects();
+}
+
+// --- 4. MODAL FINANCE LỚN (ĐÃ UPDATE CHO DỰ ÁN NGOÀI) ---
+// ===================== TAI CHINH DU AN =====================
+// 4 so nhat ky; du an cong ty chi dung 2 so dau
+let finTab = 'payment';
+const FIN_TABS = [
+    { key: 'payment',         label: 'Khách thanh toán',   note: 'Ghi chú', external: false, hint: 'Các lần khách hàng trả tiền cho dự án.' },
+    { key: 'expense',         label: 'Công ty chi',        note: 'Lý do',   external: false, hint: 'Chi phí của dự án do công ty bỏ tiền ra.' },
+    { key: 'pm_expense',      label: 'PM tự chi',          note: 'Lý do',   external: true,  hint: 'Chi phí của dự án do PM tự bỏ tiền ra.' },
+    { key: 'company_payment', label: 'PM trả công ty',     note: 'Ghi chú', external: true,  hint: 'Các lần PM chuyển tiền về công ty (hoàn chi phí công ty đã chi + phần lợi nhuận của công ty).' }
+];
+function finArray(type) {
+    return { payment: currentPayments, expense: currentExpenses, pm_expense: currentPmExpenses, company_payment: currentCompanyPayments }[type];
+}
+const finSum = arr => (arr || []).reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
+function finRatio() {
+    const v = parseInt(document.getElementById('fin_profit_ratio').value, 10);
+    return Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : 50; // 0% la gia tri hop le, khong tu doi thanh 50
+}
+
+function openFinanceModal(id) {
+    const p = allProjects.find(x => x.id == id);
+    if (!p) return;
+    currentProjectId = id;
+    // sao chep tung dong de bam Dong (khong luu) thi so lieu goc khong bi doi
+    currentPayments = (p.payments || []).map(r => ({ ...r }));
+    currentExpenses = (p.project_expenses || []).map(r => ({ ...r }));
+    currentPmExpenses = (p.pm_expenses || []).map(r => ({ ...r }));
+    currentCompanyPayments = (p.company_payments || []).map(r => ({ ...r }));
+
+    const external = p.type === 'Dự án ngoài';
+    document.getElementById('fin_modal_type').innerText = external ? 'Tài chính dự án ngoài (công ty và PM chia lợi nhuận)' : 'Tài chính dự án công ty';
+    document.getElementById('fin_modal_title').innerText = p.name || '';
+    document.getElementById('fin_profit_ratio').value = p.profit_ratio !== undefined && p.profit_ratio !== null ? p.profit_ratio : 50;
+    document.getElementById('box_external_summary').classList.toggle('hidden', !external);
+    document.getElementById('fin_panels').classList.toggle('lg:grid-cols-3', external);
+    document.getElementById('fin_panels').classList.toggle('lg:grid-cols-2', !external);
+
+    finTab = 'payment';
+    renderFinanceTable();
+    document.getElementById('modalFinance').classList.remove('hidden');
+}
+
+function updateProfitRatio() {
+    document.getElementById('fin_profit_ratio').value = finRatio();
+    renderFinanceTable();
+}
+function switchFinTab(key) { finTab = key; renderFinanceTable(); }
+
+// 1 dong "nhan ... so tien"; dong ket qua in dam, co mau khi can chu y
+function finLine(label, value, opts = {}) {
+    const tone = { good: 'text-emerald-600', bad: 'text-red-600', muted: 'text-slate-400' }[opts.tone] || 'text-slate-800';
+    return `<div class="flex justify-between items-baseline gap-3 ${opts.result ? 'border-t border-slate-200 mt-2 pt-2' : 'py-1'}">
+        <span class="${opts.result ? 'text-sm font-bold text-slate-700' : 'text-sm text-slate-500'}">${opts.sign ? `<span class="inline-block w-4 text-slate-400">${opts.sign}</span>` : ''}${label}</span>
+        <span class="${opts.result ? 'text-xl font-black' : 'text-sm font-semibold'} ${tone} whitespace-nowrap">${value}</span>
+    </div>`;
+}
+function finProgress(done, total, color, label) {
+    const pct = total > 0 ? Math.min(100, Math.round(done / total * 100)) : 0;
+    return `<div class="mt-3"><div class="h-2 bg-slate-100 rounded-full"><div class="h-2 rounded-full ${color}" style="width:${pct}%"></div></div>
+        <p class="text-[11px] text-slate-400 mt-1">${total > 0 ? `${label} ${pct}%` : 'Chưa có số để so sánh'}</p></div>`;
+}
+
+function renderFinanceTable() {
+    const p = allProjects.find(x => x.id == currentProjectId);
+    if (!p) return;
+    const external = p.type === 'Dự án ngoài';
+    const contract = parseFloat(p.contractValue) || 0;
+    const received = finSum(currentPayments);
+    const ctyCost = finSum(currentExpenses);
+    const pmCost = external ? finSum(currentPmExpenses) : 0;
+    const totalCost = ctyCost + pmCost;
+    const profit = contract - totalCost;
+    const owed = contract - received;
+
+    // --- Canh bao du lieu ---
+    const notices = [];
+    if (contract <= 0) notices.push('Dự án chưa có giá trị hợp đồng nên chưa tính được công nợ và lợi nhuận. Nhập giá trị hợp đồng ở nút Sửa thông tin dự án.');
+    else if (received > contract) notices.push(`Khách đã trả nhiều hơn giá trị hợp đồng ${formatVND(received - contract)}. Kiểm tra lại giá trị hợp đồng hoặc các lần thu.`);
+    const box = document.getElementById('fin_notice');
+    box.innerHTML = notices.map(t => `<p><i class="fas fa-exclamation-triangle mr-2"></i>${t}</p>`).join('');
+    box.classList.toggle('hidden', !notices.length);
+
+    // --- 1. Khach hang ---
+    document.getElementById('fin_panel_customer').innerHTML =
+        finLine('Giá trị hợp đồng', formatVND(contract)) +
+        finLine('Khách đã trả', formatVND(received), { sign: '−' }) +
+        (contract > 0
+            ? finLine(owed >= 0 ? 'Khách còn phải trả' : 'Khách trả thừa', formatVND(Math.abs(owed)), { result: true, tone: owed > 0 ? 'bad' : (owed === 0 ? 'good' : 'bad') })
+            : finLine('Khách còn phải trả', '—', { result: true, tone: 'muted' })) +
+        finProgress(received, contract, 'bg-emerald-500', 'Khách đã trả');
+
+    // --- 2. Lai lo ---
+    document.getElementById('fin_panel_profit').innerHTML =
+        finLine('Giá trị hợp đồng', formatVND(contract)) +
+        finLine('Công ty chi', formatVND(ctyCost), { sign: '−' }) +
+        (external ? finLine('PM tự chi', formatVND(pmCost), { sign: '−' }) : '') +
+        (contract > 0
+            ? finLine(profit >= 0 ? 'Lợi nhuận dự án' : 'Dự án đang lỗ', formatVND(Math.abs(profit)), { result: true, tone: profit >= 0 ? 'good' : 'bad' })
+            : finLine('Lợi nhuận dự án', '—', { result: true, tone: 'muted' })) +
+        `<p class="text-[11px] text-slate-400 mt-3">Tổng chi phí ${formatVND(totalCost)}${contract > 0 ? ` · bằng ${Math.round(totalCost / contract * 100)}% giá trị hợp đồng` : ''}</p>`;
+
+    // --- 3. Cong ty va PM (du an ngoai) ---
+    if (external) {
+        const ratioCty = finRatio();
+        const companyProfit = profit * ratioCty / 100;
+        const pmProfit = profit - companyProfit;
+        const payable = ctyCost + companyProfit;           // PM can tra cong ty = chi phi cong ty da chi + loi nhuan cua cong ty
+        const paid = finSum(currentCompanyPayments);
+        const remaining = payable - paid;
+        document.getElementById('fin_panel_split').innerHTML =
+            `<div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Lợi nhuận công ty (${ratioCty}%)</p><p class="text-base font-black text-slate-800">${formatVND(companyProfit)}</p></div>
+                <div class="bg-slate-50 rounded-xl p-3"><p class="text-[11px] text-slate-500">Lợi nhuận PM (${100 - ratioCty}%)</p><p class="text-base font-black text-slate-800">${formatVND(pmProfit)}</p></div>
+            </div>` +
+            finLine('PM cần trả công ty', formatVND(payable)) +
+            `<p class="text-[11px] text-slate-400 -mt-1 mb-1">= công ty đã chi ${formatVND(ctyCost)} + lợi nhuận công ty ${formatVND(companyProfit)}</p>` +
+            finLine('PM đã trả', formatVND(paid), { sign: '−' }) +
+            finLine(remaining >= 0 ? 'PM còn nợ công ty' : 'PM trả thừa', formatVND(Math.abs(remaining)), { result: true, tone: remaining > 0 ? 'bad' : 'good' }) +
+            finProgress(paid, payable, 'bg-blue-500', 'PM đã trả');
+    }
+
+    // --- Tab nhat ky ---
+    const tabs = FIN_TABS.filter(t => external || !t.external);
+    if (!tabs.some(t => t.key === finTab)) finTab = tabs[0].key;
+    const active = tabs.find(t => t.key === finTab);
+    document.getElementById('fin_tabs').innerHTML = tabs.map(t => {
+        const arr = finArray(t.key);
+        const on = t.key === finTab;
+        return `<button onclick="switchFinTab('${t.key}')" class="px-3 py-2 rounded-lg text-xs font-bold ${on ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}">
+            ${t.label} <span class="font-normal ${on ? 'text-slate-500' : 'text-slate-400'}">· ${arr.length} dòng · ${formatVND(finSum(arr))}</span></button>`;
+    }).join('');
+    document.getElementById('fin_tab_hint').innerText = active.hint;
+    document.getElementById('fin_note_head').innerText = active.note;
+
+    const rows = finArray(finTab);
+    const inp = 'w-full border border-transparent hover:border-slate-200 focus:border-blue-400 rounded-lg px-2 py-1.5 bg-transparent outline-none';
+    document.getElementById('fin_rows').innerHTML = rows.length ? rows.map((f, i) => `
+        <tr class="border-b last:border-0 hover:bg-slate-50">
+            <td class="px-2 py-1"><input type="date" value="${esc(f.date || '')}" onchange="updateArray('${finTab}', ${i}, 'date', this.value)" class="${inp}"></td>
+            <td class="px-2 py-1"><input type="text" inputmode="numeric" value="${f.amount ? new Intl.NumberFormat('vi-VN').format(f.amount) : ''}" placeholder="0" oninput="formatCurrency(this)" onchange="updateArray('${finTab}', ${i}, 'amount', this.value)" class="${inp} text-right font-bold text-slate-800"></td>
+            <td class="px-2 py-1"><input type="text" value="${esc(f.note || '')}" placeholder="${esc(active.note)}..." onchange="updateArray('${finTab}', ${i}, 'note', this.value)" class="${inp}"></td>
+            <td class="px-2 py-1 text-center"><button onclick="deleteArrayRow('${finTab}', ${i})" title="Xóa dòng" class="text-slate-300 hover:text-red-500"><i class="fas fa-trash"></i></button></td>
+        </tr>`).join('')
+        : `<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400 text-sm">Chưa có dòng nào. Bấm "Thêm dòng" để ghi nhận.</td></tr>`;
+    document.getElementById('fin_rows_foot').innerHTML = rows.length
+        ? `<tr class="bg-slate-50 border-t"><td class="px-4 py-2 text-xs font-bold text-slate-500 uppercase">Tổng</td><td class="px-4 py-2 text-right font-black text-slate-800">${formatVND(finSum(rows))}</td><td colspan="2"></td></tr>` : '';
+}
+
+function updateArray(type, index, field, value) {
+    const arr = finArray(type);
+    if (!arr || !arr[index]) return;
+    arr[index][field] = field === 'amount' ? (parseInt(String(value).replace(/[^0-9]/g, ''), 10) || 0) : value;
+    if (field === 'amount') renderFinanceTable(); // doi so tien thi tinh lai cac bang phia tren
+}
+
+function deleteArrayRow(type, index) {
+    finArray(type).splice(index, 1);
+    renderFinanceTable();
+}
+
+function addFinanceRow(type) {
+    finArray(type).push({ date: new Date().toLocaleDateString('en-CA'), amount: 0, note: '' });
+    finTab = type;
+    renderFinanceTable();
+    const wrap = document.getElementById('fin_table_wrap');
+    setTimeout(() => {
+        wrap.scrollTop = wrap.scrollHeight;
+        const inputs = document.querySelectorAll('#fin_rows tr:last-child input');
+        if (inputs[1]) inputs[1].focus(); // nhay thang vao o so tien cua dong moi
+    }, 50);
+}
+
+async function saveFinanceOnly() {
+    const p = allProjects.find(x => x.id == currentProjectId);
+    const data = {
+        ...p,
+        profit_ratio: finRatio(),
+        payments: currentPayments,
+        project_expenses: currentExpenses,
+        pm_expenses: currentPmExpenses,
+        company_payments: currentCompanyPayments
+    };
+    try {
+        const res = await fetch('/api/projects/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
         const result = await res.json();
-        if (result.success) {
-            alert("Đã xóa dự án thành công!");
-            renderProjects(); // Load lại danh sách
-        } else {
-            alert("Lỗi: " + result.error);
-        }
+        if (!result.success) return Swal.fire('Chưa lưu được', result.error || result.message || 'Có lỗi khi lưu nhật ký tài chính.', 'error');
+        closeModal('modalFinance');
+        renderProjects();
     } catch (e) {
-        console.error("Lỗi khi xóa dự Kong:", e);
-        alert("Không thể kết nối đến máy chủ!");
+        Swal.fire('Chưa lưu được', 'Không kết nối được máy chủ.', 'error');
     }
 }
 
-function formatVND(num) { return new Intl.NumberFormat('vi-VN').format(Math.round(num || 0)); }
-function closeProjectModal() { document.getElementById('modalProject').classList.add('hidden'); document.body.style.overflow = 'auto'; }
-
+async function loadSelectionData() {
+    const [resKH, resUsers] = await Promise.all([fetch('/api/customers'), fetch('/api/users')]);
+    const customers = await resKH.json();
+    const users = await resUsers.json();
+    document.getElementById('info_maKH').innerHTML = customers.map(kh => `<option value="${kh.maKH}">${kh.tenKH}</option>`).join('');
+    document.getElementById('info_leader').innerHTML = users.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+    document.getElementById('info_status').innerHTML = ['Khởi tạo', 'Đang triển khai', 'Đã hoàn thành', 'Tạm dừng'].map(s => `<option value="${s}">${s}</option>`).join('');
+}
+async function deleteProject(id) { if(confirm("Xóa dự án?")) { await fetch(`/api/projects/${id}`, {method:'DELETE'}); renderProjects(); }}
 window.onload = renderProjects;
 </script>
+
+<style>
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+</style>
 
 <%- include('../partials/footer') %>
